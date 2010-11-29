@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE EmptyDataDecls #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -73,32 +74,53 @@ instance RunWriterM (BB r) Program where
 
 -- LLVM Types ------------------------------------------------------------------
 
+data LLVMType
+  = Void
+  | Integer Int32
+  | Float
+  | Double
+  | PtrTo LLVMType
+  | Label
+  | FunTy [LLVMType] LLVMType
+
+instance Pretty LLVMType where
+  pp _ Void         = text "void"
+  pp _ (Integer i)  = char 'i' <> integer (toInteger i)
+  pp _ Float        = text "float"
+  pp _ Double       = text "double"
+  pp _ (PtrTo ty)   = ppr ty <> char '*'
+  pp _ Label        = text "label"
+  pp _ (FunTy as r) = ppr r <> parens (commas (map ppr as))
+
 class IsType a where
-  ppType :: a -> Doc
+  getType :: a -> LLVMType
+
+ppType :: IsType a => a -> Doc
+ppType  = ppr . getType
 
 instance IsType () where
-  ppType _ = text "void"
+  getType _ = Void
 
 instance IsType Bool where
-  ppType _ = text "i1"
+  getType _ = Integer 1
 
 instance IsType Int8 where
-  ppType _ = text "i8"
+  getType _ = Integer 8
 
 instance IsType Int16 where
-  ppType _ = text "i16"
+  getType _ = Integer 16
 
 instance IsType Int32 where
-  ppType _ = text "i32"
+  getType _ = Integer 32
 
 instance IsType Int64 where
-  ppType _ = text "i64"
+  getType _ = Integer 64
 
 instance IsType Float where
-  ppType _ = text "float"
+  getType _ = Float
 
 instance IsType Double where
-  ppType _ = text "double"
+  getType _ = Double
 
 
 -- First-class Values ----------------------------------------------------------
@@ -148,15 +170,15 @@ instance HasLiterals Int64 where
 
 -- Pointers --------------------------------------------------------------------
 
-data PtrTo a = PtrTo
+data PtrTo a
 
 ptrType :: PtrTo a -> a
 ptrType  = error "ptrType"
 
 instance IsType a => IsType (PtrTo a) where
-  ppType ptr = ppType (ptrType ptr) <> char '*'
+  getType = PtrTo . getType . ptrType
 
-instance IsType a => HasValues (PtrTo a) where
+instance IsType a => HasValues (PtrTo a)
 
 -- | Construct the null pointer.
 nullPtr :: HasValues a => Value (PtrTo a)
@@ -209,7 +231,7 @@ instance FreshVar (BB r) where
 
 -- | DO NOT EXPORT.
 -- observe is used for naming results from internal primitives.
-observe :: Doc -> BB r (Value a)
+observe :: IsType a => Doc -> BB r (Value a)
 observe d = do
   res <- freshVar
   emit (ppv res <+> char '=' <+> d)
@@ -238,7 +260,7 @@ ppLab :: Lab -> Doc
 ppLab (Lab l) = char '%' <> text l
 
 instance IsType Lab where
-  ppType _ = text "label"
+  getType _ = Label
 
 newLabel :: BB r Lab
 newLabel  = Lab `fmap` BB (freshName "L")
@@ -273,8 +295,7 @@ data Fun f = Fun
   }
 
 instance IsFun f => IsType (Fun f) where
-  ppType fun = res <+> parens (commas args)
-    where (args,res) = funParts (funType fun)
+  getType = uncurry FunTy . funParts . funType
 
 instance IsFun f => HasValues (Fun f)
 
@@ -282,15 +303,15 @@ instance IsFun f => HasLiterals (Fun f) where
   toValue f = Value (char '@' <> text (funSym f))
 
 class IsFun f where
-  funParts :: f -> ([Doc],Doc)
+  funParts :: f -> ([LLVMType],LLVMType)
 
 -- | Functions can return things that have no values, like void.
 instance IsType a => IsFun (Res a) where
-  funParts io = ([], ppType (resType io))
+  funParts res = ([], getType (resType res))
 
 -- | Functions can only take arguments that have first-class values.
 instance (HasValues a, IsFun b) => IsFun (a -> b) where
-  funParts fun = (ppType (funHead fun) : b, r)
+  funParts fun = (getType (funHead fun) : b, r)
     where (b,r) = funParts (funTail fun)
 
 funType :: Fun f -> f
@@ -366,8 +387,9 @@ tailCall_  = callArgs_ "tail call" []
 -- Function Declaration --------------------------------------------------------
 
 declare :: IsFun f => Fun f -> LLVM ()
-declare fun =
-  emit (text "declare" <+> res <+> ppl fun <> parens (commas args))
+declare fun = emit
+            $ text "declare" <+> ppr res <+> ppl fun
+           <> parens (commas (map ppr args))
   where
   (args,res) = funParts (funType fun)
 
@@ -428,7 +450,7 @@ defineFun :: (IsFun f, Define k f) => Fun f -> k -> LLVM ()
 defineFun f k = mfix $ \f' -> do
   let (_,res) = funParts (funType f)
   (ps,body) <- defineBody k (funType f)
-  emit $ text "define" <+> res <+> ppl f <> parens (commas ps) <+> char '{'
+  emit $ text "define" <+> ppr res <+> ppl f <> parens (commas ps) <+> char '{'
      $+$ nest 2 body
      $+$ char '}'
   return ()
