@@ -5,6 +5,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeNaturals #-}
+{-# LANGUAGE KindSignatures #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -14,10 +16,11 @@ import Pretty as Pretty
 
 import Control.Applicative (Applicative(..))
 import Control.Monad.Fix (MonadFix(..))
-import Data.Int (Int8,Int16,Int32,Int64)
 import Data.Monoid (Monoid(..))
 import MonadLib
 import Numeric (showHex)
+
+import GHC.TypeNats
 
 
 -- Programs --------------------------------------------------------------------
@@ -76,32 +79,83 @@ instance RunWriterM (BB r) Program where
 class IsType a where
   ppType :: a -> Doc
 
+class IsType a => IsPrimType a
+
+
+-- Void Type -------------------------------------------------------------------
+
+-- instance IsPrimType () fails
 instance IsType () where
   ppType _ = text "void"
 
-instance IsType Bool where
-  ppType _ = text "i1"
 
-instance IsType Int8 where
-  ppType _ = text "i8"
 
-instance IsType Int16 where
-  ppType _ = text "i16"
+-- Floatin Point Types ---------------------------------------------------------
 
-instance IsType Int32 where
-  ppType _ = text "i32"
-
-instance IsType Int64 where
-  ppType _ = text "i64"
-
+instance IsPrimType Float
 instance IsType Float where
   ppType _ = text "float"
 
+instance IsPrimType Double
 instance IsType Double where
   ppType _ = text "double"
 
 
--- First-class Values ----------------------------------------------------------
+-- Integer types ---------------------------------------------------------------
+
+newtype I (n :: Nat) = I Doc
+
+i :: ((m+1) <= Exp2 n) => Nat m -> Value (I n)
+i n = Value (integer (natToInteger n))
+
+intBitSize :: TypeNat n => I n -> Nat n
+intBitSize _ = nat
+
+instance Pretty (I n) where
+  pp _ (I d) = d
+
+instance TypeNat n => IsType (I n) where
+  ppType i = char 'i' <> integer (natToInteger (intBitSize i))
+
+instance TypeNat n => IsPrimType (I n)
+
+instance TypeNat n => HasValues (I n)
+
+
+-- Array/Vector types ----------------------------------------------------------
+
+data Array (n :: Nat) a
+
+arrayElemNum :: TypeNat m => Array m a -> Nat m
+arrayElemNum _ = nat
+
+arrayElemType :: Array m a -> a
+arrayElemType _ = error "array element type"
+
+instance (TypeNat n, IsType a) => IsType (Array n a) where
+  ppType a = brackets (integer (natToInteger (arrayElemNum a)) <+> char 'x'
+                  <+> ppType (arrayElemType a))
+
+-- instance IsPrimType (Array n a) fails
+
+
+data Vector (n :: Nat) a
+
+vectorElemNum :: TypeNat m => Vector m a -> Nat m
+vectorElemNum _ = nat
+
+vectorElemType :: Vector m a -> a
+vectorElemType _ = error "vector element type"
+
+instance (TypeNat n, IsPrimType a, 1 <= n) => IsType (Vector n a) where
+  ppType a = tris (integer (natToInteger (vectorElemNum a)) <+> char 'x'
+                  <+> ppType (vectorElemType a))
+    where tris p = char '<' <> p <> char '>'
+
+-- instance IsPrimType (Vector n a) fails
+
+
+-- Tagged Values ---------------------------------------------------------------
 
 newtype Value a = Value Doc
 
@@ -119,12 +173,6 @@ ppWithType v = ppType (valueType v) <+> ppr v
 
 -- | Things with first-class values.
 class (IsType a, Pretty a) => HasValues a
-
-instance HasValues Bool
-instance HasValues Int8
-instance HasValues Int16
-instance HasValues Int32
-instance HasValues Int64
 
 
 -- Pointers --------------------------------------------------------------------
@@ -154,7 +202,7 @@ nullPtr :: HasValues a => Value (PtrTo a)
 nullPtr  = toValue NullPtr
 
 -- | Allocate some memory on the stack.
-alloca :: IsType a => Value Int32 -> Maybe Int -> BB r (Value (PtrTo a))
+alloca :: IsType a => Value (I 32) -> Maybe Int -> BB r (Value (PtrTo a))
 alloca n mb = mfix $ \ val ->
   observe $ text "alloca" <+> ppType (ptrType (valueType val))
          <> comma <+> ppWithType n
@@ -172,10 +220,10 @@ data a :> b = a :> b
 class GetElementPtrArgs args where
   gepArgs :: args -> [Doc]
 
-instance GetElementPtrArgs Int32 where
+instance GetElementPtrArgs (I 32) where
   gepArgs i = [ppWithType (toValue i)]
 
-instance GetElementPtrArgs tl => GetElementPtrArgs (Int32 :> tl) where
+instance GetElementPtrArgs tl => GetElementPtrArgs (I 32 :> tl) where
   gepArgs (a :> tl) = ppWithType (toValue a) : gepArgs tl
 
 getelementptr :: (HasValues a, HasValues b, GetElementPtrArgs args)
@@ -244,6 +292,8 @@ br :: Lab -> BB r ()
 br l = emit (text "br" <+> ppType l <+> ppr l)
 
 condBr :: Value Bool -> Lab -> Lab -> BB r ()
+condBr b t f = emit
+condBr :: Value (I 1) -> Lab -> Lab -> BB r ()
 condBr b t f = emit
              $ text "br" <+> ppWithType b
             <> comma <+> ppType t <+> ppr t
@@ -450,22 +500,37 @@ defineNewNamedFun sym mb k = do
 
 -- Tests -----------------------------------------------------------------------
 
-test1 :: Fun (Int32 -> Res Int32)
+test1 :: Fun (I 32 -> Res (I 32))
 test1  = Fun "test1" Nothing
 
-test2 :: Fun (Fun (Int32 -> Res Int32) -> Int8 -> Res Int32)
+test2 :: Fun (Fun (I 32 -> Res (I 32)) -> I 8 -> Res (I 32))
 test2  = Fun "test2" Nothing
 
 test3 = do
-  id32 <- defineNewFun Nothing $ \ x -> ret (x :: Value Int32)
+  id32 <- defineNewFun Nothing $ \ x -> ret (x :: Value (I 32))
   main <- defineNewFun Nothing $ do
-    a <- call id32 (toValue 10)
+    a <- call id32 (i (nat :: Nat 10))
     b <- call id32 a
     ret a
 
   return ()
 
-test6 = do
+test4 =
+  do x <- alloca (i (nat :: Nat 2)) Nothing 
+     return (x :: Value (PtrTo (Array 10 (I 32))))
+
+test5 =
+  do l1 <- newLabel
+     l2 <- newLabel
+     condBr (i (nat :: Nat 1)) l1 l2
+
+test6 = snd $ runLLVM $ unBB $
+  do x <- alloca (i (nat :: Nat 2)) Nothing 
+     return (x :: Value (PtrTo (Vector 10 (I 32))))
+
+test7 = do
   f <- defineNewFun Nothing retVoid
   _ <- defineNewFun Nothing (call_ f >> retVoid)
   return ()
+
+
