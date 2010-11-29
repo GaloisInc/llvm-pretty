@@ -67,7 +67,35 @@ instance RunWriterM (BB r) Doc where
   collect m = BB (collect (unBB m))
 
 
--- LLVM Integer types ----------------------------------------------------------
+-- LLVM Types ------------------------------------------------------------------
+
+class IsType a where
+  ppType :: a -> Doc
+
+class IsType a => IsPrimType a
+
+
+-- Void Type -------------------------------------------------------------------
+
+-- instance IsPrimType () fails
+instance IsType () where
+  ppType _ = text "void"
+
+
+
+-- Floatin Point Types ---------------------------------------------------------
+
+instance IsPrimType Float
+instance IsType Float where
+  ppType _ = text "float"
+
+instance IsPrimType Double
+instance IsType Double where
+  ppType _ = text "double"
+
+
+
+-- Integer types ---------------------------------------------------------------
 
 newtype I (n :: Nat) = I Doc
 
@@ -83,10 +111,12 @@ instance Pretty (I n) where
 instance TypeNat n => IsType (I n) where
   ppType i = char 'i' <> integer (natToInteger (intBitSize i))
 
+instance TypeNat n => IsPrimType (I n)
+
 instance TypeNat n => IsValue (I n)
 
 
--- LLVM Array types ------------------------------------------------------------
+-- Array/Vector types ----------------------------------------------------------
 
 data Array (n :: Nat) a
 
@@ -100,25 +130,27 @@ instance (TypeNat n, IsType a) => IsType (Array n a) where
   ppType a = brackets (integer (natToInteger (arrayElemNum a)) <+> char 'x'
                   <+> ppType (arrayElemType a))
 
+-- instance IsPrimType (Array n a) fails
+
+
+data Vector (n :: Nat) a
+
+vectorElemNum :: TypeNat m => Vector m a -> Nat m
+vectorElemNum _ = nat
+
+vectorElemType :: Vector m a -> a
+vectorElemType _ = error "vector element type"
+
+instance (TypeNat n, IsPrimType a, 1 <= n) => IsType (Vector n a) where
+  ppType a = tris (integer (natToInteger (vectorElemNum a)) <+> char 'x'
+                  <+> ppType (vectorElemType a))
+    where tris p = char '<' <> p <> char '>'
+
+-- instance IsPrimType (Vector n a) fails
 
 
 
--- LLVM Types ------------------------------------------------------------------
 
-class IsType a where
-  ppType :: a -> Doc
-
-instance IsType () where
-  ppType _ = text "void"
-
-instance IsType Bool where
-  ppType _ = text "i1"
-
-instance IsType Float where
-  ppType _ = text "float"
-
-instance IsType Double where
-  ppType _ = text "double"
 
 
 -- Tagged Values ---------------------------------------------------------------
@@ -140,7 +172,6 @@ ppWithType v = ppType (valueType v) <+> ppr v
 -- | Things with first-class values.
 class (IsType a, Pretty a) => IsValue a
 
-instance IsValue Bool
 
 
 -- Pointers --------------------------------------------------------------------
@@ -259,7 +290,7 @@ defineLabel lab@(Lab l) m = do
 br :: Lab -> BB r ()
 br l = put (text "br" <+> ppType l <+> ppr l)
 
-condBr :: Value Bool -> Lab -> Lab -> BB r ()
+condBr :: Value (I 1) -> Lab -> Lab -> BB r ()
 condBr b t f = put
              $ text "br" <+> ppWithType b
             <> comma <+> ppType t <+> ppr t
@@ -485,8 +516,18 @@ test4 =
   do x <- alloca (i (nat :: Nat 2)) Nothing 
      return (x :: Value (PtrTo (Array 10 (I 32))))
 
+test5 =
+  do l1 <- newLabel
+     l2 <- newLabel
+     condBr (i (nat :: Nat 1)) l1 l2
+
+test6 = snd $ runLLVM $ unBB $
+  do x <- alloca (i (nat :: Nat 2)) Nothing 
+     return (x :: Value (PtrTo (Vector 10 (I 32))))
+
 test7 = do
   f <- defineNewFun Nothing retVoid
   _ <- defineNewFun Nothing (call_ f >> retVoid)
   return ()
+
 
