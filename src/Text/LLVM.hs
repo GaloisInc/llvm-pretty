@@ -9,16 +9,85 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module LLVM where
+module Text.LLVM (
+    -- * LLVM Monad
+    LLVM()
+  , runLLVM
 
-import Pretty as Pretty
+    -- * Basic-block Monad
+  , BB()
+
+    -- * LLVM Types
+  , LLVMType
+  , IsType(getType)
+
+    -- * LLVM First-Class Values
+  , Value()
+  , HasValues()
+
+    -- * LLVM Literals
+  , HasLiterals(toValue)
+
+    -- * LLVM Type Helpers
+    -- ** Pointers
+  , PtrTo()
+  , nullPtr
+  , alloca
+  , load
+  , store
+
+    -- ** getelementptr
+  , (:>)((:>))
+  , GetElementPtrArgs()
+  , getelementptr
+
+    -- * Functions
+    -- ** Return Values
+  , Res()
+  , retVoid
+  , ret
+
+    -- ** Labels
+  , Lab()
+  , newLabel
+  , defineLabel
+  , br
+  , condBr
+  , phi
+
+    -- ** Function Symbols
+  , Fun(..)
+  , IsFun()
+
+    -- ** Calling
+  , CallArgs()
+  , call, tailCall
+  , CallArgs_()
+  , call_, tailCall_
+
+    -- ** Declaration
+  , declare
+
+    -- ** Definition
+  , Linkage(..)
+  , Define()
+  , define, newNamedFun, newFun, defineFun, defineNamedFun
+  ) where
 
 import Control.Applicative (Applicative(..))
 import Control.Monad.Fix (MonadFix(..))
 import Data.Int (Int8,Int16,Int32,Int64)
+import Data.List (intersperse)
 import Data.Monoid (Monoid(..))
 import MonadLib
 import Numeric (showHex)
+import Text.PrettyPrint.HughesPJ
+
+
+-- Pretty Printing -------------------------------------------------------------
+
+commas :: [Doc] -> Doc
+commas ds = hcat (intersperse (comma <> space) ds)
 
 
 -- Programs --------------------------------------------------------------------
@@ -28,7 +97,7 @@ newtype Program = P
   } deriving (Show)
 
 instance Monoid Program where
-  mempty              = P Pretty.empty
+  mempty              = P empty
   mappend (P a) (P b) = P (a $+$ b)
 
 emit :: WriterM m Program => Doc -> m ()
@@ -83,20 +152,20 @@ data LLVMType
   | Label
   | FunTy [LLVMType] LLVMType
 
-instance Pretty LLVMType where
-  pp _ Void         = text "void"
-  pp _ (Integer i)  = char 'i' <> integer (toInteger i)
-  pp _ Float        = text "float"
-  pp _ Double       = text "double"
-  pp _ (PtrTo ty)   = ppr ty <> char '*'
-  pp _ Label        = text "label"
-  pp _ (FunTy as r) = ppr r <> parens (commas (map ppr as))
+ppLLVMType :: LLVMType -> Doc
+ppLLVMType Void         = text "void"
+ppLLVMType (Integer i)  = char 'i' <> integer (toInteger i)
+ppLLVMType Float        = text "float"
+ppLLVMType Double       = text "double"
+ppLLVMType (PtrTo ty)   = ppLLVMType ty <> char '*'
+ppLLVMType Label        = text "label"
+ppLLVMType (FunTy as r) = ppLLVMType r <> parens (commas (map ppLLVMType as))
 
 class IsType a where
   getType :: a -> LLVMType
 
 ppType :: IsType a => a -> Doc
-ppType  = ppr . getType
+ppType  = ppLLVMType . getType
 
 instance IsType () where
   getType _ = Void
@@ -388,8 +457,8 @@ tailCall_  = callArgs_ "tail call" []
 
 declare :: IsFun f => Fun f -> LLVM ()
 declare fun = emit
-            $ text "declare" <+> ppr res <+> ppl fun
-           <> parens (commas (map ppr args))
+            $ text "declare" <+> ppLLVMType res <+> ppl fun
+           <> parens (commas (map ppLLVMType args))
   where
   (args,res) = funParts (funType fun)
 
@@ -414,22 +483,22 @@ data Linkage
   | DLLImport
   | DLLExport
 
-instance Pretty Linkage where
-  pp _ Private                  = text "private"
-  pp _ LinkerPrivate            = text "linker_private"
-  pp _ LinkerPrivateWeak        = text "linker_private_weak"
-  pp _ LinkerPrivateWeakDefAuto = text "linker_private_weak_def_auto"
-  pp _ Internal                 = text "internal"
-  pp _ AvailableExternally      = text "available_externally"
-  pp _ Linkonce                 = text "linkonce"
-  pp _ Weak                     = text "weak"
-  pp _ Common                   = text "common"
-  pp _ Appending                = text "appending"
-  pp _ ExternWeak               = text "extern_weak"
-  pp _ LinkonceODR              = text "linkonce_ddr"
-  pp _ WeakODR                  = text "weak_odr"
-  pp _ DLLImport                = text "dllimport"
-  pp _ DLLExport                = text "dllexport"
+ppLinkage :: Linkage -> Doc
+ppLinkage Private                  = text "private"
+ppLinkage LinkerPrivate            = text "linker_private"
+ppLinkage LinkerPrivateWeak        = text "linker_private_weak"
+ppLinkage LinkerPrivateWeakDefAuto = text "linker_private_weak_def_auto"
+ppLinkage Internal                 = text "internal"
+ppLinkage AvailableExternally      = text "available_externally"
+ppLinkage Linkonce                 = text "linkonce"
+ppLinkage Weak                     = text "weak"
+ppLinkage Common                   = text "common"
+ppLinkage Appending                = text "appending"
+ppLinkage ExternWeak               = text "extern_weak"
+ppLinkage LinkonceODR              = text "linkonce_ddr"
+ppLinkage WeakODR                  = text "weak_odr"
+ppLinkage DLLImport                = text "dllimport"
+ppLinkage DLLExport                = text "dllexport"
 
 
 class IsFun f => Define k f | k -> f, f -> k where
@@ -446,11 +515,14 @@ instance (HasValues a, Define k f) => Define (Value a -> k) (a -> f) where
     (as,body) <- defineBody (k a) (funTail f)
     return (ppWithType a:as,body)
 
-defineFun :: (IsFun f, Define k f) => Fun f -> k -> LLVM ()
-defineFun f k = mfix $ \f' -> do
+define :: (IsFun f, Define k f) => Fun f -> k -> LLVM ()
+define f k = mfix $ \f' -> do
   let (_,res) = funParts (funType f)
+      linkage = maybe empty ppLinkage (funLinkage f)
   (ps,body) <- defineBody k (funType f)
-  emit $ text "define" <+> ppr res <+> ppl f <> parens (commas ps) <+> char '{'
+  emit $ text "define" <+> linkage <+> ppLLVMType res <+> ppl f
+      <> parens (commas ps)
+     <+> char '{'
      $+$ nest 2 body
      $+$ char '}'
   return ()
@@ -466,16 +538,16 @@ newFun mb = do
   sym <- freshName "fun"
   newNamedFun sym mb
 
-defineNewFun :: Define k f => Maybe Linkage -> k -> LLVM (Fun f)
-defineNewFun mb k = do
+defineFun :: Define k f => Maybe Linkage -> k -> LLVM (Fun f)
+defineFun mb k = do
   f <- newFun mb
-  defineFun f k
+  define f k
   return f
 
-defineNewNamedFun :: Define k f => String -> Maybe Linkage -> k -> LLVM (Fun f)
-defineNewNamedFun sym mb k = do
+defineNamedFun :: Define k f => String -> Maybe Linkage -> k -> LLVM (Fun f)
+defineNamedFun sym mb k = do
   f <- newNamedFun sym mb
-  defineFun f k
+  define f k
   return f
 
 
@@ -488,8 +560,8 @@ test2 :: Fun (Fun (Int32 -> Res Int32) -> Int8 -> Res Int32)
 test2  = Fun "test2" Nothing
 
 test3 = do
-  id32 <- defineNewFun Nothing $ \ x -> ret (x :: Value Int32)
-  main <- defineNewFun Nothing $ do
+  id32 <- defineFun (Just Private) $ \ x -> ret (x :: Value Int32)
+  main <- defineNamedFun "main" Nothing $ do
     a <- call id32 (toValue 10)
     b <- call id32 a
     ret a
@@ -497,6 +569,6 @@ test3 = do
   return ()
 
 test6 = do
-  f <- defineNewFun Nothing retVoid
-  _ <- defineNewFun Nothing (call_ f >> retVoid)
+  f <- defineFun Nothing retVoid
+  _ <- defineFun Nothing (call_ f >> retVoid)
   return ()
