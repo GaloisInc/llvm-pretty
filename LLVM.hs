@@ -310,11 +310,41 @@ instance (IsValue a, CallArgs b r) => CallArgs (a -> b) (Value a -> r) where
     f   = funType fun
     arg = ppWithType a
 
+-- | Call a function that returns a first-class value.
 call :: CallArgs f k => Fun f -> k
 call  = callArgs "call" []
 
+-- | Call a function that returns a first-class value, signaling the optimizer
+-- that this call site is a possible tail call optimization.
 tailCall :: CallArgs f k => Fun f -> k
 tailCall  = callArgs "tail call" []
+
+
+-- Procedure Calls -------------------------------------------------------------
+
+class CallArgs_ f k | f -> k, k -> f where
+  callArgs_ :: String -> [Doc] -> Fun f -> k
+
+instance IsType a => CallArgs_ (Res a) (BB r ()) where
+  callArgs_ c as fun = do
+    let res  = resType (funType fun)
+    let args = reverse as
+    put (text c <+> ppType res <+> ppr fun <> parens (commas args))
+
+instance (IsValue a, CallArgs_ b r) => CallArgs_ (a -> b) (Value a -> r) where
+  callArgs_ c as fun a = callArgs_ c (arg:as) (setFunType (funTail f) fun)
+    where
+    f   = funType fun
+    arg = ppWithType a
+
+-- | Call a function, ignoring its result.
+call_ :: CallArgs_ f k => Fun f -> k
+call_  = callArgs_ "call" []
+
+-- | Call a function ignoring its result, signaling the optimizer that this call
+-- site is a possible tail call optimization.
+tailCall_ :: CallArgs_ f k => Fun f -> k
+tailCall_  = callArgs_ "tail call" []
 
 
 -- Function Declaration --------------------------------------------------------
@@ -367,7 +397,7 @@ instance Pretty Linkage where
 class IsFun f => Define k f | k -> f, f -> k where
   defineBody :: k -> f -> LLVM ([Doc],Doc)
 
-instance IsValue res => Define (BB res ()) (Res res) where
+instance IsType res => Define (BB res ()) (Res res) where
   defineBody m _ = do
     (_,body) <- collect (unBB m)
     return ([],body)
@@ -426,4 +456,9 @@ test3 = do
     b <- call id32 a
     ret a
 
+  return ()
+
+test6 = do
+  f <- defineNewFun Nothing retVoid
+  _ <- defineNewFun Nothing (call_ f >> retVoid)
   return ()
