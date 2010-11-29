@@ -5,6 +5,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeNaturals #-}
+{-# LANGUAGE KindSignatures #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -18,6 +20,8 @@ import Data.Int (Int8,Int16,Int32,Int64)
 import Data.Monoid (Monoid(..))
 import MonadLib
 import Numeric (showHex)
+
+import GHC.TypeNats
 
 
 -- Doc Utilities ---------------------------------------------------------------
@@ -62,6 +66,23 @@ instance WriterM (BB r) Doc where
 
 instance RunWriterM (BB r) Doc where
   collect m = BB (collect (unBB m))
+
+
+-- LLVM Integer types ----------------------------------------------------------
+
+newtype I (n :: Nat) = I Doc
+
+i :: ((m+1) <= Exp2 n) => Nat m -> Value (I n)
+i n = Value (integer (natToInteger n))
+
+intBitSize :: TypeNat n => I n -> Nat n
+intBitSize _ = nat
+
+instance Pretty (I n) where
+  pp _ (I d) = d
+
+instance TypeNat n => IsType (I n) where
+  ppType i = char 'i' <> integer (natToInteger (intBitSize i))
 
 
 -- LLVM Types ------------------------------------------------------------------
@@ -421,3 +442,5 @@ test3 = do
     ret a
 
   return ()
+
+
