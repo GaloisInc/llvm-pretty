@@ -168,7 +168,7 @@ nullPtr :: IsValue a => Value (PtrTo a)
 nullPtr  = toValue NullPtr
 
 -- | Allocate some memory on the stack.
-alloca :: IsValue a => Value Int32 -> Maybe Int -> BB r (Value (PtrTo a))
+alloca :: IsType a => Value Int32 -> Maybe Int -> BB r (Value (PtrTo a))
 alloca n mb = mfix $ \ val ->
   observe $ text "alloca" <+> ppType (ptrType (valueType val))
          <> comma <+> ppWithType n
@@ -212,7 +212,9 @@ instance FreshVar LLVM where
 instance FreshVar (BB r) where
   freshVar = BB freshVar
 
-observe :: IsValue a => Doc -> BB r (Value a)
+-- | DO NOT EXPORT.
+-- observe is used for naming results from intrnal primitives.
+observe :: Doc -> BB r (Value a)
 observe d = do
   res <- freshVar
   put (ppr res <+> char '=' <+> d)
