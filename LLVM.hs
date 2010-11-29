@@ -16,7 +16,6 @@ import Pretty as Pretty
 
 import Control.Applicative (Applicative(..))
 import Control.Monad.Fix (MonadFix(..))
-import Data.Int (Int8,Int16,Int32,Int64)
 import Data.Monoid (Monoid(..))
 import MonadLib
 import Numeric (showHex)
@@ -84,6 +83,8 @@ instance Pretty (I n) where
 instance TypeNat n => IsType (I n) where
   ppType i = char 'i' <> integer (natToInteger (intBitSize i))
 
+instance TypeNat n => IsValue (I n)
+
 
 -- LLVM Array types ------------------------------------------------------------
 
@@ -113,18 +114,6 @@ instance IsType () where
 instance IsType Bool where
   ppType _ = text "i1"
 
-instance IsType Int8 where
-  ppType _ = text "i8"
-
-instance IsType Int16 where
-  ppType _ = text "i16"
-
-instance IsType Int32 where
-  ppType _ = text "i32"
-
-instance IsType Int64 where
-  ppType _ = text "i64"
-
 instance IsType Float where
   ppType _ = text "float"
 
@@ -152,10 +141,6 @@ ppWithType v = ppType (valueType v) <+> ppr v
 class (IsType a, Pretty a) => IsValue a
 
 instance IsValue Bool
-instance IsValue Int8
-instance IsValue Int16
-instance IsValue Int32
-instance IsValue Int64
 
 
 -- Pointers --------------------------------------------------------------------
@@ -185,7 +170,7 @@ nullPtr :: IsValue a => Value (PtrTo a)
 nullPtr  = toValue NullPtr
 
 -- | Allocate some memory on the stack.
-alloca :: IsType a => Value Int32 -> Maybe Int -> BB r (Value (PtrTo a))
+alloca :: IsType a => Value (I 32) -> Maybe Int -> BB r (Value (PtrTo a))
 alloca n mb = mfix $ \ val ->
   observe $ text "alloca" <+> ppType (ptrType (valueType val))
          <> comma <+> ppWithType n
@@ -203,10 +188,10 @@ data a :> b = a :> b
 class GetElementPtrArgs args where
   gepArgs :: args -> [Doc]
 
-instance GetElementPtrArgs Int32 where
+instance GetElementPtrArgs (I 32) where
   gepArgs i = [ppWithType (toValue i)]
 
-instance GetElementPtrArgs tl => GetElementPtrArgs (Int32 :> tl) where
+instance GetElementPtrArgs tl => GetElementPtrArgs (I 32 :> tl) where
   gepArgs (a :> tl) = ppWithType (toValue a) : gepArgs tl
 
 getelementptr :: (IsValue a, IsValue b, GetElementPtrArgs args)
@@ -447,23 +432,23 @@ defineNewNamedFun sym mb k = do
 
 -- Tests -----------------------------------------------------------------------
 
-test1 :: Fun (Int32 -> Res Int32)
+test1 :: Fun (I 32 -> Res (I 32))
 test1  = Fun "test1" Nothing
 
-test2 :: Fun (Fun (Int32 -> Res Int32) -> Int8 -> Res Int32)
+test2 :: Fun (Fun (I 32 -> Res (I 32)) -> I 8 -> Res (I 32))
 test2  = Fun "test2" Nothing
 
 test3 = do
-  id32 <- defineNewFun Nothing $ \ x -> ret (x :: Value Int32)
+  id32 <- defineNewFun Nothing $ \ x -> ret (x :: Value (I 32))
   main <- defineNewFun Nothing $ do
-    a <- call id32 (toValue 10)
+    a <- call id32 (i (nat :: Nat 10))
     b <- call id32 a
     ret a
 
   return ()
 
 test4 =
-  do x <- alloca (toValue 2) Nothing 
-     return (x :: Value (PtrTo (Array 10 Int32)))
+  do x <- alloca (i (nat :: Nat 2)) Nothing 
+     return (x :: Value (PtrTo (Array 10 (I 32))))
 
 
