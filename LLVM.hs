@@ -215,7 +215,7 @@ instance FreshVar (BB r) where
   freshVar = BB freshVar
 
 -- | DO NOT EXPORT.
--- observe is used for naming results from intrnal primitives.
+-- observe is used for naming results from internal primitives.
 observe :: Doc -> BB r (Value a)
 observe d = do
   res <- freshVar
@@ -286,12 +286,16 @@ instance IsFun f => IsType (Fun f) where
   ppType fun = res <+> parens (commas args)
     where (args,res) = funParts (funType fun)
 
+instance IsFun f => IsValue (Fun f)
+
 class IsFun f where
   funParts :: f -> ([Doc],Doc)
 
-instance IsValue a => IsFun (Res a) where
+-- | Functions can return things that have no values, like void.
+instance IsType a => IsFun (Res a) where
   funParts io = ([], ppType (resType io))
 
+-- | Functions can only take arguments that have first-class values.
 instance (IsValue a, IsFun b) => IsFun (a -> b) where
   funParts fun = (ppType (funHead fun) : b, r)
     where (b,r) = funParts (funTail fun)
