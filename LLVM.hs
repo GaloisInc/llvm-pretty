@@ -85,6 +85,23 @@ instance TypeNat n => IsType (I n) where
   ppType i = char 'i' <> integer (natToInteger (intBitSize i))
 
 
+-- LLVM Array types ------------------------------------------------------------
+
+data Array (n :: Nat) a
+
+arrayElemNum :: TypeNat m => Array m a -> Nat m
+arrayElemNum _ = nat
+
+arrayElemType :: Array m a -> a
+arrayElemType _ = error "array element type"
+
+instance (TypeNat n, IsType a) => IsType (Array n a) where
+  ppType a = brackets (integer (natToInteger (arrayElemNum a)) <+> char 'x'
+                  <+> ppType (arrayElemType a))
+
+
+
+
 -- LLVM Types ------------------------------------------------------------------
 
 class IsType a where
@@ -444,5 +461,9 @@ test3 = do
     ret a
 
   return ()
+
+test4 =
+  do x <- alloca (toValue 2) Nothing 
+     return (x :: Value (PtrTo (Array 10 Int32)))
 
 
