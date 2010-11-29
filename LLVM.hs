@@ -64,6 +64,36 @@ instance RunWriterM (BB r) Doc where
   collect m = BB (collect (unBB m))
 
 
+-- LLVM Types ------------------------------------------------------------------
+
+class IsType a where
+  ppType :: a -> Doc
+
+instance IsType () where
+  ppType _ = text "void"
+
+instance IsType Bool where
+  ppType _ = text "i1"
+
+instance IsType Int8 where
+  ppType _ = text "i8"
+
+instance IsType Int16 where
+  ppType _ = text "i16"
+
+instance IsType Int32 where
+  ppType _ = text "i32"
+
+instance IsType Int64 where
+  ppType _ = text "i64"
+
+instance IsType Float where
+  ppType _ = text "float"
+
+instance IsType Double where
+  ppType _ = text "double"
+
+
 -- Tagged Values ---------------------------------------------------------------
 
 newtype Value a = Value Doc
@@ -80,33 +110,14 @@ toValue a = Value (ppr a)
 ppWithType :: IsValue a => Value a -> Doc
 ppWithType v = ppType (valueType v) <+> ppr v
 
-class Pretty a => IsValue a where
-  ppType :: a -> Doc
+-- | Things with first-class values.
+class (IsType a, Pretty a) => IsValue a
 
--- XXX: Work in a notion of first-class values
-instance IsValue () where
-  ppType _ = text "void"
-
-instance IsValue Bool where
-  ppType _ = text "i1"
-
-instance IsValue Int8 where
-  ppType _ = text "i8"
-
-instance IsValue Int16 where
-  ppType _ = text "i16"
-
-instance IsValue Int32 where
-  ppType _ = text "i32"
-
-instance IsValue Int64 where
-  ppType _ = text "i64"
-
-instance IsValue Float where
-  ppType _ = text "float"
-
-instance IsValue Double where
-  ppType _ = text "double"
+instance IsValue Bool
+instance IsValue Int8
+instance IsValue Int16
+instance IsValue Int32
+instance IsValue Int64
 
 
 -- Pointers --------------------------------------------------------------------
@@ -122,8 +133,10 @@ instance Pretty a => Pretty (PtrTo a) where
   pp _ (PtrTo i) = text "0x" <+> text (showHex i "")
   pp _ NullPtr   = text "null"
 
-instance IsValue a => IsValue (PtrTo a) where
+instance IsType a => IsType (PtrTo a) where
   ppType ptr = ppType (ptrType ptr) <> char '*'
+
+instance (IsType a, Pretty a) => IsValue (PtrTo a) where
 
 -- | Construct a pointer to an arbitrary point in memory.
 ptrTo :: IsValue a => Integer -> Value (PtrTo a)
@@ -206,7 +219,7 @@ newtype Lab = Lab String
 instance Pretty Lab where
   pp _ (Lab l) = char '%' <> text l
 
-instance IsValue Lab where
+instance IsType Lab where
   ppType _ = text "label"
 
 newLabel :: BB r Lab
@@ -244,7 +257,7 @@ data Fun f = Fun
 instance Pretty (Fun f) where
   pp _ f = char '@' <> text (funSym f)
 
-instance IsFun f => IsValue (Fun f) where
+instance IsFun f => IsType (Fun f) where
   ppType fun = res <+> parens (commas args)
     where (args,res) = funParts (funType fun)
 
