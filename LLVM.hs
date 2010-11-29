@@ -103,22 +103,16 @@ instance IsType Double where
 
 -- First-class Values ----------------------------------------------------------
 
-newtype Value a = Value Doc
-
-instance Pretty (Value a) where
-  pp _ (Value d) = d
+newtype Value a = Value { ppv :: Doc }
 
 valueType :: Value a -> a
 valueType  = error "valueType"
 
-toValue :: HasValues a => a -> Value a
-toValue a = Value (ppr a)
-
 ppWithType :: HasValues a => Value a -> Doc
-ppWithType v = ppType (valueType v) <+> ppr v
+ppWithType v = ppType (valueType v) <+> ppv v
 
 -- | Things with first-class values.
-class (IsType a, Pretty a) => HasValues a
+class IsType a => HasValues a
 
 instance HasValues Bool
 instance HasValues Int8
@@ -127,31 +121,46 @@ instance HasValues Int32
 instance HasValues Int64
 
 
+-- Literals --------------------------------------------------------------------
+
+ppl :: HasLiterals a => a -> Doc
+ppl  = ppv . toValue
+
+class HasValues a => HasLiterals a where
+  toValue :: a -> Value a
+
+instance HasLiterals Bool where
+  toValue False = Value (int 0)
+  toValue True  = Value (int 1)
+
+instance HasLiterals Int8 where
+  toValue = Value . integer . toInteger
+
+instance HasLiterals Int16 where
+  toValue = Value . integer . toInteger
+
+instance HasLiterals Int32 where
+  toValue = Value . integer . toInteger
+
+instance HasLiterals Int64 where
+  toValue = Value . integer . toInteger
+
+
 -- Pointers --------------------------------------------------------------------
 
-data PtrTo a
-  = PtrTo Integer
-  | NullPtr
+data PtrTo a = PtrTo
 
 ptrType :: PtrTo a -> a
 ptrType  = error "ptrType"
 
-instance Pretty a => Pretty (PtrTo a) where
-  pp _ (PtrTo i) = text "0x" <+> text (showHex i "")
-  pp _ NullPtr   = text "null"
-
 instance IsType a => IsType (PtrTo a) where
   ppType ptr = ppType (ptrType ptr) <> char '*'
 
-instance (IsType a, Pretty a) => HasValues (PtrTo a) where
-
--- | Construct a pointer to an arbitrary point in memory.
-ptrTo :: HasValues a => Integer -> Value (PtrTo a)
-ptrTo  = toValue . PtrTo
+instance IsType a => HasValues (PtrTo a) where
 
 -- | Construct the null pointer.
 nullPtr :: HasValues a => Value (PtrTo a)
-nullPtr  = toValue NullPtr
+nullPtr  = Value (text "null")
 
 -- | Allocate some memory on the stack.
 alloca :: IsType a => Value Int32 -> Maybe Int -> BB r (Value (PtrTo a))
@@ -203,7 +212,7 @@ instance FreshVar (BB r) where
 observe :: Doc -> BB r (Value a)
 observe d = do
   res <- freshVar
-  emit (ppr res <+> char '=' <+> d)
+  emit (ppv res <+> char '=' <+> d)
   return res
 
 
@@ -218,15 +227,15 @@ retVoid :: BB () ()
 retVoid  = emit (text "ret void")
 
 ret :: HasValues r => Value r -> BB r ()
-ret v = emit (text "ret" <+> ppType (valueType v) <+> ppr v)
+ret v = emit (text "ret" <+> ppType (valueType v) <+> ppv v)
 
 
 -- Labels ----------------------------------------------------------------------
 
 newtype Lab = Lab String
 
-instance Pretty Lab where
-  pp _ (Lab l) = char '%' <> text l
+ppLab :: Lab -> Doc
+ppLab (Lab l) = char '%' <> text l
 
 instance IsType Lab where
   ppType _ = text "label"
@@ -241,19 +250,19 @@ defineLabel lab@(Lab l) m = do
   return (res,lab)
 
 br :: Lab -> BB r ()
-br l = emit (text "br" <+> ppType l <+> ppr l)
+br l = emit (text "br" <+> ppType l <+> ppLab l)
 
 condBr :: Value Bool -> Lab -> Lab -> BB r ()
 condBr b t f = emit
              $ text "br" <+> ppWithType b
-            <> comma <+> ppType t <+> ppr t
-            <> comma <+> ppType f <+> ppr f
+            <> comma <+> ppType t <+> ppLab t
+            <> comma <+> ppType f <+> ppLab f
 
 phi :: HasValues a => (Value a,Lab) -> (Value a,Lab) -> BB r (Value a)
 phi (a,la) (b,lb) =
   observe $ text "phi" <+> ppType (valueType a)
-        <+> brackets (ppr a <> comma <+> ppr la)
-         <> comma <+> brackets (ppr b <> comma <+> ppr lb)
+        <+> brackets (ppv a <> comma <+> ppLab la)
+         <> comma <+> brackets (ppv b <> comma <+> ppLab lb)
 
 
 -- Functions -------------------------------------------------------------------
@@ -263,14 +272,14 @@ data Fun f = Fun
   , funLinkage :: Maybe Linkage
   }
 
-instance Pretty (Fun f) where
-  pp _ f = char '@' <> text (funSym f)
-
 instance IsFun f => IsType (Fun f) where
   ppType fun = res <+> parens (commas args)
     where (args,res) = funParts (funType fun)
 
 instance IsFun f => HasValues (Fun f)
+
+instance IsFun f => HasLiterals (Fun f) where
+  toValue f = Value (char '@' <> text (funSym f))
 
 class IsFun f where
   funParts :: f -> ([Doc],Doc)
@@ -309,7 +318,7 @@ instance HasValues a => CallArgs (Res a) (BB r (Value a)) where
   callArgs c as fun = do
     let res  = resType (funType fun)
     let args = reverse as
-    observe (text c <+> ppType res <+> ppr fun <> parens (commas args))
+    observe (text c <+> ppType res <+> ppl fun <> parens (commas args))
 
 instance (HasValues a, CallArgs b r) => CallArgs (a -> b) (Value a -> r) where
   callArgs c as fun a = callArgs c (arg:as) (setFunType (funTail f) fun)
@@ -336,7 +345,7 @@ instance IsType a => CallArgs_ (Res a) (BB r ()) where
   callArgs_ c as fun = do
     let res  = resType (funType fun)
     let args = reverse as
-    emit (text c <+> ppType res <+> ppr fun <> parens (commas args))
+    emit (text c <+> ppType res <+> ppl fun <> parens (commas args))
 
 instance (HasValues a, CallArgs_ b r) => CallArgs_ (a -> b) (Value a -> r) where
   callArgs_ c as fun a = callArgs_ c (arg:as) (setFunType (funTail f) fun)
@@ -358,7 +367,7 @@ tailCall_  = callArgs_ "tail call" []
 
 declare :: IsFun f => Fun f -> LLVM ()
 declare fun =
-  emit (text "declare" <+> res <+> ppr fun <> parens (commas args))
+  emit (text "declare" <+> res <+> ppl fun <> parens (commas args))
   where
   (args,res) = funParts (funType fun)
 
@@ -419,7 +428,7 @@ defineFun :: (IsFun f, Define k f) => Fun f -> k -> LLVM ()
 defineFun f k = mfix $ \f' -> do
   let (_,res) = funParts (funType f)
   (ps,body) <- defineBody k (funType f)
-  emit $ text "define" <+> res <+> ppr f <> parens (commas ps) <+> char '{'
+  emit $ text "define" <+> res <+> ppl f <> parens (commas ps) <+> char '{'
      $+$ nest 2 body
      $+$ char '}'
   return ()
