@@ -113,7 +113,7 @@ instance TypeNat n => IsType (I n) where
 
 instance TypeNat n => IsPrimType (I n)
 
-instance TypeNat n => IsValue (I n)
+instance TypeNat n => HasValues (I n)
 
 
 -- Array/Vector types ----------------------------------------------------------
@@ -163,15 +163,14 @@ instance Pretty (Value a) where
 valueType :: Value a -> a
 valueType  = error "valueType"
 
-toValue :: IsValue a => a -> Value a
+toValue :: HasValues a => a -> Value a
 toValue a = Value (ppr a)
 
-ppWithType :: IsValue a => Value a -> Doc
+ppWithType :: HasValues a => Value a -> Doc
 ppWithType v = ppType (valueType v) <+> ppr v
 
 -- | Things with first-class values.
-class (IsType a, Pretty a) => IsValue a
-
+class (IsType a, Pretty a) => HasValues a
 
 
 -- Pointers --------------------------------------------------------------------
@@ -190,14 +189,14 @@ instance Pretty a => Pretty (PtrTo a) where
 instance IsType a => IsType (PtrTo a) where
   ppType ptr = ppType (ptrType ptr) <> char '*'
 
-instance (IsType a, Pretty a) => IsValue (PtrTo a) where
+instance (IsType a, Pretty a) => HasValues (PtrTo a) where
 
 -- | Construct a pointer to an arbitrary point in memory.
-ptrTo :: IsValue a => Integer -> Value (PtrTo a)
+ptrTo :: HasValues a => Integer -> Value (PtrTo a)
 ptrTo  = toValue . PtrTo
 
 -- | Construct the null pointer.
-nullPtr :: IsValue a => Value (PtrTo a)
+nullPtr :: HasValues a => Value (PtrTo a)
 nullPtr  = toValue NullPtr
 
 -- | Allocate some memory on the stack.
@@ -207,10 +206,10 @@ alloca n mb = mfix $ \ val ->
          <> comma <+> ppWithType n
          <> maybe empty (\a -> comma <+> text "align" <+> int a) mb
 
-load :: IsValue a => Value (PtrTo a) -> BB r (Value a)
+load :: HasValues a => Value (PtrTo a) -> BB r (Value a)
 load v = observe (text "load" <+> ppWithType v)
 
-store :: IsValue a => Value a -> Value (PtrTo a) -> BB r ()
+store :: HasValues a => Value a -> Value (PtrTo a) -> BB r ()
 store a ptr = put (text "store" <+> ppWithType a <> comma <+> ppWithType ptr)
 
 
@@ -225,7 +224,7 @@ instance GetElementPtrArgs (I 32) where
 instance GetElementPtrArgs tl => GetElementPtrArgs (I 32 :> tl) where
   gepArgs (a :> tl) = ppWithType (toValue a) : gepArgs tl
 
-getelementptr :: (IsValue a, IsValue b, GetElementPtrArgs args)
+getelementptr :: (HasValues a, HasValues b, GetElementPtrArgs args)
               => Value (PtrTo a) -> args -> BB r (Value (PtrTo b))
 getelementptr ptr idx =
   observe $ text "getelementptr" <+> ppWithType ptr <> comma
@@ -264,7 +263,7 @@ resType  = error "resType"
 retVoid :: BB () ()
 retVoid  = put (text "ret void")
 
-ret :: IsValue r => Value r -> BB r ()
+ret :: HasValues r => Value r -> BB r ()
 ret v = put (text "ret" <+> ppType (valueType v) <+> ppr v)
 
 
@@ -296,7 +295,7 @@ condBr b t f = put
             <> comma <+> ppType t <+> ppr t
             <> comma <+> ppType f <+> ppr f
 
-phi :: IsValue a => (Value a,Lab) -> (Value a,Lab) -> BB r (Value a)
+phi :: HasValues a => (Value a,Lab) -> (Value a,Lab) -> BB r (Value a)
 phi (a,la) (b,lb) =
   observe $ text "phi" <+> ppType (valueType a)
         <+> brackets (ppr a <> comma <+> ppr la)
@@ -317,7 +316,7 @@ instance IsFun f => IsType (Fun f) where
   ppType fun = res <+> parens (commas args)
     where (args,res) = funParts (funType fun)
 
-instance IsFun f => IsValue (Fun f)
+instance IsFun f => HasValues (Fun f)
 
 class IsFun f where
   funParts :: f -> ([Doc],Doc)
@@ -327,7 +326,7 @@ instance IsType a => IsFun (Res a) where
   funParts io = ([], ppType (resType io))
 
 -- | Functions can only take arguments that have first-class values.
-instance (IsValue a, IsFun b) => IsFun (a -> b) where
+instance (HasValues a, IsFun b) => IsFun (a -> b) where
   funParts fun = (ppType (funHead fun) : b, r)
     where (b,r) = funParts (funTail fun)
 
@@ -352,13 +351,13 @@ setFunType _ f = Fun
 class CallArgs f k | f -> k, k -> f where
   callArgs :: String -> [Doc] -> Fun f -> k
 
-instance IsValue a => CallArgs (Res a) (BB r (Value a)) where
+instance HasValues a => CallArgs (Res a) (BB r (Value a)) where
   callArgs c as fun = do
     let res  = resType (funType fun)
     let args = reverse as
     observe (text c <+> ppType res <+> ppr fun <> parens (commas args))
 
-instance (IsValue a, CallArgs b r) => CallArgs (a -> b) (Value a -> r) where
+instance (HasValues a, CallArgs b r) => CallArgs (a -> b) (Value a -> r) where
   callArgs c as fun a = callArgs c (arg:as) (setFunType (funTail f) fun)
     where
     f   = funType fun
@@ -385,7 +384,7 @@ instance IsType a => CallArgs_ (Res a) (BB r ()) where
     let args = reverse as
     put (text c <+> ppType res <+> ppr fun <> parens (commas args))
 
-instance (IsValue a, CallArgs_ b r) => CallArgs_ (a -> b) (Value a -> r) where
+instance (HasValues a, CallArgs_ b r) => CallArgs_ (a -> b) (Value a -> r) where
   callArgs_ c as fun a = callArgs_ c (arg:as) (setFunType (funTail f) fun)
     where
     f   = funType fun
@@ -456,7 +455,7 @@ instance IsType res => Define (BB res ()) (Res res) where
     (_,body) <- collect (unBB m)
     return ([],body)
 
-instance (IsValue a, Define k f) => Define (Value a -> k) (a -> f) where
+instance (HasValues a, Define k f) => Define (Value a -> k) (a -> f) where
   defineBody k f = do
     a         <- freshVar
     (as,body) <- defineBody (k a) (funTail f)
