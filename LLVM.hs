@@ -192,7 +192,7 @@ instance FreshVar (BB r) where
   freshVar = BB freshVar
 
 -- | DO NOT EXPORT.
--- observe is used for naming results from intrnal primitives.
+-- observe is used for naming results from internal primitives.
 observe :: Doc -> BB r (Value a)
 observe d = do
   res <- freshVar
