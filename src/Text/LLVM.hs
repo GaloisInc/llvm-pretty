@@ -278,7 +278,7 @@ instance GetElementPtrArgs Int32 where
 instance GetElementPtrArgs tl => GetElementPtrArgs (Int32 :> tl) where
   gepArgs (a :> tl) = ppWithType (toValue a) : gepArgs tl
 
-getelementptr :: (HasValues a, HasValues b, GetElementPtrArgs args)
+getelementptr :: (IsType a, IsType b, GetElementPtrArgs args)
               => Value (PtrTo a) -> args -> BB r (Value (PtrTo b))
 getelementptr ptr idx =
   observe $ text "getelementptr" <+> ppWithType ptr <> comma
