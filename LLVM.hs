@@ -20,28 +20,35 @@ import MonadLib
 import Numeric (showHex)
 
 
--- Doc Utilities ---------------------------------------------------------------
+-- Programs --------------------------------------------------------------------
 
-instance Monoid Doc where
-  mempty  = Pretty.empty
-  mappend = ($+$)
+newtype Program = P
+  { getProgram :: Doc
+  } deriving (Show)
+
+instance Monoid Program where
+  mempty              = P Pretty.empty
+  mappend (P a) (P b) = P (a $+$ b)
+
+emit :: WriterM m Program => Doc -> m ()
+emit d = put (P d)
 
 
 -- Top-level LLVM Monad --------------------------------------------------------
 
 newtype LLVM a = LLVM
-  { unLLVM :: StateT Int (WriterT Doc Id) a
+  { unLLVM :: StateT Int (WriterT Program Id) a
   } deriving (Functor,Applicative,Monad,MonadFix)
 
 runLLVM :: LLVM a -> (a,Doc)
 runLLVM (LLVM m) = (a,d)
   where
-  ((a,_),d) = runId (runWriterT (runStateT 0 m))
+  ((a,_),P d) = runId (runWriterT (runStateT 0 m))
 
-instance WriterM LLVM Doc where
+instance WriterM LLVM Program where
   put = LLVM . put
 
-instance RunWriterM LLVM Doc where
+instance RunWriterM LLVM Program where
   collect m = LLVM (collect (unLLVM m))
 
 freshName :: String -> LLVM String
@@ -57,10 +64,10 @@ newtype BB r a = BB
   { unBB :: LLVM a
   } deriving (Functor,Applicative,Monad,MonadFix)
 
-instance WriterM (BB r) Doc where
+instance WriterM (BB r) Program where
   put = BB . put
 
-instance RunWriterM (BB r) Doc where
+instance RunWriterM (BB r) Program where
   collect m = BB (collect (unBB m))
 
 
@@ -157,7 +164,7 @@ load :: HasValues a => Value (PtrTo a) -> BB r (Value a)
 load v = observe (text "load" <+> ppWithType v)
 
 store :: HasValues a => Value a -> Value (PtrTo a) -> BB r ()
-store a ptr = put (text "store" <+> ppWithType a <> comma <+> ppWithType ptr)
+store a ptr = emit (text "store" <+> ppWithType a <> comma <+> ppWithType ptr)
 
 
 data a :> b = a :> b
@@ -196,7 +203,7 @@ instance FreshVar (BB r) where
 observe :: Doc -> BB r (Value a)
 observe d = do
   res <- freshVar
-  put (ppr res <+> char '=' <+> d)
+  emit (ppr res <+> char '=' <+> d)
   return res
 
 
@@ -208,10 +215,10 @@ resType :: Res a -> a
 resType  = error "resType"
 
 retVoid :: BB () ()
-retVoid  = put (text "ret void")
+retVoid  = emit (text "ret void")
 
 ret :: HasValues r => Value r -> BB r ()
-ret v = put (text "ret" <+> ppType (valueType v) <+> ppr v)
+ret v = emit (text "ret" <+> ppType (valueType v) <+> ppr v)
 
 
 -- Labels ----------------------------------------------------------------------
@@ -229,15 +236,15 @@ newLabel  = Lab `fmap` BB (freshName "L")
 
 defineLabel :: Lab -> BB r (Value a) -> BB r (Value a,Lab)
 defineLabel lab@(Lab l) m = do
-  put (text l <> char ':')
+  emit (text l <> char ':')
   res <- m
   return (res,lab)
 
 br :: Lab -> BB r ()
-br l = put (text "br" <+> ppType l <+> ppr l)
+br l = emit (text "br" <+> ppType l <+> ppr l)
 
 condBr :: Value Bool -> Lab -> Lab -> BB r ()
-condBr b t f = put
+condBr b t f = emit
              $ text "br" <+> ppWithType b
             <> comma <+> ppType t <+> ppr t
             <> comma <+> ppType f <+> ppr f
@@ -329,7 +336,7 @@ instance IsType a => CallArgs_ (Res a) (BB r ()) where
   callArgs_ c as fun = do
     let res  = resType (funType fun)
     let args = reverse as
-    put (text c <+> ppType res <+> ppr fun <> parens (commas args))
+    emit (text c <+> ppType res <+> ppr fun <> parens (commas args))
 
 instance (HasValues a, CallArgs_ b r) => CallArgs_ (a -> b) (Value a -> r) where
   callArgs_ c as fun a = callArgs_ c (arg:as) (setFunType (funTail f) fun)
@@ -351,7 +358,7 @@ tailCall_  = callArgs_ "tail call" []
 
 declare :: IsFun f => Fun f -> LLVM ()
 declare fun =
-  put (text "declare" <+> res <+> ppr fun <> parens (commas args))
+  emit (text "declare" <+> res <+> ppr fun <> parens (commas args))
   where
   (args,res) = funParts (funType fun)
 
@@ -400,7 +407,7 @@ class IsFun f => Define k f | k -> f, f -> k where
 instance IsType res => Define (BB res ()) (Res res) where
   defineBody m _ = do
     (_,body) <- collect (unBB m)
-    return ([],body)
+    return ([],getProgram body)
 
 instance (HasValues a, Define k f) => Define (Value a -> k) (a -> f) where
   defineBody k f = do
@@ -412,9 +419,9 @@ defineFun :: (IsFun f, Define k f) => Fun f -> k -> LLVM ()
 defineFun f k = mfix $ \f' -> do
   let (_,res) = funParts (funType f)
   (ps,body) <- defineBody k (funType f)
-  put $ text "define" <+> res <+> ppr f <> parens (commas ps) <+> char '{'
-    $+$ nest 2 body
-    $+$ char '}'
+  emit $ text "define" <+> res <+> ppr f <> parens (commas ps) <+> char '{'
+     $+$ nest 2 body
+     $+$ char '}'
   return ()
 
 newNamedFun :: IsFun f => String -> Maybe Linkage -> LLVM (Fun f)
