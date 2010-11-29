@@ -101,7 +101,7 @@ instance IsType Double where
   ppType _ = text "double"
 
 
--- Tagged Values ---------------------------------------------------------------
+-- First-class Values ----------------------------------------------------------
 
 newtype Value a = Value Doc
 
