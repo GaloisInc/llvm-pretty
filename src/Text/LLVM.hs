@@ -69,6 +69,7 @@ module Text.LLVM (
     -- ** Function Symbols
   , Fun(..)
   , IsFun()
+  , funAddr
 
     -- ** Calling
   , CallArgs()
@@ -454,8 +455,11 @@ instance IsFun f => IsType (Fun f) where
 
 instance IsFun f => HasValues (Fun f)
 
-instance IsFun f => HasLiterals (Fun f) where
-  toValue f = Value (char '@' <> text (funSym f))
+ppFun :: Fun a -> Doc
+ppFun f = char '@' <> text (funSym f)
+
+funAddr :: IsFun f => Fun f -> Value (PtrTo (Fun f))
+funAddr f = Value (ppFun f)
 
 class IsFun f where
   funParts :: f -> ([LLVMType],LLVMType)
@@ -494,7 +498,7 @@ instance HasValues a => CallArgs (Res a) (BB r (Value a)) where
   callArgs c as fun = do
     let res  = resType (funType fun)
     let args = reverse as
-    observe (text c <+> ppType res <+> ppl fun <> parens (commas args))
+    observe (text c <+> ppType res <+> ppFun fun <> parens (commas args))
 
 instance (HasValues a, CallArgs b r) => CallArgs (a -> b) (Value a -> r) where
   callArgs c as fun a = callArgs c (arg:as) (setFunType (funTail f) fun)
@@ -521,7 +525,7 @@ instance IsType a => CallArgs_ (Res a) (BB r ()) where
   callArgs_ c as fun = do
     let res  = resType (funType fun)
     let args = reverse as
-    emit (text c <+> ppType res <+> ppl fun <> parens (commas args))
+    emit (text c <+> ppType res <+> ppFun fun <> parens (commas args))
 
 instance (HasValues a, CallArgs_ b r) => CallArgs_ (a -> b) (Value a -> r) where
   callArgs_ c as fun a = callArgs_ c (arg:as) (setFunType (funTail f) fun)
@@ -543,7 +547,7 @@ tailCall_  = callArgs_ "tail call" []
 
 declare :: IsFun f => Fun f -> LLVM ()
 declare fun = emit
-            $ text "declare" <+> ppLLVMType res <+> ppl fun
+            $ text "declare" <+> ppLLVMType res <+> ppFun fun
            <> parens (commas (map ppLLVMType args))
   where
   (args,res) = funParts (funType fun)
@@ -606,7 +610,7 @@ define f k = mfix $ \f' -> do
   let (_,res) = funParts (funType f)
       linkage = maybe empty ppLinkage (funLinkage f)
   (ps,body) <- defineBody k (funType f)
-  emit $ text "define" <+> linkage <+> ppLLVMType res <+> ppl f
+  emit $ text "define" <+> linkage <+> ppLLVMType res <+> ppFun f
       <> parens (commas ps)
      <+> char '{'
      $+$ nest 2 body
