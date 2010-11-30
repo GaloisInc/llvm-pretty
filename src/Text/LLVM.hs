@@ -217,6 +217,8 @@ instance HasValues Int8
 instance HasValues Int16
 instance HasValues Int32
 instance HasValues Int64
+instance HasValues Float
+instance HasValues Double
 
 
 -- Literals --------------------------------------------------------------------
@@ -242,6 +244,12 @@ instance HasLiterals Int32 where
 
 instance HasLiterals Int64 where
   toValue = Value . integer . toInteger
+
+instance HasLiterals Float where
+  toValue = Value . float
+
+instance HasLiterals Double where
+  toValue = Value . double
 
 
 -- Pointers --------------------------------------------------------------------
