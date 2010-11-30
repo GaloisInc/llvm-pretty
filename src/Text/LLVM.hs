@@ -58,6 +58,7 @@ module Text.LLVM (
     -- ** Comparisons
   , ICmpOp(..)
   , icmp
+  , IsFloating()
   , FCmpOp(..)
   , fcmp
 
@@ -410,7 +411,12 @@ ppFCmpOp Fule   = text "ule"
 ppFCmpOp Fune   = text "une"
 ppFCmpOp Funo   = text "uno"
 
-fcmp :: HasValues a => FCmpOp -> Value a -> Value a -> BB r (Value Bool)
+-- | Once vectors are supported, there should be a vector instance.
+class HasValues a => IsFloating a
+instance IsFloating Float
+instance IsFloating Double
+
+fcmp :: IsFloating a => FCmpOp -> Value a -> Value a -> BB r (Value Bool)
 fcmp op x y = observe
             $ text "fcmp" <+> ppFCmpOp op <+> ppWithType x <> comma <+> ppv y
 
