@@ -434,10 +434,8 @@ fcmp op x y = observe
 
 -- Unreachable -----------------------------------------------------------------
 
-unreachable :: BB r (Value a)
-unreachable  = do
-  emit (text "unreachable")
-  return (Value empty)
+unreachable :: BB r ()
+unreachable  = emit (text "unreachable")
 
 
 -- Functions -------------------------------------------------------------------
