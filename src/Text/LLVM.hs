@@ -51,6 +51,7 @@ module Text.LLVM (
   , Lab()
   , newLabel
   , defineLabel
+  , defineLabel_
   , br
   , condBr
   , phi
@@ -357,6 +358,9 @@ defineLabel lab@(Lab l) m = do
   emit (text l <> char ':')
   res <- m
   return (res,lab)
+
+defineLabel_ :: Lab -> BB r a -> BB r a
+defineLabel_ lab m = defineLabel lab m >> return ()
 
 br :: Lab -> BB r ()
 br l = emit (text "br" <+> ppType l <+> ppLab l)
