@@ -360,7 +360,7 @@ defineLabel lab@(Lab l) m = do
   return (res,lab)
 
 defineLabel_ :: Lab -> BB r a -> BB r a
-defineLabel_ lab m = defineLabel lab m >> return ()
+defineLabel_ (Lab l) m = emit (text l <> char ':') >> m
 
 br :: Lab -> BB r ()
 br l = emit (text "br" <+> ppType l <+> ppLab l)
