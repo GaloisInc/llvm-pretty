@@ -55,6 +55,12 @@ module Text.LLVM (
   , condBr
   , phi
 
+    -- ** Comparisons
+  , ICmpOp(..)
+  , icmp
+  , FCmpOp(..)
+  , fcmp
+
     -- ** Function Symbols
   , Fun(..)
   , IsFun()
@@ -355,6 +361,58 @@ phi (a,la) (b,lb) =
         <+> brackets (ppv a <> comma <+> ppLab la)
          <> comma <+> brackets (ppv b <> comma <+> ppLab lb)
 
+
+-- Comparisons -----------------------------------------------------------------
+
+data ICmpOp
+  = Ieq  | Ine | Iugt | Iuge | Ilt
+  | Ile | Isgt | Isge | Islt | Isle
+    deriving Show
+
+ppICmpOp :: ICmpOp -> Doc
+ppICmpOp Ieq  = text "eq"
+ppICmpOp Ine  = text "ne"
+ppICmpOp Iugt = text "ugt"
+ppICmpOp Iuge = text "uge"
+ppICmpOp Ilt  = text "lt"
+ppICmpOp Ile  = text "le"
+ppICmpOp Isgt = text "sgt"
+ppICmpOp Isge = text "sge"
+ppICmpOp Islt = text "slt"
+ppICmpOp Isle = text "sle"
+
+icmp :: HasValues a => ICmpOp -> Value a -> Value a -> BB r (Value Bool)
+icmp op x y = observe
+            $ text "icmp" <+> ppICmpOp op <+> ppWithType x <> comma <+> ppv y
+
+
+data FCmpOp
+  = Ffalse | Ftrue
+  | Foeq   | Fogt | Foge | Folt | Fole | Fone | Ford
+  | Fueq   | Fugt | Fuge | Fult | Fule | Fune | Funo
+    deriving Show
+
+ppFCmpOp :: FCmpOp -> Doc
+ppFCmpOp Ffalse = text "false"
+ppFCmpOp Ftrue  = text "true"
+ppFCmpOp Foeq   = text "oeq"
+ppFCmpOp Fogt   = text "ogt"
+ppFCmpOp Foge   = text "oge"
+ppFCmpOp Folt   = text "olt"
+ppFCmpOp Fole   = text "ole"
+ppFCmpOp Fone   = text "one"
+ppFCmpOp Ford   = text "ord"
+ppFCmpOp Fueq   = text "ueq"
+ppFCmpOp Fugt   = text "ugt"
+ppFCmpOp Fuge   = text "uge"
+ppFCmpOp Fult   = text "ult"
+ppFCmpOp Fule   = text "ule"
+ppFCmpOp Fune   = text "une"
+ppFCmpOp Funo   = text "uno"
+
+fcmp :: HasValues a => FCmpOp -> Value a -> Value a -> BB r (Value Bool)
+fcmp op x y = observe
+            $ text "fcmp" <+> ppFCmpOp op <+> ppWithType x <> comma <+> ppv y
 
 -- Functions -------------------------------------------------------------------
 
