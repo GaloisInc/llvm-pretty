@@ -62,6 +62,9 @@ module Text.LLVM (
   , FCmpOp(..)
   , fcmp
 
+    -- ** Unreachable
+  , unreachable
+
     -- ** Function Symbols
   , Fun(..)
   , IsFun()
@@ -427,6 +430,15 @@ instance IsFloating Double
 fcmp :: IsFloating a => FCmpOp -> Value a -> Value a -> BB r (Value Bool)
 fcmp op x y = observe
             $ text "fcmp" <+> ppFCmpOp op <+> ppWithType x <> comma <+> ppv y
+
+
+-- Unreachable -----------------------------------------------------------------
+
+unreachable :: BB r (Value a)
+unreachable  = do
+  emit (text "unreachable")
+  return (Value empty)
+
 
 -- Functions -------------------------------------------------------------------
 
