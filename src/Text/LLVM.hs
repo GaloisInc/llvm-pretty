@@ -76,8 +76,15 @@ module Text.LLVM (
 
     -- ** Function Symbols
   , Fun(..)
+  , simpleFun
   , IsFun()
   , funAddr
+
+    -- ** Function Attributes
+  , FunSpec(..)
+  , emptySpec
+  , GC(..)
+  , Linkage(..)
 
     -- ** Calling
   , CallArgs()
@@ -89,9 +96,8 @@ module Text.LLVM (
   , declare
 
     -- ** Definition
-  , Linkage(..)
   , Define()
-  , define, newNamedFun, newFun, defineFun, defineNamedFun
+  , define, newFun, defineFun, defineNamedFun
   ) where
 
 import Control.Applicative (Applicative(..))
@@ -472,8 +478,15 @@ unreachable  = emit (text "unreachable")
 -- Functions -------------------------------------------------------------------
 
 data Fun f = Fun
-  { funSym     :: String
-  , funLinkage :: Maybe Linkage
+  { funSym  :: String
+  , funSpec :: FunSpec
+  }
+
+-- | A simple, named function with no additional attributes.
+simpleFun :: IsFun f => String -> Fun f
+simpleFun sym = Fun
+  { funSym  = sym
+  , funSpec = emptySpec
   }
 
 instance IsFun f => IsType (Fun f) where
@@ -481,11 +494,41 @@ instance IsFun f => IsType (Fun f) where
 
 instance IsFun f => HasValues (Fun f)
 
+data FunSpec = FunSpec
+  { specLinkage :: Maybe Linkage
+  , specGC      :: Maybe GC
+  }
+
+-- | A function attribute specification that has no attributes specified.
+emptySpec :: FunSpec
+emptySpec  = FunSpec
+  { specLinkage = Nothing
+  , specGC      = Nothing
+  }
+
+setLinkage :: Linkage -> FunSpec -> FunSpec
+setLinkage l spec = spec { specLinkage = Just l }
+
+setGC :: GC -> FunSpec -> FunSpec
+setGC gc spec = spec { specGC = Just gc }
+
 ppFun :: Fun a -> Doc
 ppFun f = char '@' <> text (funSym f)
 
 funAddr :: IsFun f => Fun f -> Value (PtrTo (Fun f))
 funAddr f = Value (ppFun f)
+
+defineHeader :: IsFun f => Fun f -> [Doc] -> Doc
+defineHeader f args = hsep
+  [ text "define"
+  , maybe empty ppLinkage (specLinkage spec)
+  , ppLLVMType res
+  , ppFun f <> parens (commas args)
+  , maybe empty ppGC (specGC spec)
+  ]
+  where
+  (_,res) = funParts (funType f)
+  spec    = funSpec f
 
 class IsFun f where
   funParts :: f -> ([LLVMType],LLVMType)
@@ -510,9 +553,57 @@ funTail  = error "funTail"
 
 setFunType :: b -> Fun a -> Fun b
 setFunType _ f = Fun
-  { funSym     = funSym f
-  , funLinkage = funLinkage f
+  { funSym  = funSym f
+  , funSpec = funSpec f
   }
+
+
+-- Garbage Collection ----------------------------------------------------------
+
+newtype GC = GC
+  { gcStrategy :: String
+  } deriving Show
+
+ppGC :: GC -> Doc
+ppGC gc = text "gc" <+> doubleQuotes (text (gcStrategy gc))
+
+
+-- Linkage ---------------------------------------------------------------------
+
+-- | Symbol Linkage
+data Linkage
+  = Private
+  | LinkerPrivate
+  | LinkerPrivateWeak
+  | LinkerPrivateWeakDefAuto
+  | Internal
+  | AvailableExternally
+  | Linkonce
+  | Weak
+  | Common
+  | Appending
+  | ExternWeak
+  | LinkonceODR
+  | WeakODR
+  | DLLImport
+  | DLLExport
+
+ppLinkage :: Linkage -> Doc
+ppLinkage Private                  = text "private"
+ppLinkage LinkerPrivate            = text "linker_private"
+ppLinkage LinkerPrivateWeak        = text "linker_private_weak"
+ppLinkage LinkerPrivateWeakDefAuto = text "linker_private_weak_def_auto"
+ppLinkage Internal                 = text "internal"
+ppLinkage AvailableExternally      = text "available_externally"
+ppLinkage Linkonce                 = text "linkonce"
+ppLinkage Weak                     = text "weak"
+ppLinkage Common                   = text "common"
+ppLinkage Appending                = text "appending"
+ppLinkage ExternWeak               = text "extern_weak"
+ppLinkage LinkonceODR              = text "linkonce_ddr"
+ppLinkage WeakODR                  = text "weak_odr"
+ppLinkage DLLImport                = text "dllimport"
+ppLinkage DLLExport                = text "dllexport"
 
 
 -- Function Calls --------------------------------------------------------------
@@ -581,42 +672,6 @@ declare fun = emit
 
 -- Function Definition ---------------------------------------------------------
 
--- | Symbol Linkage
-data Linkage
-  = Private
-  | LinkerPrivate
-  | LinkerPrivateWeak
-  | LinkerPrivateWeakDefAuto
-  | Internal
-  | AvailableExternally
-  | Linkonce
-  | Weak
-  | Common
-  | Appending
-  | ExternWeak
-  | LinkonceODR
-  | WeakODR
-  | DLLImport
-  | DLLExport
-
-ppLinkage :: Linkage -> Doc
-ppLinkage Private                  = text "private"
-ppLinkage LinkerPrivate            = text "linker_private"
-ppLinkage LinkerPrivateWeak        = text "linker_private_weak"
-ppLinkage LinkerPrivateWeakDefAuto = text "linker_private_weak_def_auto"
-ppLinkage Internal                 = text "internal"
-ppLinkage AvailableExternally      = text "available_externally"
-ppLinkage Linkonce                 = text "linkonce"
-ppLinkage Weak                     = text "weak"
-ppLinkage Common                   = text "common"
-ppLinkage Appending                = text "appending"
-ppLinkage ExternWeak               = text "extern_weak"
-ppLinkage LinkonceODR              = text "linkonce_ddr"
-ppLinkage WeakODR                  = text "weak_odr"
-ppLinkage DLLImport                = text "dllimport"
-ppLinkage DLLExport                = text "dllexport"
-
-
 class IsFun f => Define k f | k -> f, f -> k where
   defineBody :: k -> f -> LLVM ([Doc],Doc)
 
@@ -633,51 +688,35 @@ instance (HasValues a, Define k f) => Define (Value a -> k) (a -> f) where
 
 define :: (IsFun f, Define k f) => Fun f -> k -> LLVM ()
 define f k = mfix $ \f' -> do
-  let (_,res) = funParts (funType f)
-      linkage = maybe empty ppLinkage (funLinkage f)
   (ps,body) <- defineBody k (funType f)
-  emit $ text "define" <+> linkage <+> ppLLVMType res <+> ppFun f
-      <> parens (commas ps)
-     <+> char '{'
-     $+$ nest 2 body
-     $+$ char '}'
-  return ()
+  emit (defineHeader f ps <+> char '{' $+$ nest 2 body $+$ char '}')
 
-newNamedFun :: IsFun f => String -> Maybe Linkage -> LLVM (Fun f)
-newNamedFun sym mb = return Fun
-  { funSym     = sym
-  , funLinkage = mb
-  }
+newFun :: IsFun f => FunSpec -> LLVM (Fun f)
+newFun spec = flip Fun spec `fmap` freshName "fun"
 
-newFun :: IsFun f => Maybe Linkage -> LLVM (Fun f)
-newFun mb = do
-  sym <- freshName "fun"
-  newNamedFun sym mb
-
-defineFun :: Define k f => Maybe Linkage -> k -> LLVM (Fun f)
-defineFun mb k = do
-  f <- newFun mb
+defineFun :: Define k f => FunSpec -> k -> LLVM (Fun f)
+defineFun spec k = do
+  f <- newFun spec
   define f k
   return f
 
-defineNamedFun :: Define k f => String -> Maybe Linkage -> k -> LLVM (Fun f)
-defineNamedFun sym mb k = do
-  f <- newNamedFun sym mb
-  define f k
-  return f
+defineNamedFun :: Define k f => String -> FunSpec -> k -> LLVM (Fun f)
+defineNamedFun sym spec k = define f k >> return f
+  where
+  f = Fun sym spec
 
 
 -- Tests -----------------------------------------------------------------------
 
 test1 :: Fun (Int32 -> Res Int32)
-test1  = Fun "test1" Nothing
+test1  = simpleFun "test1"
 
 test2 :: Fun (Fun (Int32 -> Res Int32) -> Int8 -> Res Int32)
-test2  = Fun "test2" Nothing
+test2  = simpleFun "test2"
 
 test3 = do
-  id32 <- defineFun (Just Private) $ \ x -> ret (x :: Value Int32)
-  main <- defineNamedFun "main" Nothing $ do
+  id32 <- defineFun emptySpec $ \ x -> ret (x :: Value Int32)
+  main <- defineNamedFun "main" emptySpec $ do
     a <- call id32 (toValue 10)
     b <- call id32 a
     ret a
@@ -685,6 +724,6 @@ test3 = do
   return ()
 
 test6 = do
-  f <- defineFun Nothing retVoid
-  _ <- defineFun Nothing (call_ f >> retVoid)
+  f <- defineFun (setGC (GC "asdf") emptySpec) retVoid
+  _ <- defineFun emptySpec (call_ f >> retVoid)
   return ()
