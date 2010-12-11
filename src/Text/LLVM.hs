@@ -63,6 +63,14 @@ module Text.LLVM (
   , FCmpOp(..)
   , fcmp
 
+    -- ** Numeric Functions
+  , add
+  , sub
+  , mul
+
+    -- ** Bitwise Functions
+  , band
+
     -- ** Unreachable
   , unreachable
 
@@ -435,6 +443,24 @@ instance IsFloating Double
 fcmp :: IsFloating a => FCmpOp -> Value a -> Value a -> BB r (Value Bool)
 fcmp op x y = observe
             $ text "fcmp" <+> ppFCmpOp op <+> ppWithType x <> comma <+> ppv y
+
+
+-- Numeric Functions -----------------------------------------------------------
+
+add :: (HasValues a, Integral a) => Value a -> Value a -> BB r (Value a)
+add a b = observe $ text "add" <+> ppWithType a <> comma <+> ppv b
+
+sub :: (HasValues a, Integral a) => Value a -> Value a -> BB r (Value a)
+sub a b = observe $ text "sub" <+> ppWithType a <> comma <+> ppv b
+
+mul :: (HasValues a, Integral a) => Value a -> Value a -> BB r (Value a)
+mul a b = observe $ text "mul" <+> ppWithType a <> comma <+> ppv b
+
+
+-- Bitwise Functions -----------------------------------------------------------
+
+band :: (HasValues a, Integral a) => Value a -> Value a -> BB r (Value a)
+band a b = observe $ text "and" <+> ppWithType a <> comma <+> ppv b
 
 
 -- Unreachable -----------------------------------------------------------------
