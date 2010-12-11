@@ -82,9 +82,9 @@ module Text.LLVM (
 
     -- ** Function Attributes
   , FunSpec(..)
-  , emptySpec
-  , GC(..)
-  , Linkage(..)
+  , emptyFunSpec
+  , GC(..),      setGC
+  , Linkage(..), setLinkage
 
     -- ** Calling
   , CallArgs()
@@ -486,7 +486,7 @@ data Fun f = Fun
 simpleFun :: IsFun f => String -> Fun f
 simpleFun sym = Fun
   { funSym  = sym
-  , funSpec = emptySpec
+  , funSpec = emptyFunSpec
   }
 
 instance IsFun f => IsType (Fun f) where
@@ -500,8 +500,8 @@ data FunSpec = FunSpec
   }
 
 -- | A function attribute specification that has no attributes specified.
-emptySpec :: FunSpec
-emptySpec  = FunSpec
+emptyFunSpec :: FunSpec
+emptyFunSpec  = FunSpec
   { specLinkage = Nothing
   , specGC      = Nothing
   }
@@ -715,8 +715,8 @@ test2 :: Fun (Fun (Int32 -> Res Int32) -> Int8 -> Res Int32)
 test2  = simpleFun "test2"
 
 test3 = do
-  id32 <- defineFun emptySpec $ \ x -> ret (x :: Value Int32)
-  main <- defineNamedFun "main" emptySpec $ do
+  id32 <- defineFun emptyFunSpec $ \ x -> ret (x :: Value Int32)
+  main <- defineNamedFun "main" emptyFunSpec $ do
     a <- call id32 (toValue 10)
     b <- call id32 a
     ret a
@@ -724,6 +724,6 @@ test3 = do
   return ()
 
 test6 = do
-  f <- defineFun (setGC (GC "asdf") emptySpec) retVoid
-  _ <- defineFun emptySpec (call_ f >> retVoid)
+  f <- defineFun (setGC (GC "asdf") emptyFunSpec) retVoid
+  _ <- defineFun emptyFunSpec (call_ f >> retVoid)
   return ()
