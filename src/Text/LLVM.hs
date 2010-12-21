@@ -83,8 +83,10 @@ module Text.LLVM (
     -- ** Function Attributes
   , FunSpec(..)
   , emptyFunSpec
-  , GC(..),      setGC
+  , GC(..), setGC
   , Linkage(..), setLinkage
+  , CallingConvention(..), setCallingConvention
+  , cCC, fastCC, coldCC, ghcCC, ccN
 
     -- ** Calling
   , CallArgs()
@@ -495,15 +497,17 @@ instance IsFun f => IsType (Fun f) where
 instance IsFun f => HasValues (Fun f)
 
 data FunSpec = FunSpec
-  { specLinkage :: Maybe Linkage
-  , specGC      :: Maybe GC
+  { specLinkage           :: Maybe Linkage
+  , specGC                :: Maybe GC
+  , specCallingConvention :: Maybe CallingConvention
   }
 
 -- | A function attribute specification that has no attributes specified.
 emptyFunSpec :: FunSpec
 emptyFunSpec  = FunSpec
-  { specLinkage = Nothing
-  , specGC      = Nothing
+  { specLinkage           = Nothing
+  , specGC                = Nothing
+  , specCallingConvention = Nothing
   }
 
 setLinkage :: Linkage -> FunSpec -> FunSpec
@@ -511,6 +515,9 @@ setLinkage l spec = spec { specLinkage = Just l }
 
 setGC :: GC -> FunSpec -> FunSpec
 setGC gc spec = spec { specGC = Just gc }
+
+setCallingConvention :: CallingConvention -> FunSpec -> FunSpec
+setCallingConvention cc spec = spec { specCallingConvention = Just cc }
 
 ppFun :: Fun a -> Doc
 ppFun f = char '@' <> text (funSym f)
@@ -522,6 +529,7 @@ defineHeader :: IsFun f => Fun f -> [Doc] -> Doc
 defineHeader f args = hsep
   [ text "define"
   , maybe empty ppLinkage (specLinkage spec)
+  , maybe empty ppCallingConvention (specCallingConvention spec)
   , ppLLVMType res
   , ppFun f <> parens (commas args)
   , maybe empty ppGC (specGC spec)
@@ -566,6 +574,36 @@ newtype GC = GC
 
 ppGC :: GC -> Doc
 ppGC gc = text "gc" <+> doubleQuotes (text (gcStrategy gc))
+
+
+-- Calling Conventions ---------------------------------------------------------
+
+newtype CallingConvention = CallingConvention
+  { ccName :: String
+  } deriving Show
+
+ppCallingConvention :: CallingConvention -> Doc
+ppCallingConvention (CallingConvention cc) = text cc
+
+-- | C Calling Convention
+cCC :: CallingConvention
+cCC  = CallingConvention "ccc"
+
+-- | Fast calling convention.
+fastCC :: CallingConvention
+fastCC  = CallingConvention "fastcc"
+
+-- | Cold calling convention.
+coldCC :: CallingConvention
+coldCC  = CallingConvention "coldcc"
+
+-- | GHC calling convention.
+ghcCC :: CallingConvention
+ghcCC  = CallingConvention "cc 10"
+
+-- | Numbered calling convention.
+ccN :: Int -> CallingConvention
+ccN n = CallingConvention ("cc " ++ show n)
 
 
 -- Linkage ---------------------------------------------------------------------
@@ -726,4 +764,14 @@ test3 = do
 test6 = do
   f <- defineFun (setGC (GC "asdf") emptyFunSpec) retVoid
   _ <- defineFun emptyFunSpec (call_ f >> retVoid)
+  return ()
+
+test7 = do
+  id32 <- defineFun (setCallingConvention fastCC emptyFunSpec)
+        $ \ x -> ret (x :: Value Int32)
+  main <- defineNamedFun "main" emptyFunSpec $ do
+    a <- call id32 (toValue 10)
+    b <- call id32 a
+    ret a
+
   return ()
