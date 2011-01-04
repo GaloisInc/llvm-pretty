@@ -646,14 +646,19 @@ ppLinkage DLLExport                = text "dllexport"
 
 -- Function Calls --------------------------------------------------------------
 
+callBody :: IsType a => String -> Fun (Res a) -> [Doc] -> Doc
+callBody c fun args = hsep
+  [ text c
+  , maybe empty ppCallingConvention (specCallingConvention (funSpec fun))
+  , ppType (resType (funType fun))
+  , ppFun fun <> parens (commas args)
+  ]
+
 class CallArgs f k | f -> k, k -> f where
   callArgs :: String -> [Doc] -> Fun f -> k
 
 instance HasValues a => CallArgs (Res a) (BB r (Value a)) where
-  callArgs c as fun = do
-    let res  = resType (funType fun)
-    let args = reverse as
-    observe (text c <+> ppType res <+> ppFun fun <> parens (commas args))
+  callArgs c as fun = observe (callBody c fun (reverse as))
 
 instance (HasValues a, CallArgs b r) => CallArgs (a -> b) (Value a -> r) where
   callArgs c as fun a = callArgs c (arg:as) (setFunType (funTail f) fun)
@@ -677,10 +682,7 @@ class CallArgs_ f k | f -> k, k -> f where
   callArgs_ :: String -> [Doc] -> Fun f -> k
 
 instance IsType a => CallArgs_ (Res a) (BB r ()) where
-  callArgs_ c as fun = do
-    let res  = resType (funType fun)
-    let args = reverse as
-    emit (text c <+> ppType res <+> ppFun fun <> parens (commas args))
+  callArgs_ c as fun = emit (callBody c fun (reverse as))
 
 instance (HasValues a, CallArgs_ b r) => CallArgs_ (a -> b) (Value a -> r) where
   callArgs_ c as fun a = callArgs_ c (arg:as) (setFunType (funTail f) fun)
