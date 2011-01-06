@@ -35,6 +35,7 @@ module Text.LLVM (
   , alloca
   , load
   , store
+  , bitcast
 
     -- ** getelementptr
   , (:>)((:>))
@@ -305,10 +306,9 @@ load v = observe (text "load" <+> ppWithType v)
 store :: HasValues a => Value a -> Value (PtrTo a) -> BB r ()
 store a ptr = emit (text "store" <+> ppWithType a <> comma <+> ppWithType ptr)
 
-bitcast :: (HasValues a, HasValues b)
-        => Value (PtrTo a) -> BB r (Value (PtrTo b))
+bitcast :: (IsType a, IsType b) => Value (PtrTo a) -> BB r (Value (PtrTo b))
 bitcast ptr =
-  mfix $ \res -> observe 
+  mfix $ \res -> observe
        $ text "bitcast" <+> ppWithType ptr <> comma <+> ppType (valueType res)
 
 
