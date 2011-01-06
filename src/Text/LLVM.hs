@@ -290,7 +290,7 @@ instance IsType a => IsType (PtrTo a) where
 instance IsType a => HasValues (PtrTo a)
 
 -- | Construct the null pointer.
-nullPtr :: HasValues a => Value (PtrTo a)
+nullPtr :: IsType a => Value (PtrTo a)
 nullPtr  = Value (text "null")
 
 -- | Allocate some memory on the stack.
