@@ -89,9 +89,6 @@ module Text.LLVM (
   , CallingConvention(..), setCallingConvention
   , cCC, fastCC, coldCC, ghcCC, ccN
 
-    -- ** GC Intrinsics
-  , llvm_gcroot
-
     -- ** Calling
   , CallArgs()
   , call, tailCall
@@ -309,7 +306,8 @@ store a ptr = emit (text "store" <+> ppWithType a <> comma <+> ppWithType ptr)
 bitcast :: (IsType a, IsType b) => Value (PtrTo a) -> BB r (Value (PtrTo b))
 bitcast ptr =
   mfix $ \res -> observe
-       $ text "bitcast" <+> ppWithType ptr <> comma <+> ppType (valueType res)
+       $ text "bitcast" <+> ppWithType ptr
+     <+> text "to" <+> ppType (valueType res)
 
 
 data a :> b = a :> b
@@ -614,12 +612,6 @@ ghcCC  = CallingConvention "cc 10"
 ccN :: Int -> CallingConvention
 ccN n = CallingConvention ("cc " ++ show n)
 
-
--- GC Intrinsics ---------------------------------------------------------------
-
-llvm_gcroot :: Value (PtrTo (PtrTo Int8)) -> Value (PtrTo Int8) -> BB r ()
-llvm_gcroot p md =
-  emit (text "llvm.gcroot" <> parens (ppWithType p <> comma <+> ppWithType md))
 
 -- Linkage ---------------------------------------------------------------------
 
