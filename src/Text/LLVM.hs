@@ -253,6 +253,28 @@ instance (HasValues a, Declare f) => Declare (a -> f) where
     declareBody (ty:tys) (funTail f)
 
 
+call :: Call f k => Fun f -> k
+call  = callBody False []
+
+tailCall :: Call f k => Fun f -> k
+tailCall  = callBody True []
+
+class Call f k | f -> k, k -> f where
+  callBody :: Bool -> [AST.Typed AST.Value] -> Fun f -> k
+
+instance HasValues a => Call (Res a) (BB r (Value a)) where
+  callBody tc as f = do
+    name <- freshName "res"
+    let i     = AST.Ident name
+    let res   = Value (AST.ValIdent i)
+    let resTy = getType (resType (funType f))
+    emitStmt (AST.Result i (AST.call tc resTy (funSymbol f) (reverse as)))
+    return res
+
+instance (HasValues a, Call f k) => Call (a -> f) (Value a -> k) where
+  callBody tc as f v = callBody tc (typedValue v:as) (funTail f)
+
+
 -- Instructions ----------------------------------------------------------------
 
 ret :: HasValues r => Value r -> BB r ()

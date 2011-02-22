@@ -259,11 +259,8 @@ ret v = GenInstr "ret" [TypedArg v]
 retVoid :: Instr
 retVoid  = GenInstr "ret" [TypeArg (PrimType Void)]
 
-call :: Type -> Symbol -> [Arg] -> Instr
-call  = Call False
-
-tailCall :: Type -> Symbol -> [Arg] -> Instr
-tailCall  = Call True
+call :: Bool -> Type -> Symbol -> [Typed Value] -> Instr
+call tc rty sym = Call tc rty sym . map TypedArg
 
 add :: Typed Value -> Value -> Instr
 add l r = GenInstr "add" [TypedArg l,UntypedArg r]
