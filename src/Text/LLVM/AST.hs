@@ -2,6 +2,7 @@ module Text.LLVM.AST where
 
 import Data.Int (Int32)
 import Data.List (intersperse)
+import Data.Monoid (Monoid(..))
 import Text.PrettyPrint.HughesPJ
 
 commas :: [Doc] -> Doc
@@ -21,6 +22,15 @@ data Module = Module
   , modDeclares :: [Declare]
   , modDefines  :: [Define]
   } deriving (Show)
+
+instance Monoid Module where
+  mempty = emptyModule
+  mappend m1 m2 = Module
+    { modTypes    = modTypes    m1 ++ modTypes    m2
+    , modGlobals  = modGlobals  m1 ++ modGlobals  m2
+    , modDeclares = modDeclares m1 ++ modDeclares m2
+    , modDefines  = modDefines  m1 ++ modDefines  m2
+    }
 
 emptyModule :: Module
 emptyModule  = Module
@@ -163,7 +173,9 @@ data Define = Define
 ppDefine :: Define -> Doc
 ppDefine d = text "define" <+> ppType (defRetType d)
          <+> ppSymbol (defName d)
-          <> parens (commas (map (ppTyped ppIdent) (defArgs d)))
+          <> parens (commas (map (ppTyped ppIdent) (defArgs d))) <+> char '{'
+         $+$ nest 2 (vcat (map ppStmt (defBody d)))
+         $+$ char '}'
 
 -- Typed Things ----------------------------------------------------------------
 
@@ -199,22 +211,28 @@ ppCall tc ty sym args
 data Arg
   = TypedArg (Typed Value)
   | UntypedArg Value
+  | TypeArg Type
     deriving (Show)
 
 ppArg :: Arg -> Doc
 ppArg (TypedArg tl)  = ppTyped ppValue tl
 ppArg (UntypedArg l) = ppValue l
+ppArg (TypeArg ty)   = ppType ty
 
 -- Values ----------------------------------------------------------------------
 
 data Value
-  = ValNum Integer
+  = ValInteger Integer
+  | ValFloat Float
+  | ValDouble Double
   | ValIdent Ident
     deriving (Show)
 
 ppValue :: Value -> Doc
-ppValue (ValNum i)   = integer i
-ppValue (ValIdent i) = ppIdent i
+ppValue (ValInteger i) = integer i
+ppValue (ValFloat i)   = float i
+ppValue (ValDouble i)  = double i
+ppValue (ValIdent i)   = ppIdent i
 
 -- Statements ------------------------------------------------------------------
 
@@ -235,6 +253,12 @@ ignore  = Effect
 
 -- Instruction Helpers ---------------------------------------------------------
 
+ret :: Typed Value -> Instr
+ret v = GenInstr "ret" [TypedArg v]
+
+retVoid :: Instr
+retVoid  = GenInstr "ret" [TypeArg (PrimType Void)]
+
 call :: Type -> Symbol -> [Arg] -> Instr
 call  = Call False
 
@@ -253,5 +277,5 @@ mul l r = GenInstr "mul" [TypedArg l,UntypedArg r]
 getelementptr :: Typed Value -> [(Type,Value)] -> Instr
 getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv : args)
   where
-  args | null ixs  = [TypedArg (Typed (PrimType (Integer 32)) (ValNum 0))]
+  args | null ixs  = [TypedArg (Typed (PrimType (Integer 32)) (ValInteger 0))]
        | otherwise = map (TypedArg . uncurry Typed) ixs
