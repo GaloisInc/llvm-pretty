@@ -2,6 +2,7 @@ module Text.LLVM.AST where
 
 import Data.Int (Int32)
 import Data.List (intersperse)
+import Data.Maybe (fromMaybe)
 import Data.Monoid (Monoid(..))
 import Text.PrettyPrint.HughesPJ
 
@@ -41,7 +42,7 @@ emptyModule  = Module
   }
 
 ppModule :: Module -> Doc
-ppModule m = hcat $ concat
+ppModule m = vcat $ concat
   [ map ppTypeDecl (modTypes m)
   , map ppDeclare (modDeclares m)
   , map ppDefine (modDefines m)
@@ -101,7 +102,7 @@ data Type
   = PrimType PrimType
   | Alias Ident
   | Array Int32 Type
-  | FunTy [Type] Type
+  | FunTy Type [Type]
   | PtrTo Type
   | Struct [Type]
   | PackedStruct [Type]
@@ -113,10 +114,10 @@ ppType :: Type -> Doc
 ppType (PrimType pt)     = ppPrimType pt
 ppType (Alias i)         = ppIdent i
 ppType (Array len ty)    = brackets (int32 len <+> char 'x' <+> ppType ty)
-ppType (PtrTo ty)        = ppType ty <> char '*'
+ppType (PtrTo ty)        = parens (ppType ty) <> char '*'
 ppType (Struct ts)       = braces (commas (map ppType ts))
 ppType (PackedStruct ts) = angles (braces (commas (map ppType ts)))
-ppType (FunTy as r)      = ppType r <> parens (commas (map ppType as))
+ppType (FunTy r as)      = parens (ppType r) <> parens (commas (map ppType as))
 ppType (Vector len pt)   = angles (int32 len <+> char 'x' <+> ppPrimType pt)
 ppType Opaque            = text "opaque"
 
@@ -192,11 +193,29 @@ ppTyped fmt ty = ppType (typedType ty) <+> fmt (typedValue ty)
 data Instr
   = GenInstr String [Arg]
   | Call Bool Type Symbol [Arg]
+  | Alloca Type (Maybe (Typed Value)) (Maybe Int)
+  | ICmp ICmpOp (Typed Value) Value
+  | FCmp FCmpOp (Typed Value) Value
     deriving (Show)
 
 ppInstr :: Instr -> Doc
 ppInstr (GenInstr op args)    = text op <+> commas (map ppArg args)
 ppInstr (Call tc ty sym args) = ppCall tc ty sym args
+ppInstr (Alloca ty len align) = ppAlloca ty len align
+ppInstr (ICmp op l r)         = text "icmp" <+> ppICmpOp op
+                            <+> ppTyped ppValue l <> comma <+> ppValue r
+ppInstr (FCmp op l r)         = text "fcmp" <+> ppFCmpOp op
+                            <+> ppTyped ppValue l <> comma <+> ppValue r
+
+ppAlloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Doc
+ppAlloca ty mbLen mbAlign = text "alloca" <+> ppType ty <> len <> align
+  where
+  len = fromMaybe empty $ do
+    l <- mbLen
+    return (comma <+> ppTyped ppValue l)
+  align = fromMaybe empty $ do
+    a <- mbAlign
+    return (comma <+> text "align" <+> int a)
 
 ppCall :: Bool -> Type -> Symbol -> [Arg] -> Doc
 ppCall tc ty sym args
@@ -205,6 +224,44 @@ ppCall tc ty sym args
   where
   body = text "call" <+> ppType ty <+> ppSymbol sym
       <> parens (commas (map ppArg args))
+
+data ICmpOp = Ieq | Ine | Iugt | Iuge | Iult | Iule | Isgt | Isge | Islt | Isle
+  deriving (Show)
+
+ppICmpOp :: ICmpOp -> Doc
+ppICmpOp Ieq  = text "eq"
+ppICmpOp Ine  = text "ne"
+ppICmpOp Iugt = text "ugt"
+ppICmpOp Iuge = text "uge"
+ppICmpOp Iult = text "ult"
+ppICmpOp Iule = text "ule"
+ppICmpOp Isgt = text "sgt"
+ppICmpOp Isge = text "sge"
+ppICmpOp Islt = text "slt"
+ppICmpOp Isle = text "sle"
+
+data FCmpOp = Ffalse  | Foeq | Fogt | Foge | Folt | Fole | Fone
+            | Ford    | Fueq | Fugt | Fuge | Fult | Fule | Fune
+            | Funo    | Ftrue
+    deriving (Show)
+
+ppFCmpOp :: FCmpOp -> Doc
+ppFCmpOp Ffalse = text "false"
+ppFCmpOp Foeq   = text "oeq"
+ppFCmpOp Fogt   = text "ogt"
+ppFCmpOp Foge   = text "oge"
+ppFCmpOp Folt   = text "olt"
+ppFCmpOp Fole   = text "ole"
+ppFCmpOp Fone   = text "one"
+ppFCmpOp Ford   = text "ord"
+ppFCmpOp Fueq   = text "ueq"
+ppFCmpOp Fugt   = text "ugt"
+ppFCmpOp Fuge   = text "uge"
+ppFCmpOp Fult   = text "ult"
+ppFCmpOp Fule   = text "ule"
+ppFCmpOp Fune   = text "une"
+ppFCmpOp Funo   = text "uno"
+ppFCmpOp Ftrue  = text "true"
 
 -- Arguments -------------------------------------------------------------------
 
@@ -226,6 +283,7 @@ data Value
   | ValFloat Float
   | ValDouble Double
   | ValIdent Ident
+  | ValNull
     deriving (Show)
 
 ppValue :: Value -> Doc
@@ -233,17 +291,20 @@ ppValue (ValInteger i) = integer i
 ppValue (ValFloat i)   = float i
 ppValue (ValDouble i)  = double i
 ppValue (ValIdent i)   = ppIdent i
+ppValue ValNull        = text "null"
 
 -- Statements ------------------------------------------------------------------
 
 data Stmt
   = Result Ident Instr
   | Effect Instr
+  | DefLabel Ident
     deriving (Show)
 
 ppStmt :: Stmt -> Doc
-ppStmt (Result var i) = ppIdent var <+> char '=' <+> ppInstr i
-ppStmt (Effect i)     = ppInstr i
+ppStmt (Result var i)       = ppIdent var <+> char '=' <+> ppInstr i
+ppStmt (Effect i)           = ppInstr i
+ppStmt (DefLabel (Ident l)) = text l <> char ':'
 
 ignore :: Instr -> Stmt
 ignore  = Effect
@@ -265,14 +326,71 @@ call tc rty sym = Call tc rty sym . map TypedArg
 add :: Typed Value -> Value -> Instr
 add l r = GenInstr "add" [TypedArg l,UntypedArg r]
 
+fadd :: Typed Value -> Value -> Instr
+fadd l r = GenInstr "fadd" [TypedArg l,UntypedArg r]
+
 sub :: Typed Value -> Value -> Instr
 sub l r = GenInstr "sub" [TypedArg l,UntypedArg r]
 
+fsub :: Typed Value -> Value -> Instr
+fsub l r = GenInstr "fsub" [TypedArg l,UntypedArg r]
+
 mul :: Typed Value -> Value -> Instr
 mul l r = GenInstr "mul" [TypedArg l,UntypedArg r]
+
+fmul :: Typed Value -> Value -> Instr
+fmul l r = GenInstr "fmul" [TypedArg l,UntypedArg r]
+
+udiv :: Typed Value -> Value -> Instr
+udiv l r = GenInstr "udiv" [TypedArg l, UntypedArg r]
+
+sdiv :: Typed Value -> Value -> Instr
+sdiv l r = GenInstr "sdiv" [TypedArg l, UntypedArg r]
+
+fdiv :: Typed Value -> Value -> Instr
+fdiv l r = GenInstr "fdiv" [TypedArg l, UntypedArg r]
+
+urem :: Typed Value -> Value -> Instr
+urem l r = GenInstr "urem" [TypedArg l, UntypedArg r]
+
+srem :: Typed Value -> Value -> Instr
+srem l r = GenInstr "srem" [TypedArg l, UntypedArg r]
+
+frem :: Typed Value -> Value -> Instr
+frem l r = GenInstr "frem" [TypedArg l, UntypedArg r]
+
+br :: Ident -> Instr
+br l = GenInstr "br" [TypedArg (Typed (PrimType Label) (ValIdent l))]
+
+condBr :: Value -> Ident -> Ident -> Instr
+condBr b t f = GenInstr "br" [cond, label t, label f]
+  where
+  label = TypedArg . Typed (PrimType Label) . ValIdent
+  cond  = TypedArg (Typed (PrimType (Integer 1)) b)
 
 getelementptr :: Typed Value -> [(Type,Value)] -> Instr
 getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv : args)
   where
   args | null ixs  = [TypedArg (Typed (PrimType (Integer 32)) (ValInteger 0))]
        | otherwise = map (TypedArg . uncurry Typed) ixs
+
+unreachable :: Instr
+unreachable  = GenInstr "unreachable" []
+
+unwind :: Instr
+unwind  = GenInstr "unwind" []
+
+alloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Instr
+alloca  = Alloca
+
+load :: Typed Value -> Instr
+load p = GenInstr "load" [TypedArg p]
+
+store :: Typed Value -> Typed Value -> Instr
+store a p = GenInstr "store" [TypedArg a, TypedArg p]
+
+icmp :: ICmpOp -> Typed Value -> Value -> Instr
+icmp  = ICmp
+
+fcmp :: FCmpOp -> Typed Value -> Value -> Instr
+fcmp  = FCmp
