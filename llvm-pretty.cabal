@@ -15,7 +15,8 @@ Description:
 
 Library
   Hs-source-dirs:      src
-  Exposed-modules:     Text.LLVM
+  Exposed-modules:     Text.LLVM,
+                       Text.LLVM.AST
   Build-depends:       base     >= 4.0.0.0 && < 5.0.0.0,
                        pretty   >= 1.0.1.0 && < 1.1.0.0,
                        monadLib >= 3.6.1   && < 3.7.0.0

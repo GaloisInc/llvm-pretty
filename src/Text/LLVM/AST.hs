@@ -15,6 +15,9 @@ int32  = integer . fromIntegral
 angles :: Doc -> Doc
 angles d = char '<' <> d <> char '>'
 
+ppMaybe :: (a -> Doc) -> Maybe a -> Doc
+ppMaybe  = maybe empty
+
 -- Modules ---------------------------------------------------------------------
 
 data Module = Module
@@ -154,12 +157,15 @@ ppGlobal g = ppSymbol (globalSym g) <+> char '=' <+> text "global"
 
 data Declare = Declare
   { decRetType :: Type
+  , decLinkage :: Maybe Linkage
   , decName    :: Symbol
   , decArgs    :: [Type]
   } deriving (Show)
 
 ppDeclare :: Declare -> Doc
-ppDeclare d = text "declare" <+> ppType (decRetType d)
+ppDeclare d = text "declare"
+          <+> ppMaybe ppLinkage (decLinkage d)
+          <+> ppType (decRetType d)
           <+> ppSymbol (decName d) <> parens (commas (map ppType (decArgs d)))
 
 -- Function Definitions --------------------------------------------------------
@@ -178,6 +184,44 @@ ppDefine d = text "define" <+> ppType (defRetType d)
          $+$ nest 2 (vcat (map ppStmt (defBody d)))
          $+$ char '}'
 
+-- Linkage ---------------------------------------------------------------------
+
+-- | Symbol Linkage
+data Linkage
+  = Private
+  | LinkerPrivate
+  | LinkerPrivateWeak
+  | LinkerPrivateWeakDefAuto
+  | Internal
+  | AvailableExternally
+  | Linkonce
+  | Weak
+  | Common
+  | Appending
+  | ExternWeak
+  | LinkonceODR
+  | WeakODR
+  | DLLImport
+  | DLLExport
+    deriving (Show)
+
+ppLinkage :: Linkage -> Doc
+ppLinkage Private                  = text "private"
+ppLinkage LinkerPrivate            = text "linker_private"
+ppLinkage LinkerPrivateWeak        = text "linker_private_weak"
+ppLinkage LinkerPrivateWeakDefAuto = text "linker_private_weak_def_auto"
+ppLinkage Internal                 = text "internal"
+ppLinkage AvailableExternally      = text "available_externally"
+ppLinkage Linkonce                 = text "linkonce"
+ppLinkage Weak                     = text "weak"
+ppLinkage Common                   = text "common"
+ppLinkage Appending                = text "appending"
+ppLinkage ExternWeak               = text "extern_weak"
+ppLinkage LinkonceODR              = text "linkonce_ddr"
+ppLinkage WeakODR                  = text "weak_odr"
+ppLinkage DLLImport                = text "dllimport"
+ppLinkage DLLExport                = text "dllexport"
+
 -- Typed Things ----------------------------------------------------------------
 
 data Typed a = Typed
@@ -192,20 +236,23 @@ ppTyped fmt ty = ppType (typedType ty) <+> fmt (typedValue ty)
 
 data Instr
   = GenInstr String [Arg]
-  | Call Bool Type Symbol [Arg]
+  | Call Bool Type Value [Arg]
   | Alloca Type (Maybe (Typed Value)) (Maybe Int)
   | ICmp ICmpOp (Typed Value) Value
   | FCmp FCmpOp (Typed Value) Value
+  | Phi Type [(Value,Ident)]
     deriving (Show)
 
 ppInstr :: Instr -> Doc
 ppInstr (GenInstr op args)    = text op <+> commas (map ppArg args)
-ppInstr (Call tc ty sym args) = ppCall tc ty sym args
+ppInstr (Call tc ty f args)   = ppCall tc ty f args
 ppInstr (Alloca ty len align) = ppAlloca ty len align
 ppInstr (ICmp op l r)         = text "icmp" <+> ppICmpOp op
                             <+> ppTyped ppValue l <> comma <+> ppValue r
 ppInstr (FCmp op l r)         = text "fcmp" <+> ppFCmpOp op
                             <+> ppTyped ppValue l <> comma <+> ppValue r
+ppInstr (Phi ty vls)          = text "phi" <+> ppType ty
+                            <+> commas (map ppPhiArg vls)
 
 ppAlloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Doc
 ppAlloca ty mbLen mbAlign = text "alloca" <+> ppType ty <> len <> align
@@ -217,13 +264,16 @@ ppAlloca ty mbLen mbAlign = text "alloca" <+> ppType ty <> len <> align
     a <- mbAlign
     return (comma <+> text "align" <+> int a)
 
-ppCall :: Bool -> Type -> Symbol -> [Arg] -> Doc
-ppCall tc ty sym args
+ppCall :: Bool -> Type -> Value -> [Arg] -> Doc
+ppCall tc ty f args
   | tc        = text "tail" <+> body
   | otherwise = body
   where
-  body = text "call" <+> ppType ty <+> ppSymbol sym
+  body = text "call" <+> ppType ty <+> ppValue f
       <> parens (commas (map ppArg args))
+
+ppPhiArg :: (Value,Ident) -> Doc
+ppPhiArg (v,l) = brackets (ppValue v <> comma <+> ppIdent l)
 
 data ICmpOp = Ieq | Ine | Iugt | Iuge | Iult | Iule | Isgt | Isge | Islt | Isle
   deriving (Show)
@@ -283,6 +333,7 @@ data Value
   | ValFloat Float
   | ValDouble Double
   | ValIdent Ident
+  | ValSymbol Symbol
   | ValNull
     deriving (Show)
 
@@ -291,6 +342,7 @@ ppValue (ValInteger i) = integer i
 ppValue (ValFloat i)   = float i
 ppValue (ValDouble i)  = double i
 ppValue (ValIdent i)   = ppIdent i
+ppValue (ValSymbol s)  = ppSymbol s
 ppValue ValNull        = text "null"
 
 -- Statements ------------------------------------------------------------------
@@ -320,7 +372,7 @@ ret v = GenInstr "ret" [TypedArg v]
 retVoid :: Instr
 retVoid  = GenInstr "ret" [TypeArg (PrimType Void)]
 
-call :: Bool -> Type -> Symbol -> [Typed Value] -> Instr
+call :: Bool -> Type -> Value -> [Typed Value] -> Instr
 call tc rty sym = Call tc rty sym . map TypedArg
 
 add :: Typed Value -> Value -> Instr
@@ -394,3 +446,6 @@ icmp  = ICmp
 
 fcmp :: FCmpOp -> Typed Value -> Value -> Instr
 fcmp  = FCmp
+
+phi :: Type -> [(Value,Ident)] -> Instr
+phi  = Phi

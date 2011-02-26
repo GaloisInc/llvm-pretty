@@ -13,8 +13,18 @@ module Text.LLVM (
     -- * Basic-block Monad
   , BB()
 
+    -- * Values
+  , Value
+  , fromLit
+  , HasType(..)
+  , HasValues(..)
+  , HasLiterals(..)
+
     -- * Functions
-  , Fun, IsFun()
+  , Fun, IsFun(), HasFun(), Res
+  , simpleFun
+  , FunAttrs(..)
+  , funAddr
   , define, Define()
   , declare, Declare()
   , call, tailCall, Call()
@@ -36,14 +46,15 @@ module Text.LLVM (
   , mul, fmul
   , udiv, sdiv, fdiv
   , urem, srem, frem
-  , icmp, ICmpOp(..)
-  , fcmp, FCmpOp(..)
+  , icmp
+  , fcmp
   , br, jump
   , unreachable
   , unwind
   , alloca
   , load
   , store
+  , phi
   ) where
 
 import Text.LLVM.AST (ICmpOp(..),FCmpOp(..))
@@ -234,12 +245,41 @@ instance HasLiterals Double where
 -- | A function symbol.
 data Fun f = Fun
   { funSymbol :: AST.Symbol
+  , funAttrs  :: FunAttrs
   }
+
+-- | Create a function symbol with the given name.
+simpleFun :: IsFun f => String -> FunAttrs -> Fun f
+simpleFun sym attrs = Fun
+  { funSymbol = AST.Symbol sym
+  , funAttrs  = attrs
+  }
+
+type FunPtr f = Value (PtrTo f)
+
+funAddr :: IsFun f => Fun f -> Value (PtrTo f)
+funAddr f = Value (AST.ValSymbol (funSymbol f))
 
 instance IsFun f => HasType (Fun f) where
   getType = uncurry AST.FunTy . getFunType
 
 instance IsFun f => HasValues (Fun f)
+
+
+funType :: Fun f -> f
+funType  = error "funType"
+
+funHead :: Fun (a -> b) -> Fun a
+funHead f = Fun
+  { funSymbol = funSymbol f
+  , funAttrs  = funAttrs f
+  }
+
+funTail :: Fun (a -> b) -> Fun b
+funTail f = Fun
+  { funSymbol = funSymbol f
+  , funAttrs  = funAttrs f
+  }
 
 class IsFun f where
   getFunType :: Fun f -> (AST.Type,[AST.Type])
@@ -252,17 +292,15 @@ instance (HasValues a, IsFun f) => IsFun (a -> f) where
     where
     (rty,args) = getFunType (funTail f)
 
-funType :: Fun f -> f
-funType  = error "funType"
-
-funHead :: Fun (a -> b) -> Fun a
-funHead f = Fun
-  { funSymbol = funSymbol f
+-- | Function attributes.
+data FunAttrs = FunAttrs
+  { funLinkage :: Maybe AST.Linkage
   }
 
-funTail :: Fun (a -> b) -> Fun b
-funTail f = Fun
-  { funSymbol = funSymbol f
+-- | No function attributes.
+emptyFunAttrs :: FunAttrs
+emptyFunAttrs  = FunAttrs
+  { funLinkage = Nothing
   }
 
 data Res a = Res
@@ -309,8 +347,10 @@ class Declare f where
 instance HasType r => Declare (Res r) where
   declareBody tys f = do
     let retTy = getType (resType (funType f))
+    let attrs = funAttrs f
     emitDeclare AST.Declare
       { AST.decRetType = retTy
+      , AST.decLinkage = funLinkage attrs
       , AST.decName    = funSymbol f
       , AST.decArgs    = reverse tys
       }
@@ -321,51 +361,69 @@ instance (HasValues a, Declare f) => Declare (a -> f) where
     declareBody (ty:tys) (funTail f)
 
 
+class HasFun f g | f -> g where
+  getFun :: f -> Value (PtrTo g)
+
+instance IsFun f => HasFun (Value (PtrTo f)) f where
+  getFun = id
+
+instance IsFun f => HasFun (Fun f) f where
+  getFun = funAddr
+
+funPtrTail :: Value (PtrTo (a -> b)) -> Value (PtrTo b)
+funPtrTail (Value v) = Value v
+
+valuePtrType :: Value (PtrTo a) -> a
+valuePtrType  = ptrType . valueType
+
+
 -- | Call a function, naming its result.
-call :: Call f k => Fun f -> k
-call  = callBody False []
+call :: (HasFun f g, Call g k) => f -> k
+call  = callBody False [] . getFun
 
 -- | Call a function, naming its result, and signaling the tail call
 -- optimization.
-tailCall :: Call f k => Fun f -> k
-tailCall  = callBody True []
+tailCall :: (HasFun f g, Call g k) => f -> k
+tailCall  = callBody True [] . getFun
 
 class Call f k | f -> k, k -> f where
-  callBody :: Bool -> [AST.Typed AST.Value] -> Fun f -> k
+  callBody :: Bool -> [AST.Typed AST.Value] -> Value (PtrTo f) -> k
 
 instance HasValues a => Call (Res a) (BB r (Value a)) where
   callBody tc as f = do
     name <- freshName "res"
     let i     = AST.Ident name
     let res   = Value (AST.ValIdent i)
-    let resTy = getType (resType (funType f))
-    emitStmt (AST.Result i (AST.call tc resTy (funSymbol f) (reverse as)))
+    let resTy = getType (resType (valuePtrType f))
+    let sym   = unValue f
+    emitStmt (AST.Result i (AST.call tc resTy sym (reverse as)))
     return res
 
 instance (HasValues a, Call f k) => Call (a -> f) (Value a -> k) where
-  callBody tc as f v = callBody tc (typedValue v:as) (funTail f)
+  callBody tc as f v = callBody tc (typedValue v:as) (funPtrTail f)
 
 
 -- | Call a function, ignoring its return value.
-call_ :: Call_ f k => Fun f -> k
-call_  = callBody_ False []
+call_ :: (HasFun f g, Call_ g k) => f -> k
+call_  = callBody_ False [] . getFun
 
 -- | Call a function, ignoring its return value, and signaling the tail call
 -- optimization.
-tailCall_ :: Call_ f k => Fun f -> k
-tailCall_  = callBody_ True []
+tailCall_ :: (HasFun f g, Call_ g k) => f -> k
+tailCall_  = callBody_ True [] . getFun
 
 class Call_ f k | f -> k, k -> f where
-  callBody_ :: Bool -> [AST.Typed AST.Value] -> Fun f -> k
+  callBody_ :: Bool -> [AST.Typed AST.Value] -> Value (PtrTo f) -> k
 
 instance HasType a => Call_ (Res a) (BB r ()) where
   callBody_ tc as f = do
     name <- freshName "res"
-    let resTy = getType (resType (funType f))
-    effect (AST.call tc resTy (funSymbol f) (reverse as))
+    let resTy = getType (resType (valuePtrType f))
+    let sym   = unValue f
+    effect (AST.call tc resTy sym (reverse as))
 
 instance (HasValues a, Call_ f k) => Call_ (a -> f) (Value a -> k) where
-  callBody_ tc as f v = callBody_ tc (typedValue v:as) (funTail f)
+  callBody_ tc as f v = callBody_ tc (typedValue v:as) (funPtrTail f)
 
 
 -- Labels ----------------------------------------------------------------------
@@ -515,12 +573,18 @@ load v = observe (AST.load (typedValue v))
 store :: HasValues a => Value a -> Value (PtrTo a) -> BB r ()
 store a p = effect (AST.store (typedValue a) (typedValue p))
 
+phi :: HasValues a => Value a -> Label -> [(Value a, Label)] -> BB r (Value a)
+phi v l vls = observe (AST.phi (getType (valueType v)) args)
+  where
+  args = step (v,l) : map step vls
+  step (a,b) = (unValue a, labelIdent b)
+
 
 -- Tests -----------------------------------------------------------------------
 
 test = snd $ runLLVM $ do
   let fact :: Fun (Int32 -> Res Int32)
-      fact  = Fun (AST.Symbol "fact")
+      fact  = simpleFun "fact" emptyFunAttrs
   define fact $ \a -> do
     recurse <- freshLabel
     exit    <- freshLabel
@@ -535,3 +599,9 @@ test = snd $ runLLVM $ do
       ret =<< mul a val
 
     return ()
+
+  let main :: Fun (Res Int32)
+      main  = simpleFun "main" emptyFunAttrs
+  define main $ do
+    call_ (funAddr fact) (fromLit 10)
+    ret (fromLit 0)
