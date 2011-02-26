@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Text.LLVM (
     -- * LLVM Monad
@@ -22,9 +23,9 @@ module Text.LLVM (
 
     -- * Functions
   , Fun, IsFun(), HasFun(), Res
-  , simpleFun
+  , simpleFun, funWithAttrs
   , FunAttrs(..), emptyFunAttrs
-  , funAddr
+  , funAddr, FunPtr
   , define, Define()
   , declare, Declare()
   , call, tailCall, Call()
@@ -250,16 +251,27 @@ data Fun f = Fun
   , funAttrs  :: FunAttrs
   }
 
--- | Create a function symbol with the given name.
-simpleFun :: IsFun f => String -> FunAttrs -> Fun f
-simpleFun sym attrs = Fun
+-- | Create a function symbol with the given name, and no additional attributes.
+simpleFun :: IsFun f => String -> Fun f
+simpleFun sym = funWithAttrs sym emptyFunAttrs
+
+-- | Create a function symbol with the given name and attributes.
+funWithAttrs :: IsFun f => String -> FunAttrs -> Fun f
+funWithAttrs sym attrs = Fun
   { funSymbol = AST.Symbol sym
   , funAttrs  = attrs
   }
 
-type FunPtr f = Value (PtrTo f)
+type FunPtr f = Value (PtrTo (Fun f))
 
-funAddr :: IsFun f => Fun f -> Value (PtrTo f)
+funPtrTail :: FunPtr (a -> b) -> FunPtr b
+funPtrTail (Value v) = Value v
+
+funPtrType :: FunPtr a -> a
+funPtrType  = error "funPtrType"
+
+-- | Take the address of a function.
+funAddr :: IsFun f => Fun f -> FunPtr f
 funAddr f = Value (AST.ValSymbol (funSymbol f))
 
 instance IsFun f => HasType (Fun f) where
@@ -368,19 +380,13 @@ instance (HasValues a, Declare f) => Declare (a -> f) where
 
 -- | Types that represent a function.
 class HasFun f g | f -> g where
-  getFun :: f -> Value (PtrTo g)
+  getFun :: f -> FunPtr g
 
-instance IsFun f => HasFun (Value (PtrTo f)) f where
+instance IsFun f => HasFun (FunPtr f) f where
   getFun = id
 
 instance IsFun f => HasFun (Fun f) f where
   getFun = funAddr
-
-funPtrTail :: Value (PtrTo (a -> b)) -> Value (PtrTo b)
-funPtrTail (Value v) = Value v
-
-valuePtrType :: Value (PtrTo a) -> a
-valuePtrType  = ptrType . valueType
 
 
 -- | Call a function, naming its result.
@@ -394,14 +400,14 @@ tailCall  = callBody True [] . getFun
 
 -- | Invocations of the call instruction, that name its result.
 class Call f k | f -> k, k -> f where
-  callBody :: Bool -> [AST.Typed AST.Value] -> Value (PtrTo f) -> k
+  callBody :: Bool -> [AST.Typed AST.Value] -> FunPtr f -> k
 
 instance HasValues a => Call (Res a) (BB r (Value a)) where
   callBody tc as f = do
     name <- freshName "res"
     let i     = AST.Ident name
     let res   = Value (AST.ValIdent i)
-    let resTy = getType (resType (valuePtrType f))
+    let resTy = getType (resType (funPtrType f))
     let sym   = unValue f
     emitStmt (AST.Result i (AST.call tc resTy sym (reverse as)))
     return res
@@ -421,12 +427,12 @@ tailCall_  = callBody_ True [] . getFun
 
 -- | Invocations of the call instruction, that ignore its result.
 class Call_ f k | f -> k, k -> f where
-  callBody_ :: Bool -> [AST.Typed AST.Value] -> Value (PtrTo f) -> k
+  callBody_ :: Bool -> [AST.Typed AST.Value] -> FunPtr f -> k
 
 instance HasType a => Call_ (Res a) (BB r ()) where
   callBody_ tc as f = do
     name <- freshName "res"
-    let resTy = getType (resType (valuePtrType f))
+    let resTy = getType (resType (funPtrType f))
     let sym   = unValue f
     effect (AST.call tc resTy sym (reverse as))
 
@@ -602,7 +608,7 @@ getelementptr v ix ixs = observe (AST.getelementptr (typedValue v) (ix:ixs))
 
 test = snd $ runLLVM $ do
   let fact :: Fun (Int32 -> Res Int32)
-      fact  = simpleFun "fact" emptyFunAttrs
+      fact  = simpleFun "fact"
   define fact $ \a -> do
     recurse <- freshLabel
     exit    <- freshLabel
@@ -619,7 +625,7 @@ test = snd $ runLLVM $ do
     return ()
 
   let main :: Fun (Res Int32)
-      main  = simpleFun "main" emptyFunAttrs
+      main  = simpleFun "main"
   define main $ do
     call_ (funAddr fact) (fromLit 10)
     ret (fromLit 0)
