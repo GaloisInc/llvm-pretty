@@ -23,7 +23,7 @@ module Text.LLVM (
     -- * Functions
   , Fun, IsFun(), HasFun(), Res
   , simpleFun
-  , FunAttrs(..)
+  , FunAttrs(..), emptyFunAttrs
   , funAddr
   , define, Define()
   , declare, Declare()
@@ -55,6 +55,7 @@ module Text.LLVM (
   , load
   , store
   , phi
+  , bitcast
   ) where
 
 import Text.LLVM.AST (ICmpOp(..),FCmpOp(..))
@@ -295,12 +296,14 @@ instance (HasValues a, IsFun f) => IsFun (a -> f) where
 -- | Function attributes.
 data FunAttrs = FunAttrs
   { funLinkage :: Maybe AST.Linkage
+  , funGC      :: Maybe AST.GC
   }
 
 -- | No function attributes.
 emptyFunAttrs :: FunAttrs
 emptyFunAttrs  = FunAttrs
   { funLinkage = Nothing
+  , funGC      = Nothing
   }
 
 data Res a = Res
@@ -319,11 +322,14 @@ class Define f g | f -> g, g -> f where
 instance HasType r => Define (Res r) (BB r ()) where
   defineBody is f body = do
     let retTy     = getType (resType (funType f))
+    let attrs     = funAttrs f
     let (_,stmts) = runBB body
     emitDefine AST.Define
-      { AST.defRetType = retTy
+      { AST.defLinkage = funLinkage attrs
+      , AST.defRetType = retTy
       , AST.defName    = funSymbol f
       , AST.defArgs    = reverse is
+      , AST.defGC      = funGC attrs
       , AST.defBody    = stmts
       }
 
@@ -347,10 +353,8 @@ class Declare f where
 instance HasType r => Declare (Res r) where
   declareBody tys f = do
     let retTy = getType (resType (funType f))
-    let attrs = funAttrs f
     emitDeclare AST.Declare
       { AST.decRetType = retTy
-      , AST.decLinkage = funLinkage attrs
       , AST.decName    = funSymbol f
       , AST.decArgs    = reverse tys
       }
@@ -361,6 +365,7 @@ instance (HasValues a, Declare f) => Declare (a -> f) where
     declareBody (ty:tys) (funTail f)
 
 
+-- | Types that represent a function.
 class HasFun f g | f -> g where
   getFun :: f -> Value (PtrTo g)
 
@@ -386,6 +391,7 @@ call  = callBody False [] . getFun
 tailCall :: (HasFun f g, Call g k) => f -> k
 tailCall  = callBody True [] . getFun
 
+-- | Invocations of the call instruction, that name its result.
 class Call f k | f -> k, k -> f where
   callBody :: Bool -> [AST.Typed AST.Value] -> Value (PtrTo f) -> k
 
@@ -412,6 +418,7 @@ call_  = callBody_ False [] . getFun
 tailCall_ :: (HasFun f g, Call_ g k) => f -> k
 tailCall_  = callBody_ True [] . getFun
 
+-- | Invocations of the call instruction, that ignore its result.
 class Call_ f k | f -> k, k -> f where
   callBody_ :: Bool -> [AST.Typed AST.Value] -> Value (PtrTo f) -> k
 
@@ -573,11 +580,17 @@ load v = observe (AST.load (typedValue v))
 store :: HasValues a => Value a -> Value (PtrTo a) -> BB r ()
 store a p = effect (AST.store (typedValue a) (typedValue p))
 
+-- | Merge one or more values into the same name.
 phi :: HasValues a => Value a -> Label -> [(Value a, Label)] -> BB r (Value a)
 phi v l vls = observe (AST.phi (getType (valueType v)) args)
   where
   args = step (v,l) : map step vls
   step (a,b) = (unValue a, labelIdent b)
+
+-- | Cast values from one non-aggregate, valued type to another.
+bitcast :: (HasValues a, HasValues b) => Value a -> BB r (Value b)
+bitcast va =
+  mfix (\vb -> observe (AST.bitcast (typedValue va) (getType (valueType vb))))
 
 
 -- Tests -----------------------------------------------------------------------

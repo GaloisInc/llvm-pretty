@@ -157,34 +157,38 @@ ppGlobal g = ppSymbol (globalSym g) <+> char '=' <+> text "global"
 
 data Declare = Declare
   { decRetType :: Type
-  , decLinkage :: Maybe Linkage
   , decName    :: Symbol
   , decArgs    :: [Type]
   } deriving (Show)
 
 ppDeclare :: Declare -> Doc
 ppDeclare d = text "declare"
-          <+> ppMaybe ppLinkage (decLinkage d)
           <+> ppType (decRetType d)
           <+> ppSymbol (decName d) <> parens (commas (map ppType (decArgs d)))
 
 -- Function Definitions --------------------------------------------------------
 
 data Define = Define
-  { defRetType :: Type
+  { defLinkage :: Maybe Linkage
+  , defRetType :: Type
   , defName    :: Symbol
   , defArgs    :: [Typed Ident]
+  , defGC      :: Maybe GC
   , defBody    :: [Stmt]
   } deriving (Show)
 
 ppDefine :: Define -> Doc
-ppDefine d = text "define" <+> ppType (defRetType d)
+ppDefine d = text "define"
+         <+> ppMaybe ppLinkage (defLinkage d)
+         <+> ppType (defRetType d)
          <+> ppSymbol (defName d)
-          <> parens (commas (map (ppTyped ppIdent) (defArgs d))) <+> char '{'
+          <> parens (commas (map (ppTyped ppIdent) (defArgs d)))
+         <+> ppMaybe (\gc -> text "gc" <+> ppGC gc) (defGC d)
+         <+> char '{'
          $+$ nest 2 (vcat (map ppStmt (defBody d)))
          $+$ char '}'
 
--- Linkage ---------------------------------------------------------------------
+-- Attributes ------------------------------------------------------------------
 
 -- | Symbol Linkage
 data Linkage
@@ -222,6 +226,13 @@ ppLinkage WeakODR                  = text "weak_odr"
 ppLinkage DLLImport                = text "dllimport"
 ppLinkage DLLExport                = text "dllexport"
 
+newtype GC = GC
+  { getGC :: String
+  } deriving (Show)
+
+ppGC :: GC -> Doc
+ppGC  = text . getGC
+
 -- Typed Things ----------------------------------------------------------------
 
 data Typed a = Typed
@@ -241,6 +252,7 @@ data Instr
   | ICmp ICmpOp (Typed Value) Value
   | FCmp FCmpOp (Typed Value) Value
   | Phi Type [(Value,Ident)]
+  | Bitcast (Typed Value) Type
     deriving (Show)
 
 ppInstr :: Instr -> Doc
@@ -253,6 +265,8 @@ ppInstr (FCmp op l r)         = text "fcmp" <+> ppFCmpOp op
                             <+> ppTyped ppValue l <> comma <+> ppValue r
 ppInstr (Phi ty vls)          = text "phi" <+> ppType ty
                             <+> commas (map ppPhiArg vls)
+ppInstr (Bitcast tv ty)       = text "bitcast" <+> ppTyped ppValue tv
+                            <+> text "to" <+> ppType ty
 
 ppAlloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Doc
 ppAlloca ty mbLen mbAlign = text "alloca" <+> ppType ty <> len <> align
@@ -449,3 +463,6 @@ fcmp  = FCmp
 
 phi :: Type -> [(Value,Ident)] -> Instr
 phi  = Phi
+
+bitcast :: Typed Value -> Type -> Instr
+bitcast  = Bitcast
