@@ -434,12 +434,6 @@ condBr b t f = GenInstr "br" [cond, label t, label f]
   label = TypedArg . Typed (PrimType Label) . ValIdent
   cond  = TypedArg (Typed (PrimType (Integer 1)) b)
 
-getelementptr :: Typed Value -> [(Type,Value)] -> Instr
-getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv : args)
-  where
-  args | null ixs  = [TypedArg (Typed (PrimType (Integer 32)) (ValInteger 0))]
-       | otherwise = map (TypedArg . uncurry Typed) ixs
-
 unreachable :: Instr
 unreachable  = GenInstr "unreachable" []
 
@@ -466,3 +460,11 @@ phi  = Phi
 
 bitcast :: Typed Value -> Type -> Instr
 bitcast  = Bitcast
+
+getelementptr :: Typed Value -> [Int32] -> Instr
+getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv:map mkArg ixs)
+  where
+  mkArg ix = TypedArg 
+           $ Typed (PrimType (Integer 32))
+           $ ValInteger
+           $ fromIntegral ix

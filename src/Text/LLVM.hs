@@ -56,6 +56,7 @@ module Text.LLVM (
   , store
   , phi
   , bitcast
+  , getelementptr
   ) where
 
 import Text.LLVM.AST (ICmpOp(..),FCmpOp(..))
@@ -587,10 +588,14 @@ phi v l vls = observe (AST.phi (getType (valueType v)) args)
   args = step (v,l) : map step vls
   step (a,b) = (unValue a, labelIdent b)
 
--- | Cast values from one non-aggregate, valued type to another.
+-- | Cast values from one aggregate, valued type to another.
 bitcast :: (HasValues a, HasValues b) => Value a -> BB r (Value b)
 bitcast va =
   mfix (\vb -> observe (AST.bitcast (typedValue va) (getType (valueType vb))))
+
+getelementptr :: (HasValues a, HasValues b)
+              => Value (PtrTo a) -> Int32 -> [Int32] -> BB r (Value (PtrTo b))
+getelementptr v ix ixs = observe (AST.getelementptr (typedValue v) (ix:ixs))
 
 
 -- Tests -----------------------------------------------------------------------
