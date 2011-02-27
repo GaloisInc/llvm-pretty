@@ -117,10 +117,10 @@ ppType :: Type -> Doc
 ppType (PrimType pt)     = ppPrimType pt
 ppType (Alias i)         = ppIdent i
 ppType (Array len ty)    = brackets (int32 len <+> char 'x' <+> ppType ty)
-ppType (PtrTo ty)        = parens (ppType ty) <> char '*'
+ppType (PtrTo ty)        = ppType ty <> char '*'
 ppType (Struct ts)       = braces (commas (map ppType ts))
 ppType (PackedStruct ts) = angles (braces (commas (map ppType ts)))
-ppType (FunTy r as)      = parens (ppType r) <> parens (commas (map ppType as))
+ppType (FunTy r as)      = ppType r <> parens (commas (map ppType as))
 ppType (Vector len pt)   = angles (int32 len <+> char 'x' <+> ppPrimType pt)
 ppType Opaque            = text "opaque"
 
@@ -231,7 +231,7 @@ newtype GC = GC
   } deriving (Show)
 
 ppGC :: GC -> Doc
-ppGC  = text . getGC
+ppGC  = doubleQuotes . text . getGC
 
 -- Typed Things ----------------------------------------------------------------
 
