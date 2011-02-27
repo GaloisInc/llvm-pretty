@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Text.LLVM (
     -- * LLVM Monad
@@ -39,6 +40,14 @@ module Text.LLVM (
     -- * Pointers
   , PtrTo
   , nullPtr
+
+    -- * Structs
+  , (:>)()
+  , Struct()
+  , Packed()
+
+    -- * Arrays
+  , Array()
 
     -- * Instructions
   , ret, retVoid
@@ -472,6 +481,67 @@ instance HasType a => HasValues (PtrTo a)
 
 ptrType :: PtrTo a -> a
 ptrType  = error "ptrType"
+
+
+-- Structures ------------------------------------------------------------------
+
+-- | A type-level list.
+data (:>) a b = C
+infixr 1 :>
+
+listHead :: a :> b -> a
+listHead  = error "listHead"
+
+listTail :: a :> b -> b
+listTail  = error "listTail"
+
+-- | A structure.
+data Struct s = S
+
+structType :: Struct s -> s
+structType  = error "structType"
+
+-- | A packed structure.
+data Packed s = P
+
+packedType :: Packed s -> s
+packedType  = error "structType"
+
+
+class IsStruct s where
+  structTypes :: s -> [AST.Type]
+
+instance IsStruct () where
+  structTypes _ = []
+
+instance (HasValues a, IsStruct s) => IsStruct (a :> s) where
+  structTypes s = getType (listHead s) : structTypes (listTail s)
+
+
+instance IsStruct s => HasType (Struct s) where
+  getType = AST.Struct . structTypes . structType
+
+instance IsStruct s => HasValues (Struct s)
+
+instance IsStruct s => HasType (Packed s) where
+  getType = AST.PackedStruct . structTypes . packedType
+
+instance IsStruct s => HasValues (Packed s)
+
+
+-- Arrays ----------------------------------------------------------------------
+
+-- | All arrays are zero-length, until there is better support for type-level
+-- natural numbers in GHC.
+data Array a = A
+
+arrayType :: Array a -> a
+arrayType  = error "arrayType"
+
+instance HasValues a => HasType (Array a) where
+  getType a = AST.Array 0 (getType (arrayType a))
+
+instance HasValues a => HasValues (Array a)
 
 
 -- Instructions ----------------------------------------------------------------
