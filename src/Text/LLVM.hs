@@ -68,6 +68,7 @@ module Text.LLVM (
   , bitcast
   , getelementptr
   , ptrtoint
+  , inttoptr
   ) where
 
 import Text.LLVM.AST (ICmpOp(..),FCmpOp(..))
