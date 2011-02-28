@@ -681,6 +681,10 @@ ptrtoint :: (HasType a, HasValues b) => Value (PtrTo a) -> BB r (Value b)
 ptrtoint v =
   mfix (\i -> observe (AST.ptrtoint (typedValue v) (getType (valueType i))))
 
+inttoptr :: (HasValues a, HasType b) => Value a -> BB r (Value (PtrTo b))
+inttoptr v =
+  mfix (\i -> observe (AST.inttoptr (typedValue v) (getType (valueType i))))
+
 
 -- Tests -----------------------------------------------------------------------
 

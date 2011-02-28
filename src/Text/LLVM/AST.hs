@@ -464,5 +464,8 @@ bitcast  = Cast "bitcast"
 ptrtoint :: Typed Value -> Type -> Instr
 ptrtoint  = Cast "ptrtoint"
 
+inttoptr :: Typed Value -> Type -> Instr
+inttoptr  = Cast "inttoptr"
+
 getelementptr :: Typed Value -> [Typed Value] -> Instr
 getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv:map TypedArg ixs)
