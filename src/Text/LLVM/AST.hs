@@ -461,10 +461,5 @@ phi  = Phi
 bitcast :: Typed Value -> Type -> Instr
 bitcast  = Bitcast
 
-getelementptr :: Typed Value -> [Int32] -> Instr
-getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv:map mkArg ixs)
-  where
-  mkArg ix = TypedArg 
-           $ Typed (PrimType (Integer 32))
-           $ ValInteger
-           $ fromIntegral ix
+getelementptr :: Typed Value -> [Typed Value] -> Instr
+getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv:map TypedArg ixs)

@@ -670,8 +670,11 @@ bitcast va =
   mfix (\vb -> observe (AST.bitcast (typedValue va) (getType (valueType vb))))
 
 getelementptr :: (HasValues a, HasValues b)
-              => Value (PtrTo a) -> Int32 -> [Int32] -> BB r (Value (PtrTo b))
-getelementptr v ix ixs = observe (AST.getelementptr (typedValue v) (ix:ixs))
+              => Value (PtrTo a) -> Value Int32 -> [Value Int32]
+              -> BB r (Value (PtrTo b))
+getelementptr v ix ixs = observe (AST.getelementptr (typedValue v) args)
+  where
+  args = typedValue ix : map typedValue ixs
 
 
 -- Tests -----------------------------------------------------------------------
