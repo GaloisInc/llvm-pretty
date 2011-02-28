@@ -252,7 +252,7 @@ data Instr
   | ICmp ICmpOp (Typed Value) Value
   | FCmp FCmpOp (Typed Value) Value
   | Phi Type [(Value,Ident)]
-  | Bitcast (Typed Value) Type
+  | Cast String (Typed Value) Type
     deriving (Show)
 
 ppInstr :: Instr -> Doc
@@ -265,7 +265,7 @@ ppInstr (FCmp op l r)         = text "fcmp" <+> ppFCmpOp op
                             <+> ppTyped ppValue l <> comma <+> ppValue r
 ppInstr (Phi ty vls)          = text "phi" <+> ppType ty
                             <+> commas (map ppPhiArg vls)
-ppInstr (Bitcast tv ty)       = text "bitcast" <+> ppTyped ppValue tv
+ppInstr (Cast op tv ty)       = text op <+> ppTyped ppValue tv
                             <+> text "to" <+> ppType ty
 
 ppAlloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Doc
@@ -459,7 +459,10 @@ phi :: Type -> [(Value,Ident)] -> Instr
 phi  = Phi
 
 bitcast :: Typed Value -> Type -> Instr
-bitcast  = Bitcast
+bitcast  = Cast "bitcast"
+
+ptrtoint :: Typed Value -> Type -> Instr
+ptrtoint  = Cast "ptrtoint"
 
 getelementptr :: Typed Value -> [Typed Value] -> Instr
 getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv:map TypedArg ixs)

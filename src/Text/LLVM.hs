@@ -67,6 +67,7 @@ module Text.LLVM (
   , phi
   , bitcast
   , getelementptr
+  , ptrtoint
   ) where
 
 import Text.LLVM.AST (ICmpOp(..),FCmpOp(..))
@@ -675,6 +676,10 @@ getelementptr :: (HasValues a, HasValues b)
 getelementptr v ix ixs = observe (AST.getelementptr (typedValue v) args)
   where
   args = typedValue ix : map typedValue ixs
+
+ptrtoint :: (HasType a, HasValues b) => Value (PtrTo a) -> BB r (Value b)
+ptrtoint v =
+  mfix (\i -> observe (AST.ptrtoint (typedValue v) (getType (valueType i))))
 
 
 -- Tests -----------------------------------------------------------------------
