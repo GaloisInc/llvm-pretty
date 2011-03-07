@@ -50,6 +50,7 @@ module Text.LLVM (
   , Array()
 
     -- * Instructions
+  , comment
   , ret, retVoid
   , add, fadd
   , sub, fsub
@@ -547,6 +548,9 @@ instance HasValues a => HasValues (Array a)
 
 
 -- Instructions ----------------------------------------------------------------
+
+comment :: String -> BB r ()
+comment  = effect . AST.comment
 
 ret :: HasValues r => Value r -> BB r ()
 ret v = effect (AST.ret (typedValue v))

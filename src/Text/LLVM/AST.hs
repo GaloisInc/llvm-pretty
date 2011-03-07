@@ -253,6 +253,7 @@ data Instr
   | FCmp FCmpOp (Typed Value) Value
   | Phi Type [(Value,Ident)]
   | Cast String (Typed Value) Type
+  | Comment String
     deriving (Show)
 
 ppInstr :: Instr -> Doc
@@ -267,6 +268,7 @@ ppInstr (Phi ty vls)          = text "phi" <+> ppType ty
                             <+> commas (map ppPhiArg vls)
 ppInstr (Cast op tv ty)       = text op <+> ppTyped ppValue tv
                             <+> text "to" <+> ppType ty
+ppInstr (Comment str)         = char ';' <+> text str
 
 ppAlloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Doc
 ppAlloca ty mbLen mbAlign = text "alloca" <+> ppType ty <> len <> align
@@ -379,6 +381,9 @@ ignore  = Effect
 (=:)  = Result
 
 -- Instruction Helpers ---------------------------------------------------------
+
+comment :: String -> Instr
+comment  = Comment
 
 ret :: Typed Value -> Instr
 ret v = GenInstr "ret" [TypedArg v]
