@@ -57,8 +57,8 @@ module Text.LLVM (
   , mul, fmul
   , udiv, sdiv, fdiv
   , urem, srem, frem
-  , icmp
-  , fcmp
+  , icmp, ICmpOp(..)
+  , fcmp, FCmpOp(..)
   , br, jump
   , unreachable
   , unwind
