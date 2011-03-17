@@ -34,8 +34,9 @@ module Text.LLVM (
 
     -- * Labels
   , Label(..)
-  , defineLabel
   , freshLabel
+  , defineLabel
+  , defineFreshLabel
 
     -- * Pointers
   , PtrTo
@@ -458,15 +459,21 @@ data Label = Label
   { labelIdent :: AST.Ident
   }
 
+-- | Generate a fresh label.
+freshLabel :: BB r Label
+freshLabel  = (Label . AST.Ident) `fmap` freshName "L"
+
 -- | Define a label.
 defineLabel :: Label -> BB r a -> BB r a
 defineLabel l body = do
   emitStmt (AST.DefLabel (labelIdent l))
   body
 
--- | Generate a fresh label.
-freshLabel :: BB r Label
-freshLabel  = (Label . AST.Ident) `fmap` freshName "L"
+-- | Combine definition and creation of a label.
+defineFreshLabel :: (Label -> BB r a) -> BB r a
+defineFreshLabel k = do
+  l <- freshLabel
+  defineLabel l (k l)
 
 
 -- Pointers --------------------------------------------------------------------

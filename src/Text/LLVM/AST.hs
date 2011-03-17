@@ -54,7 +54,7 @@ ppModule m = vcat $ concat
 -- Identifiers -----------------------------------------------------------------
 
 newtype Ident = Ident String
-    deriving (Show)
+    deriving (Show,Eq,Ord)
 
 ppIdent :: Ident -> Doc
 ppIdent (Ident n) = char '%' <> text n
@@ -62,7 +62,7 @@ ppIdent (Ident n) = char '%' <> text n
 -- Symbols ---------------------------------------------------------------------
 
 newtype Symbol = Symbol String
-    deriving Show
+    deriving (Show,Eq,Ord)
 
 ppSymbol :: Symbol -> Doc
 ppSymbol (Symbol n) = char '@' <> text n
@@ -76,7 +76,7 @@ data PrimType
   | FloatType FloatType
   | X86mmx
   | Metadata
-    deriving (Show)
+    deriving (Show,Eq)
 
 ppPrimType :: PrimType -> Doc
 ppPrimType Label          = text "label"
@@ -92,7 +92,7 @@ data FloatType
   | Fp128
   | X86_fp80
   | PPC_fp128
-    deriving (Show)
+    deriving (Show,Eq)
 
 ppFloatType :: FloatType -> Doc
 ppFloatType Float     = text "float"
@@ -174,7 +174,7 @@ data Define = Define
   , defName    :: Symbol
   , defArgs    :: [Typed Ident]
   , defGC      :: Maybe GC
-  , defBody    :: [Stmt]
+  , defBody    :: [BasicBlock]
   } deriving (Show)
 
 ppDefine :: Define -> Doc
@@ -185,8 +185,25 @@ ppDefine d = text "define"
           <> parens (commas (map (ppTyped ppIdent) (defArgs d)))
          <+> ppMaybe (\gc -> text "gc" <+> ppGC gc) (defGC d)
          <+> char '{'
-         $+$ nest 2 (vcat (map ppStmt (defBody d)))
+         $+$ nest 2 (vcat (map ppBasicBlock (defBody d)))
          $+$ char '}'
+
+-- Basic Blocks ----------------------------------------------------------------
+
+data BasicBlock = BasicBlock
+  { bbLabel :: Maybe Ident
+  , bbStmts :: [Stmt]
+  } deriving (Show)
+
+anonBasicBlock :: [Stmt] -> BasicBlock
+anonBasicBlock  = BasicBlock Nothing
+
+ppBasicBlock :: BasicBlock -> Doc
+ppBasicBlock bb = maybe empty ppLabelDef (bbLabel bb)
+              $+$ vcat (map ppStmt (bbStmts bb))
+
+ppLabelDef :: Ident -> Doc
+ppLabelDef (Ident l) = text l <> char ':'
 
 -- Attributes ------------------------------------------------------------------
 
@@ -246,7 +263,10 @@ ppTyped fmt ty = ppType (typedType ty) <+> fmt (typedValue ty)
 -- Instructions ----------------------------------------------------------------
 
 data Instr
-  = GenInstr String [Arg]
+  = Ret Arg
+  | Add (Typed Value) Value
+  | FAdd (Typed Value) Value
+  | GenInstr String [Arg]
   | Call Bool Type Value [Arg]
   | Alloca Type (Maybe (Typed Value)) (Maybe Int)
   | ICmp ICmpOp (Typed Value) Value
@@ -257,6 +277,11 @@ data Instr
     deriving (Show)
 
 ppInstr :: Instr -> Doc
+ppInstr (Ret arg)             = text "ret" <+> ppArg arg
+ppInstr (Add l r)             = text "add" <+> ppTyped ppValue l
+                             <> comma <+> ppValue r
+ppInstr (FAdd l r)            = text "fadd" <+> ppTyped ppValue l
+                             <> comma <+> ppValue r
 ppInstr (GenInstr op args)    = text op <+> commas (map ppArg args)
 ppInstr (Call tc ty f args)   = ppCall tc ty f args
 ppInstr (Alloca ty len align) = ppAlloca ty len align
@@ -366,13 +391,11 @@ ppValue ValNull        = text "null"
 data Stmt
   = Result Ident Instr
   | Effect Instr
-  | DefLabel Ident
     deriving (Show)
 
 ppStmt :: Stmt -> Doc
-ppStmt (Result var i)       = ppIdent var <+> char '=' <+> ppInstr i
-ppStmt (Effect i)           = ppInstr i
-ppStmt (DefLabel (Ident l)) = text l <> char ':'
+ppStmt (Result var i) = ppIdent var <+> char '=' <+> ppInstr i
+ppStmt (Effect i)     = ppInstr i
 
 ignore :: Instr -> Stmt
 ignore  = Effect
@@ -386,19 +409,19 @@ comment :: String -> Instr
 comment  = Comment
 
 ret :: Typed Value -> Instr
-ret v = GenInstr "ret" [TypedArg v]
+ret v = Ret (TypedArg v)
 
 retVoid :: Instr
-retVoid  = GenInstr "ret" [TypeArg (PrimType Void)]
+retVoid  = Ret (TypeArg (PrimType Void))
 
 call :: Bool -> Type -> Value -> [Typed Value] -> Instr
 call tc rty sym = Call tc rty sym . map TypedArg
 
 add :: Typed Value -> Value -> Instr
-add l r = GenInstr "add" [TypedArg l,UntypedArg r]
+add  = Add
 
 fadd :: Typed Value -> Value -> Instr
-fadd l r = GenInstr "fadd" [TypedArg l,UntypedArg r]
+fadd  = FAdd
 
 sub :: Typed Value -> Value -> Instr
 sub l r = GenInstr "sub" [TypedArg l,UntypedArg r]
