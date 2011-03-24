@@ -276,6 +276,10 @@ data Instr
   | Comment String
     deriving (Show)
 
+isTerminator :: Instr -> Bool
+isTerminator Ret{} = True
+isTerminator _     = False
+
 ppInstr :: Instr -> Doc
 ppInstr (Ret arg)             = text "ret" <+> ppArg arg
 ppInstr (Add l r)             = text "add" <+> ppTyped ppValue l
@@ -392,6 +396,10 @@ data Stmt
   = Result Ident Instr
   | Effect Instr
     deriving (Show)
+
+stmtInstr :: Stmt -> Instr
+stmtInstr (Result _ i) = i
+stmtInstr (Effect i)   = i
 
 ppStmt :: Stmt -> Doc
 ppStmt (Result var i) = ppIdent var <+> char '=' <+> ppInstr i

@@ -80,7 +80,24 @@ addDefine d = addSymbol (defName d) ty
   ty = FunTy (defRetType d) (map typedType (defArgs d))
 
 checkBasicBlock :: BasicBlock -> Lint ()
-checkBasicBlock bb = mapM_ checkStmt (bbStmts bb)
+checkBasicBlock bb
+  | null (bbStmts bb) = warn "Empty basic block"
+  | otherwise         = do
+    let (stmts,[end]) = splitAt (length (bbStmts bb) - 1) (bbStmts bb)
+    forM_ stmts $ \s -> do
+      checkStmt s
+      when (isTerminator (stmtInstr s)) $ err $ concat
+        [ "``", render (ppStmt s), "''"
+        , " should terminate "
+        , maybe "<unknown basic block>" (render . ppIdent) (bbLabel bb)
+        , ", but doesn't"
+        ]
+
+    checkStmt end
+    unless (isTerminator (stmtInstr end)) $ err $ concat
+      [ "``", render (ppStmt end), "''"
+      , " does not terminate the basic block"
+      ]
 
 checkStmt :: Stmt -> Lint ()
 checkStmt stmt =
@@ -177,3 +194,11 @@ vectorElemTypeOf _              _ = False
 
 
 -- Tests -----------------------------------------------------------------------
+
+test = BasicBlock
+  { bbLabel = Just (Ident "Loop")
+  , bbStmts =
+    [ Effect retVoid
+    , Effect (comment "a")
+    ]
+  }
