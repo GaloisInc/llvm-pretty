@@ -280,6 +280,10 @@ isTerminator :: Instr -> Bool
 isTerminator Ret{} = True
 isTerminator _     = False
 
+isComment :: Instr -> Bool
+isComment Comment{} = True
+isComment _         = False
+
 ppInstr :: Instr -> Doc
 ppInstr (Ret arg)             = text "ret" <+> ppArg arg
 ppInstr (Add l r)             = text "add" <+> ppTyped ppValue l

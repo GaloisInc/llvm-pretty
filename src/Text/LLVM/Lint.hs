@@ -10,35 +10,74 @@ import qualified Data.Map as Map
 
 
 newtype Lint a = Lint
-  { unLint :: WriterT [Msg] (StateT RW Id) a
+  { unLint :: ReaderT RO (WriterT [Msg] (StateT RW Id)) a
   } deriving (Functor,Monad)
 
 runLint :: Lint a -> (a,[Msg])
-runLint  = fst . runId . runStateT emptyRW . runWriterT . unLint
+runLint  = fst . runId . runStateT emptyRW . runWriterT
+               . runReaderT emptyRO . unLint
 
 type Name = Either Ident Symbol
 
-data RW = RW
-  { rwTypes   :: Map.Map Name (Maybe Type)
-  , rwFunType :: Maybe Type
+data Location
+  = Function Symbol
+  | Block (Maybe Ident)
+    deriving Show
+
+data RO = RO
+  { roLocation :: [Location]
+  , roRetType  :: Maybe Type
   } deriving Show
 
-data Msg
-  = Warn String
-  | Err String
-    deriving (Show)
+emptyRO :: RO
+emptyRO  = RO
+  { roLocation = []
+  , roRetType  = Nothing
+  }
 
-warn :: String -> Lint ()
-warn msg = Lint (put [Warn msg])
+enter :: Location -> Lint a -> Lint a
+enter l body = Lint $ do
+  ro <- ask
+  local (ro { roLocation = l : roLocation ro }) (unLint body)
 
-err :: String -> Lint ()
-err msg = Lint (put [Err msg])
+withRetType :: Type -> Lint a -> Lint a
+withRetType ty body = Lint $ do
+  ro <- ask
+  local (ro { roRetType = Just ty }) (unLint body)
+
+data RW = RW
+  { rwTypes :: Map.Map Name (Maybe Type)
+  } deriving Show
 
 emptyRW :: RW
 emptyRW  = RW
-  { rwTypes   = Map.empty
-  , rwFunType = Nothing
+  { rwTypes = Map.empty
   }
+
+preserveRW :: Lint a -> Lint a
+preserveRW body = Lint $ do
+  rw  <- get
+  res <- unLint body
+  set rw
+  return res
+
+data Msg
+  = Warn [Location] String
+  | Err [Location] String
+    deriving (Show)
+
+warn :: String -> Lint ()
+warn msg = Lint $ do
+  ro <- ask
+  put [Warn (roLocation ro) msg]
+
+err :: String -> Lint ()
+err msg = Lint $ do
+  ro <- ask
+  put [Err (roLocation ro) msg]
+
+
+-- Type Environment ------------------------------------------------------------
 
 addType :: Name -> Type -> Lint ()
 addType n ty = Lint $ do
@@ -49,18 +88,6 @@ undef :: Name -> Lint ()
 undef n = Lint $ do
   rw <- get
   set rw { rwTypes = Map.insert n Nothing (rwTypes rw) }
-
-checkFunType :: Type -> Lint ()
-checkFunType ty = do
-  rw <- Lint get
-  case rwFunType rw of
-    Nothing               -> Lint (set rw { rwFunType = Just ty })
-    Just ty'
-      | typesAgree ty ty' -> return ()
-      | otherwise         -> err $ concat
-        [ "Return type, ``", render (ppType ty)
-        , "'' does not agree with ``", render (ppType ty'), "''"
-        ]
 
 addSymbol :: Symbol -> Type -> Lint ()
 addSymbol  = addType . Right
@@ -74,17 +101,66 @@ undefSymbol  = undef . Right
 undefIdent :: Ident -> Lint ()
 undefIdent  = undef . Left
 
+addDeclare :: Declare -> Lint ()
+addDeclare d = addSymbol (decName d) ty
+  where
+  ty = FunTy (decRetType d) (decArgs d)
+
 addDefine :: Define -> Lint ()
 addDefine d = addSymbol (defName d) ty
   where
   ty = FunTy (defRetType d) (map typedType (defArgs d))
 
+-- | Add all names and types defined by this module.
+addModule :: Module -> Lint ()
+addModule m = do
+  mapM_ addDeclare (modDeclares m)
+  mapM_ addDefine  (modDefines m)
+
+
+-- AST Checking ----------------------------------------------------------------
+
+checkModule :: Module -> Lint ()
+checkModule m = preserveRW $ do
+  addModule m
+  mapM_ checkDeclare (modDeclares m)
+  mapM_ checkDefine  (modDefines m)
+
+checkDeclare :: Declare -> Lint ()
+checkDeclare d = do
+  mapM_ checkInputType (decArgs d)
+  checkOutputType (decRetType d)
+
+checkDefine :: Define -> Lint ()
+checkDefine d = do
+  err "checkDefine not implemented"
+
+checkInputType :: Type -> Lint ()
+checkInputType ty = do
+  err "checkInputType not implemented"
+
+checkOutputType :: Type -> Lint ()
+checkOutputType ty = do
+  err "checkOutputType not implemented"
+
+checkRetType :: Type -> Lint ()
+checkRetType ty = do
+  ro <- Lint ask
+  case roRetType ro of
+    Nothing  -> error "No return type set"
+    Just ty'
+      | typesAgree ty' ty -> return ()
+      | otherwise         -> err $ concat
+        [ "Return type, ``", render (ppType ty)
+        , "'' does not agree with ``", render (ppType ty'), "''"
+        ]
+
 checkBasicBlock :: BasicBlock -> Lint ()
-checkBasicBlock bb
-  | null (bbStmts bb) = warn "Empty basic block"
-  | otherwise         = do
-    let (stmts,[end]) = splitAt (length (bbStmts bb) - 1) (bbStmts bb)
-    forM_ stmts $ \s -> do
+checkBasicBlock bb = enter (Block (bbLabel bb)) $ do
+  let stmts = filter (not . isComment . stmtInstr) (bbStmts bb)
+  unless (null stmts) $ do
+    let (as,[end]) = splitAt (length stmts - 1) stmts
+    forM_ as $ \s -> do
       checkStmt s
       when (isTerminator (stmtInstr s)) $ err $ concat
         [ "``", render (ppStmt s), "''"
@@ -129,11 +205,11 @@ typeOfRet :: Arg -> Lint (Maybe Type)
 typeOfRet arg =
   case arg of
     TypedArg ta -> do
-      checkFunType (typedType ta)
+      checkRetType (typedType ta)
       return Nothing
 
     TypeArg ty@(PrimType Void) -> do
-      checkFunType ty
+      checkRetType ty
       return Nothing
 
     TypeArg _ -> do
@@ -199,6 +275,7 @@ test = BasicBlock
   { bbLabel = Just (Ident "Loop")
   , bbStmts =
     [ Effect retVoid
+    , Effect retVoid
     , Effect (comment "a")
     ]
   }
