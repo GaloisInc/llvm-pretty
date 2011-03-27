@@ -257,6 +257,9 @@ data Typed a = Typed
   , typedValue :: a
   } deriving Show
 
+instance Functor Typed where
+  fmap f t = t { typedValue = f (typedValue t) }
+
 ppTyped :: (a -> Doc) -> Typed a -> Doc
 ppTyped fmt ty = ppType (typedType ty) <+> fmt (typedValue ty)
 
