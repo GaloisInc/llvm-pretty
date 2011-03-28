@@ -169,24 +169,34 @@ ppDeclare d = text "declare"
 -- Function Definitions --------------------------------------------------------
 
 data Define = Define
-  { defLinkage :: Maybe Linkage
+  { defAttrs   :: FunAttrs
   , defRetType :: Type
   , defName    :: Symbol
   , defArgs    :: [Typed Ident]
-  , defGC      :: Maybe GC
   , defBody    :: [BasicBlock]
   } deriving (Show)
 
 ppDefine :: Define -> Doc
 ppDefine d = text "define"
-         <+> ppMaybe ppLinkage (defLinkage d)
+         <+> ppMaybe ppLinkage (funLinkage (defAttrs d))
          <+> ppType (defRetType d)
          <+> ppSymbol (defName d)
           <> parens (commas (map (ppTyped ppIdent) (defArgs d)))
-         <+> ppMaybe (\gc -> text "gc" <+> ppGC gc) (defGC d)
+         <+> ppMaybe (\gc -> text "gc" <+> ppGC gc) (funGC (defAttrs d))
          <+> char '{'
          $+$ nest 2 (vcat (map ppBasicBlock (defBody d)))
          $+$ char '}'
+
+data FunAttrs = FunAttrs
+  { funLinkage :: Maybe Linkage
+  , funGC      :: Maybe GC
+  } deriving (Show)
+
+emptyFunAttrs :: FunAttrs
+emptyFunAttrs  = FunAttrs
+  { funLinkage = Nothing
+  , funGC      = Nothing
+  }
 
 -- Basic Blocks ----------------------------------------------------------------
 
@@ -287,6 +297,19 @@ ppArithOp URem = text "urem"
 ppArithOp SRem = text "srem"
 ppArithOp FRem = text "frem"
 
+isIArith :: ArithOp -> Bool
+isIArith Add  = True
+isIArith Sub  = True
+isIArith Mul  = True
+isIArith UDiv = True
+isIArith SDiv = True
+isIArith URem = True
+isIArith SRem = True
+isIArith _    = False
+
+isFArith :: ArithOp -> Bool
+isFArith  = not . isIArith
+
 data BitOp
   = Shl | Lshr | Ashr
   | And | Or   | Xor
@@ -363,6 +386,10 @@ isTerminator _           = False
 isComment :: Instr -> Bool
 isComment Comment{} = True
 isComment _         = False
+
+isPhi :: Instr -> Bool
+isPhi Phi{} = True
+isPhi _     = False
 
 ppInstr :: Instr -> Doc
 ppInstr (Ret tv)              = text "ret" <+> ppTyped ppValue tv

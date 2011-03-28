@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DoRec #-}
 
 module Text.LLVM (
     -- * LLVM Monad
@@ -8,11 +9,14 @@ module Text.LLVM (
     -- * Function Definition
   , freshSymbol
   , define
+  , FunAttrs(..), emptyFunAttrs
 
     -- * Types
   , iT, voidT
-  , IsValue(..), int
   , (=:), (-:)
+
+    -- * Values
+  , IsValue(..), int
 
     -- * Basic Blocks
   , BB()
@@ -67,7 +71,7 @@ module Text.LLVM (
 import Text.LLVM.AST
     (Module(..),Ident(..),Stmt(..),BasicBlock(..),Typed(..),Value(..),Type(..)
     ,PrimType(..),FloatType(..),Instr,Define(..),emptyModule,Symbol(..)
-    ,ICmpOp(..),FCmpOp(..))
+    ,ICmpOp(..),FCmpOp(..),FunAttrs(..),emptyFunAttrs)
 import qualified Text.LLVM.AST as AST
 
 import Control.Monad.Fix (MonadFix)
@@ -103,16 +107,16 @@ emitDefine d = LLVM (put emptyModule { modDefines = [d] })
 freshSymbol :: LLVM Symbol
 freshSymbol  = Symbol `fmap` freshName "f"
 
-define :: Type -> Symbol -> [Typed Ident] -> ([Typed Value] -> BB ())
+define :: FunAttrs -> Type -> Symbol -> [Typed Ident]
+       -> ([Typed Value] -> BB ())
        -> LLVM Value
-define rty fun args body = emitDefine def >> return (ValSymbol fun)
+define attrs rty fun args body = emitDefine def >> return (ValSymbol fun)
   where
   def = Define
-    { defLinkage = Nothing
+    { defAttrs   = attrs
     , defName    = fun
     , defRetType = rty
     , defArgs    = args
-    , defGC      = Nothing
     , defBody    = snd (runBB (body (map (fmap toValue) args)))
     }
 
@@ -120,7 +124,7 @@ define rty fun args body = emitDefine def >> return (ValSymbol fun)
 defineFresh :: Type -> [Typed Ident] -> ([Typed Value] -> BB ()) -> LLVM Value
 defineFresh rty args body = do
   sym <- freshSymbol
-  define rty sym args body
+  define emptyFunAttrs rty sym args body
 
 
 -- Basic Block Monad -----------------------------------------------------------
@@ -408,3 +412,34 @@ call rty sym vs = observe rty (AST.Call False rty (toValue sym) vs)
 -- | Emit a call instruction, but don't generate a new variable for its result.
 call_ :: IsValue a => Type -> a -> [Typed Value] -> BB ()
 call_ rty sym vs = effect (AST.Call False rty (toValue sym) vs)
+
+
+-- Tests -----------------------------------------------------------------------
+
+test1 = snd $ runLLVM $ do
+  fact <- defineFresh (iT 32) [iT 32 =: Ident "a"] $ \[a] -> do
+    entry <- freshLabel
+    check <- freshLabel
+    body  <- freshLabel
+    done  <- freshLabel
+
+    label entry
+    jump check
+
+    rec label check
+        acc <- phi (iT 32) [(toValue (0 :: Integer),check)
+                           ,(toValue acc',body)]
+        i   <- phi (iT 32) [(toValue a,check)
+                           ,(toValue i',body)]
+        b   <- icmp Iugt i (0 :: Integer)
+        br b body done
+
+        label body
+        acc' <- mul acc i
+        i'   <- sub i (1 :: Integer)
+        jump check
+
+    label done
+    ret acc
+
+  return ()
