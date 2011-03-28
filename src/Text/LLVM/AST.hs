@@ -457,19 +457,6 @@ ppFCmpOp Fune   = text "une"
 ppFCmpOp Funo   = text "uno"
 ppFCmpOp Ftrue  = text "true"
 
--- Arguments -------------------------------------------------------------------
-
-data Arg
-  = TypedArg (Typed Value)
-  | UntypedArg Value
-  | TypeArg Type
-    deriving (Show)
-
-ppArg :: Arg -> Doc
-ppArg (TypedArg tl)  = ppTyped ppValue tl
-ppArg (UntypedArg l) = ppValue l
-ppArg (TypeArg ty)   = ppType ty
-
 -- Values ----------------------------------------------------------------------
 
 data Value
