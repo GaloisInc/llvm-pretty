@@ -265,34 +265,104 @@ ppTyped fmt ty = ppType (typedType ty) <+> fmt (typedValue ty)
 
 -- Instructions ----------------------------------------------------------------
 
+data ArithOp
+  = Add  | FAdd
+  | Sub  | FSub
+  | Mul  | FMul
+  | UDiv | SDiv | FDiv
+  | URem | SRem | FRem
+    deriving (Eq,Show)
+
+ppArithOp :: ArithOp -> Doc
+ppArithOp Add  = text "add"
+ppArithOp FAdd = text "fadd"
+ppArithOp Sub  = text "sub"
+ppArithOp FSub = text "fsub"
+ppArithOp Mul  = text "mul"
+ppArithOp FMul = text "fmul"
+ppArithOp UDiv = text "udiv"
+ppArithOp SDiv = text "sdiv"
+ppArithOp FDiv = text "fdiv"
+ppArithOp URem = text "urem"
+ppArithOp SRem = text "srem"
+ppArithOp FRem = text "frem"
+
+data BitOp
+  = Shl | Lshr | Ashr
+  | And | Or   | Xor
+    deriving Show
+
+ppBitOp :: BitOp -> Doc
+ppBitOp Shl  = text "shl"
+ppBitOp Lshr = text "lshr"
+ppBitOp Ashr = text "ashr"
+ppBitOp And  = text "and"
+ppBitOp Or   = text "or"
+ppBitOp Xor  = text "xor"
+
+data ConvOp
+  = Trunc
+  | ZExt
+  | SExt
+  | FpTrunc
+  | FpExt
+  | FpToUi
+  | FpToSi
+  | UiToFp
+  | SiToFp
+  | PtrToInt
+  | IntToPtr
+  | BitCast
+    deriving Show
+
+ppConvOp :: ConvOp -> Doc
+ppConvOp Trunc    = text "trunc"
+ppConvOp ZExt     = text "zext"
+ppConvOp SExt     = text "sext"
+ppConvOp FpTrunc  = text "fptrunc"
+ppConvOp FpExt    = text "fpext"
+ppConvOp FpToUi   = text "fptoui"
+ppConvOp FpToSi   = text "fptosi"
+ppConvOp UiToFp   = text "uitofp"
+ppConvOp SiToFp   = text "sitofp"
+ppConvOp PtrToInt = text "ptrtoint"
+ppConvOp IntToPtr = text "inttoptr"
+ppConvOp BitCast  = text "bitcast"
+
 data Instr
-  = Ret Arg
-  | Add (Typed Value) Value
-  | FAdd (Typed Value) Value
+  = Ret (Typed Value)
+  | RetVoid
+  | Arith ArithOp (Typed Value) Value
+  | Bit BitOp (Typed Value) Value
+  | Conv ConvOp (Typed Value) Type
   | GenInstr String [Arg]
-  | Call Bool Type Value [Arg]
+  | Call Bool Type Value [Typed Value]
   | Alloca Type (Maybe (Typed Value)) (Maybe Int)
   | ICmp ICmpOp (Typed Value) Value
   | FCmp FCmpOp (Typed Value) Value
   | Phi Type [(Value,Ident)]
-  | Cast String (Typed Value) Type
+  | Select (Typed Value) (Typed Value) Value
   | Comment String
     deriving (Show)
 
 isTerminator :: Instr -> Bool
-isTerminator Ret{} = True
-isTerminator _     = False
+isTerminator Ret{}   = True
+isTerminator RetVoid = True
+isTerminator _       = False
 
 isComment :: Instr -> Bool
 isComment Comment{} = True
 isComment _         = False
 
 ppInstr :: Instr -> Doc
-ppInstr (Ret arg)             = text "ret" <+> ppArg arg
-ppInstr (Add l r)             = text "add" <+> ppTyped ppValue l
+ppInstr (Ret tv)              = text "ret" <+> ppTyped ppValue tv
+ppInstr RetVoid               = text "ret void"
+ppInstr (Arith op l r)        = ppArithOp op <+> ppTyped ppValue l
                              <> comma <+> ppValue r
-ppInstr (FAdd l r)            = text "fadd" <+> ppTyped ppValue l
+ppInstr (Bit op l r)          = ppBitOp op <+> ppTyped ppValue l
                              <> comma <+> ppValue r
+ppInstr (Conv op a ty)        = ppConvOp op <+> ppTyped ppValue a
+                            <+> text "to" <+> ppType ty
 ppInstr (GenInstr op args)    = text op <+> commas (map ppArg args)
 ppInstr (Call tc ty f args)   = ppCall tc ty f args
 ppInstr (Alloca ty len align) = ppAlloca ty len align
@@ -302,8 +372,9 @@ ppInstr (FCmp op l r)         = text "fcmp" <+> ppFCmpOp op
                             <+> ppTyped ppValue l <> comma <+> ppValue r
 ppInstr (Phi ty vls)          = text "phi" <+> ppType ty
                             <+> commas (map ppPhiArg vls)
-ppInstr (Cast op tv ty)       = text op <+> ppTyped ppValue tv
-                            <+> text "to" <+> ppType ty
+ppInstr (Select c t f)        = text "select" <+> ppTyped ppValue c
+                             <> comma <+> ppTyped ppValue t
+                             <> comma <+> ppType (typedType t) <+> ppValue f
 ppInstr (Comment str)         = char ';' <+> text str
 
 ppAlloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Doc
@@ -316,13 +387,13 @@ ppAlloca ty mbLen mbAlign = text "alloca" <+> ppType ty <> len <> align
     a <- mbAlign
     return (comma <+> text "align" <+> int a)
 
-ppCall :: Bool -> Type -> Value -> [Arg] -> Doc
+ppCall :: Bool -> Type -> Value -> [Typed Value] -> Doc
 ppCall tc ty f args
   | tc        = text "tail" <+> body
   | otherwise = body
   where
   body = text "call" <+> ppType ty <+> ppValue f
-      <> parens (commas (map ppArg args))
+      <> parens (commas (map (ppTyped ppValue) args))
 
 ppPhiArg :: (Value,Ident) -> Doc
 ppPhiArg (v,l) = brackets (ppValue v <> comma <+> ppIdent l)
@@ -415,58 +486,10 @@ ppStmt (Effect i)     = ppInstr i
 ignore :: Instr -> Stmt
 ignore  = Effect
 
-(=:) :: Ident -> Instr -> Stmt
-(=:)  = Result
-
 -- Instruction Helpers ---------------------------------------------------------
 
 comment :: String -> Instr
 comment  = Comment
-
-ret :: Typed Value -> Instr
-ret v = Ret (TypedArg v)
-
-retVoid :: Instr
-retVoid  = Ret (TypeArg (PrimType Void))
-
-call :: Bool -> Type -> Value -> [Typed Value] -> Instr
-call tc rty sym = Call tc rty sym . map TypedArg
-
-add :: Typed Value -> Value -> Instr
-add  = Add
-
-fadd :: Typed Value -> Value -> Instr
-fadd  = FAdd
-
-sub :: Typed Value -> Value -> Instr
-sub l r = GenInstr "sub" [TypedArg l,UntypedArg r]
-
-fsub :: Typed Value -> Value -> Instr
-fsub l r = GenInstr "fsub" [TypedArg l,UntypedArg r]
-
-mul :: Typed Value -> Value -> Instr
-mul l r = GenInstr "mul" [TypedArg l,UntypedArg r]
-
-fmul :: Typed Value -> Value -> Instr
-fmul l r = GenInstr "fmul" [TypedArg l,UntypedArg r]
-
-udiv :: Typed Value -> Value -> Instr
-udiv l r = GenInstr "udiv" [TypedArg l, UntypedArg r]
-
-sdiv :: Typed Value -> Value -> Instr
-sdiv l r = GenInstr "sdiv" [TypedArg l, UntypedArg r]
-
-fdiv :: Typed Value -> Value -> Instr
-fdiv l r = GenInstr "fdiv" [TypedArg l, UntypedArg r]
-
-urem :: Typed Value -> Value -> Instr
-urem l r = GenInstr "urem" [TypedArg l, UntypedArg r]
-
-srem :: Typed Value -> Value -> Instr
-srem l r = GenInstr "srem" [TypedArg l, UntypedArg r]
-
-frem :: Typed Value -> Value -> Instr
-frem l r = GenInstr "frem" [TypedArg l, UntypedArg r]
 
 br :: Ident -> Instr
 br l = GenInstr "br" [TypedArg (Typed (PrimType Label) (ValIdent l))]
@@ -500,15 +523,6 @@ fcmp  = FCmp
 
 phi :: Type -> [(Value,Ident)] -> Instr
 phi  = Phi
-
-bitcast :: Typed Value -> Type -> Instr
-bitcast  = Cast "bitcast"
-
-ptrtoint :: Typed Value -> Type -> Instr
-ptrtoint  = Cast "ptrtoint"
-
-inttoptr :: Typed Value -> Type -> Instr
-inttoptr  = Cast "inttoptr"
 
 getelementptr :: Typed Value -> [Typed Value] -> Instr
 getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv:map TypedArg ixs)

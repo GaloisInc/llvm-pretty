@@ -193,32 +193,30 @@ checkInstr instr = do
 typeOfInstr :: Instr -> Lint (Maybe Type)
 typeOfInstr instr =
   case instr of
-    Ret arg  -> typeOfRet arg
-    Add l r  -> typeOfAdd l r
-    FAdd l r -> typeOfFAdd l r
-    _        -> do
+    RetVoid      -> typeOfRetVoid
+    Ret arg      -> typeOfRet arg
+    Arith ty l r -> typeOfArith ty l r
+    _            -> do
       warn "not implemented"
       return Nothing
 
+typeOfArith :: ArithOp -> Typed Value -> Value -> Lint (Maybe Type)
+typeOfArith ty l r =
+  case ty of
+    Add  -> typeOfAdd l r
+    FAdd -> typeOfFAdd l r
+    _    -> warn "not implemented" >> return Nothing
+
+typeOfRetVoid :: Lint (Maybe Type)
+typeOfRetVoid  = do
+  checkRetType (PrimType Void)
+  return Nothing
+
 -- | The ret instruction has an undefined type.
-typeOfRet :: Arg -> Lint (Maybe Type)
-typeOfRet arg =
-  case arg of
-    TypedArg ta -> do
-      checkRetType (typedType ta)
-      return Nothing
-
-    TypeArg ty@(PrimType Void) -> do
-      checkRetType ty
-      return Nothing
-
-    TypeArg _ -> do
-      err ("Invalid type argument to ret: " ++ render (ppArg arg))
-      return Nothing
-
-    UntypedArg _ -> do
-      err ("Invalid untyped argument to ret: " ++ render (ppArg arg))
-      return Nothing
+typeOfRet :: Typed Value -> Lint (Maybe Type)
+typeOfRet tv = do
+  checkRetType (typedType tv)
+  return Nothing
 
 -- | add produces things of integer or vector of integer type.
 typeOfAdd :: Typed Value -> Value -> Lint (Maybe Type)
@@ -274,8 +272,8 @@ vectorElemTypeOf _              _ = False
 test = BasicBlock
   { bbLabel = Just (Ident "Loop")
   , bbStmts =
-    [ Effect retVoid
-    , Effect retVoid
-    , Effect (comment "a")
+    [ Effect RetVoid
+    , Effect RetVoid
+    , Effect (Comment "a")
     ]
   }

@@ -15,14 +15,46 @@ module Text.LLVM (
   , (=:), (-:)
 
   , label
+
+    -- * Terminator Instructions
   , retVoid
   , ret
-  , add
+
+    -- * Binary Operations
+  , add, fadd
+  , sub, fsub
+  , mul, fmul
+  , udiv, sdiv, fdiv
+  , urem, srem, frem
+
+    -- * Bitwise Binary Operations
+  , shl
+  , lshr, ashr
+  , band, bor, bxor
+
+    -- * Conversion Operations
+  , trunc
+  , zext
+  , sext
+  , fptrunc
+  , fpext
+  , fptoui, fptosi
+  , uitofp, sitofp
+  , ptrtoint, inttoptr
+  , bitcast
+
+    -- * Other Operations
+  , icmp, ICmpOp(..)
+  , fcmp, FCmpOp(..)
+  , phi
+  , select
+  , call, call_
   ) where
 
 import Text.LLVM.AST
     (Module(..),Ident(..),Stmt(..),BasicBlock(..),Typed(..),Value(..),Type(..)
-    ,PrimType(..),FloatType(..),Instr,Define(..),emptyModule,Symbol(..))
+    ,PrimType(..),FloatType(..),Instr,Define(..),emptyModule,Symbol(..)
+    ,ICmpOp(..),FCmpOp(..))
 import qualified Text.LLVM.AST as AST
 
 import Control.Monad.Fix (MonadFix)
@@ -202,29 +234,139 @@ int  = toValue
 
 -- | Emit ``ret void'' and terminate the current basic block.
 retVoid :: BB ()
-retVoid  = effect AST.retVoid
+retVoid  = effect AST.RetVoid
 
 -- | Emit the ``ret'' instruction and terminate the current basic block.
-ret :: Typed Value -> BB ()
-ret  = effect . AST.ret
+ret :: IsValue a => Typed a -> BB ()
+ret tv = effect (AST.Ret (toValue `fmap` tv))
 
--- | Emit the ``add'' instruction.
-add :: IsValue a => Typed Value -> a -> BB (Typed Value)
-add l r = observe (typedType l) (AST.add (toValue `fmap` l) (toValue r))
+binop :: (IsValue a, IsValue b)
+      => (Typed Value -> Value -> Instr) -> Typed a -> b -> BB (Typed Value)
+binop k l r = observe (typedType l) (k (toValue `fmap` l) (toValue r))
 
+add :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+add  = binop (AST.Arith AST.Add)
+
+fadd :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+fadd  = binop (AST.Arith AST.FAdd)
+
+sub :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+sub  = binop (AST.Arith AST.Sub)
+
+fsub :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+fsub  = binop (AST.Arith AST.FSub)
+
+mul :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+mul  = binop (AST.Arith AST.Mul)
+
+fmul :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+fmul  = binop (AST.Arith AST.FMul)
+
+udiv :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+udiv  = binop (AST.Arith AST.UDiv)
+
+sdiv :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+sdiv  = binop (AST.Arith AST.SDiv)
+
+fdiv :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+fdiv  = binop (AST.Arith AST.FDiv)
+
+urem :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+urem  = binop (AST.Arith AST.URem)
+
+srem :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+srem  = binop (AST.Arith AST.SRem)
+
+frem :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+frem  = binop (AST.Arith AST.FRem)
+
+shl :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+shl  = binop (AST.Bit AST.Shl)
+
+lshr :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+lshr  = binop (AST.Bit AST.Lshr)
+
+ashr :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+ashr  = binop (AST.Bit AST.Ashr)
+
+band :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+band  = binop (AST.Bit AST.And)
+
+bor :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+bor  = binop (AST.Bit AST.Or)
+
+bxor :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
+bxor  = binop (AST.Bit AST.Xor)
+
+convop :: IsValue a
+       => (Typed Value -> Type -> Instr) -> Typed a -> Type -> BB (Typed Value)
+convop k a ty = observe ty (k (toValue `fmap` a) ty)
+
+trunc :: IsValue a => Typed a -> Type -> BB (Typed Value)
+trunc  = convop (AST.Conv AST.Trunc)
+
+zext :: IsValue a => Typed a -> Type -> BB (Typed Value)
+zext  = convop (AST.Conv AST.ZExt)
+
+sext :: IsValue a => Typed a -> Type -> BB (Typed Value)
+sext  = convop (AST.Conv AST.SExt)
+
+fptrunc :: IsValue a => Typed a -> Type -> BB (Typed Value)
+fptrunc  = convop (AST.Conv AST.FpTrunc)
+
+fpext :: IsValue a => Typed a -> Type -> BB (Typed Value)
+fpext  = convop (AST.Conv AST.FpExt)
+
+fptoui :: IsValue a => Typed a -> Type -> BB (Typed Value)
+fptoui  = convop (AST.Conv AST.FpToUi)
+
+fptosi :: IsValue a => Typed a -> Type -> BB (Typed Value)
+fptosi  = convop (AST.Conv AST.FpToSi)
+
+uitofp :: IsValue a => Typed a -> Type -> BB (Typed Value)
+uitofp  = convop (AST.Conv AST.UiToFp)
+
+sitofp :: IsValue a => Typed a -> Type -> BB (Typed Value)
+sitofp  = convop (AST.Conv AST.SiToFp)
+
+ptrtoint :: IsValue a => Typed a -> Type -> BB (Typed Value)
+ptrtoint  = convop (AST.Conv AST.PtrToInt)
+
+inttoptr :: IsValue a => Typed a -> Type -> BB (Typed Value)
+inttoptr  = convop (AST.Conv AST.IntToPtr)
+
+bitcast :: IsValue a => Typed a -> Type -> BB (Typed Value)
+bitcast  = convop (AST.Conv AST.BitCast)
+
+icmp :: (IsValue a, IsValue b) => ICmpOp -> Typed a -> b -> BB (Typed Value)
+icmp op l r = observe (iT 1) (AST.ICmp op (toValue `fmap` l) (toValue r))
+
+fcmp :: (IsValue a, IsValue b) => FCmpOp -> Typed a -> b -> BB (Typed Value)
+fcmp op l r = observe (iT 1) (AST.FCmp op (toValue `fmap` l) (toValue r))
+
+phi :: Type -> [(Value,Ident)] -> BB (Typed Value)
+phi ty vs = observe ty (AST.Phi ty vs)
+
+select :: (IsValue a, IsValue b, IsValue c)
+       => Typed a -> Typed b -> Typed c -> BB (Typed Value)
+select c t f = observe (typedType t)
+             $ AST.Select (toValue `fmap` c) (toValue `fmap` t) (toValue f)
+
+-- | Emit a call instruction, and generate a new variable for its result.
 call :: IsValue a => Type -> a -> [Typed Value] -> BB (Typed Value)
-call rty sym vs = observe rty (AST.call False rty (toValue sym) vs)
+call rty sym vs = observe rty (AST.Call False rty (toValue sym) vs)
 
+-- | Emit a call instruction, but don't generate a new variable for its result.
 call_ :: IsValue a => Type -> a -> [Typed Value] -> BB ()
-call_ rty sym vs = effect (AST.call False rty (toValue sym) vs)
+call_ rty sym vs = effect (AST.Call False rty (toValue sym) vs)
 
 
 -- Tests -----------------------------------------------------------------------
 
 test1 = snd $ runLLVM $ do
-  add10 <- defineFresh (iT 10) [iT 10 =: Ident "x"] $ \[x] -> do
-    ret =<< add x (int 10)
+  f <- defineFresh (iT 20) [iT 10 =: Ident "x"] $ \[x] -> do
+    ret =<< bitcast x (iT 20)
 
   define voidT (Symbol "main") [] $ \[] -> do
-    call_ (iT 10) add10 [iT 10 -: int 10]
+    call_ (iT 10) f [iT 10 -: int 10]
     retVoid
