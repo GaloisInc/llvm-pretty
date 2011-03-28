@@ -25,14 +25,16 @@ data Location
     deriving Show
 
 data RO = RO
-  { roLocation :: [Location]
-  , roRetType  :: Maybe Type
+  { roLocation   :: [Location]
+  , roRetType    :: Maybe Type
+  , roEntryLabel :: Maybe Ident
   } deriving Show
 
 emptyRO :: RO
 emptyRO  = RO
-  { roLocation = []
-  , roRetType  = Nothing
+  { roLocation   = []
+  , roRetType    = Nothing
+  , roEntryLabel = Nothing
   }
 
 enter :: Location -> Lint a -> Lint a
@@ -44,6 +46,11 @@ withRetType :: Type -> Lint a -> Lint a
 withRetType ty body = Lint $ do
   ro <- ask
   local (ro { roRetType = Just ty }) (unLint body)
+
+withEntryLabel :: Ident -> Lint a -> Lint a
+withEntryLabel l body = Lint $ do
+  ro <- ask
+  local (ro { roEntryLabel = Just l }) (unLint body)
 
 data RW = RW
   { rwTypes :: Map.Map Name (Maybe Type)
@@ -132,8 +139,15 @@ checkDeclare d = do
   checkOutputType (decRetType d)
 
 checkDefine :: Define -> Lint ()
-checkDefine d = do
-  err "checkDefine not implemented"
+checkDefine d = enter (Function (defName d)) body
+  where
+  body =
+    case defBody d of
+      []      -> err "No basic blocks in function body"
+      entry:_ -> do
+        checkEntryBasicBlock (head (defBody d))
+        maybe id withEntryLabel (bbLabel entry)
+            (mapM_ checkBasicBlock (defBody d))
 
 checkInputType :: Type -> Lint ()
 checkInputType ty = do
@@ -154,6 +168,18 @@ checkRetType ty = do
         [ "Return type, ``", render (ppType ty)
         , "'' does not agree with ``", render (ppType ty'), "''"
         ]
+
+checkJumpDest :: Ident -> Lint ()
+checkJumpDest l = do
+  ro <- Lint ask
+  case roEntryLabel ro of
+    Just l' | l == l' -> err "Branches to the entry block are not allowed"
+    _                 -> return ()
+
+checkEntryBasicBlock :: BasicBlock -> Lint ()
+checkEntryBasicBlock bb = enter (Block (bbLabel bb)) $ do
+  when (any (isPhi . stmtInstr) (bbStmts bb))
+      (err "Entry basic block cannot have phi instructions")
 
 checkBasicBlock :: BasicBlock -> Lint ()
 checkBasicBlock bb = enter (Block (bbLabel bb)) $ do
@@ -196,16 +222,15 @@ typeOfInstr instr =
     RetVoid      -> typeOfRetVoid
     Ret arg      -> typeOfRet arg
     Arith ty l r -> typeOfArith ty l r
+    Jump l       -> typeOfJump l
+    Br c t f     -> typeOfBr c t f
     _            -> do
       warn "not implemented"
       return Nothing
 
 typeOfArith :: ArithOp -> Typed Value -> Value -> Lint (Maybe Type)
-typeOfArith ty l r =
-  case ty of
-    Add  -> typeOfAdd l r
-    FAdd -> typeOfFAdd l r
-    _    -> warn "not implemented" >> return Nothing
+typeOfArith op l r | isIArith op = typeOfIArith op l r
+                   | otherwise   = typeOfFArith op l r
 
 typeOfRetVoid :: Lint (Maybe Type)
 typeOfRetVoid  = do
@@ -218,21 +243,42 @@ typeOfRet tv = do
   checkRetType (typedType tv)
   return Nothing
 
--- | add produces things of integer or vector of integer type.
-typeOfAdd :: Typed Value -> Value -> Lint (Maybe Type)
-typeOfAdd l r = do
+-- | Integral instructions produce things of integer or vector of integer type.
+typeOfIArith :: ArithOp -> Typed Value -> Value -> Lint (Maybe Type)
+typeOfIArith op l r = do
   let ty = typedType l
   unless (primTypeOf ty isIntegerType || vectorElemTypeOf ty isIntegerType)
-    (err (render (ppType ty) ++ " is not valid for the add instruction "))
-  return (Just (typedType l))
+    $ err $ concat
+      [ "the ``", render (ppType ty), "'' type is not valid for the ``"
+      , render (ppArithOp op), "'' instruction"
+      ]
+  return (Just ty)
 
--- | fadd produces things of float or vector of float type.
-typeOfFAdd :: Typed Value -> Value -> Lint (Maybe Type)
-typeOfFAdd l r = do
+-- | Floating-point instructions produce things of float or vector of float
+-- type.
+typeOfFArith :: ArithOp -> Typed Value -> Value -> Lint (Maybe Type)
+typeOfFArith op l r = do
   let ty = typedType l
   unless (primTypeOf ty isFloatType || vectorElemTypeOf ty isFloatType)
-    (err (render (ppType ty) ++ " is not valid for the fadd instruction "))
-  return (Just (typedType l))
+    $ err $ concat
+      [ "the ``", render (ppType ty), "'' type is not valid for the ``"
+      , render (ppArithOp op), "'' instruction"
+      ]
+  return (Just ty)
+
+typeOfJump :: Ident -> Lint (Maybe Type)
+typeOfJump l = do
+  checkJumpDest l
+  return Nothing
+
+typeOfBr :: Typed Value -> Ident -> Ident -> Lint (Maybe Type)
+typeOfBr c t f = do
+  let ty = typedType c
+  unless (primTypeOf ty isBooleanType)
+      (err (render (ppType ty) ++ " is not valid for the br instruction"))
+  checkJumpDest t
+  checkJumpDest f
+  return Nothing
 
 -- Types -----------------------------------------------------------------------
 
@@ -248,7 +294,11 @@ typesAgree (FunTy r as)     (FunTy r' as')    = typesAgree r r'
                                              && typeListsAgree as as'
 
 typeListsAgree :: [Type] -> [Type] -> Bool
-typeListsAgree ts ts' = and (zipWith typesAgree ts ts')
+typeListsAgree ts ts'
+  = length ts == length ts' && and (zipWith typesAgree ts ts')
+
+isBooleanType :: PrimType -> Bool
+isBooleanType ty = ty == Integer 1
 
 isIntegerType :: PrimType -> Bool
 isIntegerType Integer{} = True
@@ -265,15 +315,3 @@ primTypeOf _             _ = False
 vectorElemTypeOf :: Type -> (PrimType -> Bool) -> Bool
 vectorElemTypeOf (Vector _ pty) f = f pty
 vectorElemTypeOf _              _ = False
-
-
--- Tests -----------------------------------------------------------------------
-
-test = BasicBlock
-  { bbLabel = Just (Ident "Loop")
-  , bbStmts =
-    [ Effect RetVoid
-    , Effect RetVoid
-    , Effect (Comment "a")
-    ]
-  }
