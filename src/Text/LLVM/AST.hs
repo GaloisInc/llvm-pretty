@@ -335,7 +335,6 @@ data Instr
   | Arith ArithOp (Typed Value) Value
   | Bit BitOp (Typed Value) Value
   | Conv ConvOp (Typed Value) Type
-  | GenInstr String [Arg]
   | Call Bool Type Value [Typed Value]
   | Alloca Type (Maybe (Typed Value)) (Maybe Int)
   | Load (Typed Value)
@@ -343,14 +342,23 @@ data Instr
   | ICmp ICmpOp (Typed Value) Value
   | FCmp FCmpOp (Typed Value) Value
   | Phi Type [(Value,Ident)]
+  | GEP (Typed Value) [Typed Value]
   | Select (Typed Value) (Typed Value) Value
+  | Jump Ident
+  | Br (Typed Value) Ident Ident
   | Comment String
+  | Unreachable
+  | Unwind
     deriving (Show)
 
 isTerminator :: Instr -> Bool
-isTerminator Ret{}   = True
-isTerminator RetVoid = True
-isTerminator _       = False
+isTerminator Ret{}       = True
+isTerminator RetVoid     = True
+isTerminator Jump{}      = True
+isTerminator Br{}        = True
+isTerminator Unreachable = True
+isTerminator Unwind      = True
+isTerminator _           = False
 
 isComment :: Instr -> Bool
 isComment Comment{} = True
@@ -365,7 +373,6 @@ ppInstr (Bit op l r)          = ppBitOp op <+> ppTyped ppValue l
                              <> comma <+> ppValue r
 ppInstr (Conv op a ty)        = ppConvOp op <+> ppTyped ppValue a
                             <+> text "to" <+> ppType ty
-ppInstr (GenInstr op args)    = text op <+> commas (map ppArg args)
 ppInstr (Call tc ty f args)   = ppCall tc ty f args
 ppInstr (Alloca ty len align) = ppAlloca ty len align
 ppInstr (Load ptr)            = text "load" <+> ppTyped ppValue ptr
@@ -380,7 +387,16 @@ ppInstr (Phi ty vls)          = text "phi" <+> ppType ty
 ppInstr (Select c t f)        = text "select" <+> ppTyped ppValue c
                              <> comma <+> ppTyped ppValue t
                              <> comma <+> ppType (typedType t) <+> ppValue f
+ppInstr (GEP ptr ixs)         = text "getelementptr"
+                            <+> commas (map (ppTyped ppValue) (ptr:ixs))
 ppInstr (Comment str)         = char ';' <+> text str
+ppInstr (Jump i)              = text "br"
+                            <+> ppTyped ppIdent (Typed (PrimType Label) i)
+ppInstr (Br c t f)            = text "br" <+> ppTyped ppValue c
+                             <> comma <+> ppType (PrimType Label) <+> ppIdent t
+                             <> comma <+> ppType (PrimType Label) <+> ppIdent f
+ppInstr Unreachable           = text "unreachable"
+ppInstr Unwind                = text "unwind"
 
 ppAlloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Doc
 ppAlloca ty mbLen mbAlign = text "alloca" <+> ppType ty <> len <> align
@@ -487,38 +503,3 @@ stmtInstr (Effect i)   = i
 ppStmt :: Stmt -> Doc
 ppStmt (Result var i) = ppIdent var <+> char '=' <+> ppInstr i
 ppStmt (Effect i)     = ppInstr i
-
-ignore :: Instr -> Stmt
-ignore  = Effect
-
--- Instruction Helpers ---------------------------------------------------------
-
-comment :: String -> Instr
-comment  = Comment
-
-br :: Ident -> Instr
-br l = GenInstr "br" [TypedArg (Typed (PrimType Label) (ValIdent l))]
-
-condBr :: Value -> Ident -> Ident -> Instr
-condBr b t f = GenInstr "br" [cond, label t, label f]
-  where
-  label = TypedArg . Typed (PrimType Label) . ValIdent
-  cond  = TypedArg (Typed (PrimType (Integer 1)) b)
-
-unreachable :: Instr
-unreachable  = GenInstr "unreachable" []
-
-unwind :: Instr
-unwind  = GenInstr "unwind" []
-
-icmp :: ICmpOp -> Typed Value -> Value -> Instr
-icmp  = ICmp
-
-fcmp :: FCmpOp -> Typed Value -> Value -> Instr
-fcmp  = FCmp
-
-phi :: Type -> [(Value,Ident)] -> Instr
-phi  = Phi
-
-getelementptr :: Typed Value -> [Typed Value] -> Instr
-getelementptr tv ixs = GenInstr "getelementptr" (TypedArg tv:map TypedArg ixs)

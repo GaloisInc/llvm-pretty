@@ -1,24 +1,32 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Text.LLVM (
+    -- * LLVM Monad
     LLVM()
   , runLLVM
 
+    -- * Function Definition
   , freshSymbol
   , define
 
-  , BB()
-  , freshLabel
-
+    -- * Types
   , iT, voidT
   , IsValue(..), int
   , (=:), (-:)
 
+    -- * Basic Blocks
+  , BB()
+  , freshLabel
   , label
+  , comment
 
     -- * Terminator Instructions
-  , retVoid
   , ret
+  , retVoid
+  , jump
+  , br
+  , unreachable
+  , unwind
 
     -- * Binary Operations
   , add, fadd
@@ -65,7 +73,7 @@ import qualified Text.LLVM.AST as AST
 import Control.Monad.Fix (MonadFix)
 import Data.Int (Int32)
 import Data.Maybe (maybeToList)
-import MonadLib
+import MonadLib hiding (jump,Label)
 
 
 -- Fresh Names -----------------------------------------------------------------
@@ -237,13 +245,28 @@ int  = toValue
 
 -- Instructions ----------------------------------------------------------------
 
--- | Emit ``ret void'' and terminate the current basic block.
-retVoid :: BB ()
-retVoid  = effect AST.RetVoid
+comment :: String -> BB ()
+comment str = effect (AST.Comment str)
 
 -- | Emit the ``ret'' instruction and terminate the current basic block.
 ret :: IsValue a => Typed a -> BB ()
 ret tv = effect (AST.Ret (toValue `fmap` tv))
+
+-- | Emit ``ret void'' and terminate the current basic block.
+retVoid :: BB ()
+retVoid  = effect AST.RetVoid
+
+jump :: Ident -> BB ()
+jump l = effect (AST.Jump l)
+
+br :: IsValue a => Typed a -> Ident -> Ident -> BB ()
+br c t f = effect (AST.Br (toValue `fmap` c) t f)
+
+unreachable :: BB ()
+unreachable  = effect AST.Unreachable
+
+unwind :: BB ()
+unwind  = effect AST.Unwind
 
 binop :: (IsValue a, IsValue b)
       => (Typed Value -> Value -> Instr) -> Typed a -> b -> BB (Typed Value)
@@ -374,6 +397,10 @@ select :: (IsValue a, IsValue b, IsValue c)
 select c t f = observe (typedType t)
              $ AST.Select (toValue `fmap` c) (toValue `fmap` t) (toValue f)
 
+getelementptr :: IsValue a
+              => Type -> Typed a -> [Typed Value] -> BB (Typed Value)
+getelementptr ty ptr ixs = observe ty (AST.GEP (toValue `fmap` ptr) ixs)
+
 -- | Emit a call instruction, and generate a new variable for its result.
 call :: IsValue a => Type -> a -> [Typed Value] -> BB (Typed Value)
 call rty sym vs = observe rty (AST.Call False rty (toValue sym) vs)
@@ -381,12 +408,3 @@ call rty sym vs = observe rty (AST.Call False rty (toValue sym) vs)
 -- | Emit a call instruction, but don't generate a new variable for its result.
 call_ :: IsValue a => Type -> a -> [Typed Value] -> BB ()
 call_ rty sym vs = effect (AST.Call False rty (toValue sym) vs)
-
-
--- Tests -----------------------------------------------------------------------
-
-test1 = snd $ runLLVM $ do
-  defineFresh (iT 10) [] $ const $ do
-    ptr <- alloca (iT 10) Nothing Nothing
-    store (iT 10 -: int 20) ptr
-    ret =<< load ptr
