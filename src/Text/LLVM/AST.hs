@@ -338,6 +338,8 @@ data Instr
   | GenInstr String [Arg]
   | Call Bool Type Value [Typed Value]
   | Alloca Type (Maybe (Typed Value)) (Maybe Int)
+  | Load (Typed Value)
+  | Store (Typed Value) (Typed Value)
   | ICmp ICmpOp (Typed Value) Value
   | FCmp FCmpOp (Typed Value) Value
   | Phi Type [(Value,Ident)]
@@ -366,6 +368,9 @@ ppInstr (Conv op a ty)        = ppConvOp op <+> ppTyped ppValue a
 ppInstr (GenInstr op args)    = text op <+> commas (map ppArg args)
 ppInstr (Call tc ty f args)   = ppCall tc ty f args
 ppInstr (Alloca ty len align) = ppAlloca ty len align
+ppInstr (Load ptr)            = text "load" <+> ppTyped ppValue ptr
+ppInstr (Store a ptr)         = text "store" <+> ppTyped ppValue a
+                             <> comma <+> ppTyped ppValue ptr
 ppInstr (ICmp op l r)         = text "icmp" <+> ppICmpOp op
                             <+> ppTyped ppValue l <> comma <+> ppValue r
 ppInstr (FCmp op l r)         = text "fcmp" <+> ppFCmpOp op
@@ -505,15 +510,6 @@ unreachable  = GenInstr "unreachable" []
 
 unwind :: Instr
 unwind  = GenInstr "unwind" []
-
-alloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Instr
-alloca  = Alloca
-
-load :: Typed Value -> Instr
-load p = GenInstr "load" [TypedArg p]
-
-store :: Typed Value -> Typed Value -> Instr
-store a p = GenInstr "store" [TypedArg a, TypedArg p]
 
 icmp :: ICmpOp -> Typed Value -> Value -> Instr
 icmp  = ICmp

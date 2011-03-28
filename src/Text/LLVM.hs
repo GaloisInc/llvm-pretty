@@ -43,6 +43,11 @@ module Text.LLVM (
   , ptrtoint, inttoptr
   , bitcast
 
+    -- * Memory Access and Addressing Operations
+  , alloca
+  , load
+  , store
+
     -- * Other Operations
   , icmp, ICmpOp(..)
   , fcmp, FCmpOp(..)
@@ -298,6 +303,23 @@ bor  = binop (AST.Bit AST.Or)
 bxor :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
 bxor  = binop (AST.Bit AST.Xor)
 
+alloca :: Type -> Maybe (Typed Value) -> Maybe Int -> BB (Typed Value)
+alloca ty mb align = observe (PtrTo ty) (AST.Alloca ty es align)
+  where
+  es = fmap toValue `fmap` mb
+
+load :: IsValue a => Typed a -> BB (Typed Value)
+load tv =
+  case typedType tv of
+    PtrTo ty -> observe ty (AST.Load (toValue `fmap` tv))
+    _        -> error "load not given a pointer"
+
+store :: (IsValue a, IsValue b) => a -> Typed b -> BB ()
+store a ptr =
+  case typedType ptr of
+    PtrTo ty -> effect (AST.Store (ty -: a) (toValue `fmap` ptr))
+    _        -> error "store not given a pointer"
+
 convop :: IsValue a
        => (Typed Value -> Type -> Instr) -> Typed a -> Type -> BB (Typed Value)
 convop k a ty = observe ty (k (toValue `fmap` a) ty)
@@ -364,9 +386,7 @@ call_ rty sym vs = effect (AST.Call False rty (toValue sym) vs)
 -- Tests -----------------------------------------------------------------------
 
 test1 = snd $ runLLVM $ do
-  f <- defineFresh (iT 20) [iT 10 =: Ident "x"] $ \[x] -> do
-    ret =<< bitcast x (iT 20)
-
-  define voidT (Symbol "main") [] $ \[] -> do
-    call_ (iT 10) f [iT 10 -: int 10]
-    retVoid
+  defineFresh (iT 10) [] $ const $ do
+    ptr <- alloca (iT 10) Nothing Nothing
+    store (iT 10 -: int 20) ptr
+    ret =<< load ptr
