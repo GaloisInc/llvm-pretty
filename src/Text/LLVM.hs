@@ -6,13 +6,17 @@ module Text.LLVM (
     LLVM()
   , runLLVM
 
+    -- * Alias Introduction
+  , alias
+
     -- * Function Definition
   , freshSymbol
   , define
-  , FunAttrs(..), emptyFunAttrs
+  , defineFresh
+  , declare
 
     -- * Types
-  , iT, voidT
+  , iT, ptrT, voidT
   , (=:), (-:)
 
     -- * Values
@@ -59,28 +63,40 @@ module Text.LLVM (
   , alloca
   , load
   , store
+  , getelementptr
+  , nullPtr
 
     -- * Other Operations
-  , icmp, ICmpOp(..)
-  , fcmp, FCmpOp(..)
+  , icmp
+  , fcmp
   , phi
   , select
   , call, call_
+
+    -- * Re-exported
+  , module Text.LLVM.AST
   ) where
 
 import Text.LLVM.AST
-    (Module(..),Ident(..),Stmt(..),BasicBlock(..),Typed(..),Value(..),Type(..)
-    ,PrimType(..),FloatType(..),Instr,Define(..),emptyModule,Symbol(..)
-    ,ICmpOp(..),FCmpOp(..),FunAttrs(..),emptyFunAttrs)
-import qualified Text.LLVM.AST as AST
 
 import Control.Monad.Fix (MonadFix)
 import Data.Int (Int32)
 import Data.Maybe (maybeToList)
 import MonadLib hiding (jump,Label)
+import qualified Data.Map as Map
 
 
 -- Fresh Names -----------------------------------------------------------------
+
+type Names = Map.Map String Int
+
+nextName :: String -> Names -> (String,Names)
+nextName pfx ns =
+  case Map.lookup pfx ns of
+    Nothing -> (fmt 1,  Map.insert pfx 2 ns)
+    Just ix -> (fmt ix, Map.insert pfx (ix+1) ns)
+  where
+  fmt i = showString pfx (shows i "")
 
 class FreshName m where
   freshName :: String -> m String
@@ -89,42 +105,63 @@ class FreshName m where
 -- LLVM Monad ------------------------------------------------------------------
 
 newtype LLVM a = LLVM
-  { unLLVM :: WriterT Module (StateT Int Id) a
+  { unLLVM :: WriterT Module (StateT Names Id) a
   } deriving (Functor,Monad,MonadFix)
 
 instance FreshName LLVM where
   freshName pfx = LLVM $ do
-    i <- get
-    set $! i + 1
-    return (showString pfx (shows i ""))
+    ns <- get
+    let (n,ns') = nextName pfx ns
+    set ns'
+    return n
 
 runLLVM :: LLVM a -> (a,Module)
-runLLVM  = fst . runId . runStateT 0 . runWriterT . unLLVM
+runLLVM  = fst . runId . runStateT Map.empty . runWriterT . unLLVM
+
+emitTypeDecl :: TypeDecl -> LLVM ()
+emitTypeDecl td = LLVM (put emptyModule { modTypes = [td] })
 
 emitDefine :: Define -> LLVM ()
 emitDefine d = LLVM (put emptyModule { modDefines = [d] })
 
+emitDeclare :: Declare -> LLVM ()
+emitDeclare d = LLVM (put emptyModule { modDeclares = [d] })
+
+alias :: Ident -> Type -> LLVM ()
+alias i ty = emitTypeDecl (TypeDecl i ty)
+
 freshSymbol :: LLVM Symbol
 freshSymbol  = Symbol `fmap` freshName "f"
 
-define :: FunAttrs -> Type -> Symbol -> [Typed Ident]
-       -> ([Typed Value] -> BB ())
+define :: FunAttrs -> Type -> Symbol -> [Type] -> ([Typed Value] -> BB ())
        -> LLVM Value
-define attrs rty fun args body = emitDefine def >> return (ValSymbol fun)
-  where
-  def = Define
+define attrs rty fun tys body = do
+  names <- replicateM (length tys) (freshName "a")
+  let args = zipWith (\ty n -> Typed ty (Ident n)) tys names
+  emitDefine Define
     { defAttrs   = attrs
     , defName    = fun
     , defRetType = rty
     , defArgs    = args
     , defBody    = snd (runBB (body (map (fmap toValue) args)))
     }
+  return (ValSymbol fun)
 
 -- | A combination of define and @freshSymbol@.
-defineFresh :: Type -> [Typed Ident] -> ([Typed Value] -> BB ()) -> LLVM Value
-defineFresh rty args body = do
+defineFresh :: FunAttrs -> Type -> [Type] -> ([Typed Value] -> BB ())
+            -> LLVM Value
+defineFresh attrs rty args body = do
   sym <- freshSymbol
-  define emptyFunAttrs rty sym args body
+  define attrs rty sym args body
+
+
+-- | Emit a declaration.
+declare :: Type -> Symbol -> [Type] -> LLVM ()
+declare rty sym tys = emitDeclare Declare
+  { decRetType = rty
+  , decName    = sym
+  , decArgs    = tys
+  }
 
 
 -- Basic Block Monad -----------------------------------------------------------
@@ -136,8 +173,9 @@ newtype BB a = BB
 instance FreshName BB where
   freshName pfx = BB $ do
     rw <- get
-    set $! rw { rwIndex = rwIndex rw + 1 }
-    return (showString pfx (shows (rwIndex rw) ""))
+    let (n,ns') = nextName pfx (rwNames rw)
+    set rw { rwNames = ns' }
+    return n
 
 runBB :: BB a -> (a,[BasicBlock])
 runBB m =
@@ -145,14 +183,14 @@ runBB m =
     ((a,bbs),rw) -> (a,bbs ++ maybeToList (snd (rwBasicBlock rw)))
 
 data RW = RW
-  { rwIndex :: !Int
+  { rwNames :: Names
   , rwLabel :: Maybe Ident
   , rwStmts :: [Stmt]
   } deriving Show
 
 emptyRW :: RW
 emptyRW  = RW
-  { rwIndex = 0
+  { rwNames = Map.empty
   , rwLabel = Nothing
   , rwStmts = []
   }
@@ -171,14 +209,14 @@ emitStmt stmt = do
   BB $ do
     rw <- get
     set $! rw { rwStmts = rwStmts rw ++ [stmt] }
-  when (AST.isTerminator (AST.stmtInstr stmt)) terminateBasicBlock
+  when (isTerminator (stmtInstr stmt)) terminateBasicBlock
 
 effect :: Instr -> BB ()
 effect  = emitStmt . Effect
 
 observe :: Type -> Instr -> BB (Typed Value)
 observe ty i = do
-  name <- freshName "r"
+  name <- freshName ""
   let res = Ident name
   emitStmt (Result res i)
   return (Typed ty (ValIdent res))
@@ -210,8 +248,14 @@ terminateBasicBlock  = BB $ do
 iT :: Int32 -> Type
 iT  = PrimType . Integer
 
+ptrT :: Type -> Type
+ptrT  = PtrTo
+
 voidT :: Type
 voidT  = PrimType Void
+
+arrayT :: Int32 -> Type -> Type
+arrayT  = Array
 
 
 -- Value Helpers ---------------------------------------------------------------
@@ -227,6 +271,9 @@ instance IsValue a => IsValue (Typed a) where
 
 instance IsValue Integer where
   toValue = ValInteger
+
+instance IsValue Int where
+  toValue = ValInteger . toInteger
 
 instance IsValue Ident where
   toValue = ValIdent
@@ -250,174 +297,177 @@ int  = toValue
 -- Instructions ----------------------------------------------------------------
 
 comment :: String -> BB ()
-comment str = effect (AST.Comment str)
+comment str = effect (Comment str)
 
 -- | Emit the ``ret'' instruction and terminate the current basic block.
 ret :: IsValue a => Typed a -> BB ()
-ret tv = effect (AST.Ret (toValue `fmap` tv))
+ret tv = effect (Ret (toValue `fmap` tv))
 
 -- | Emit ``ret void'' and terminate the current basic block.
 retVoid :: BB ()
-retVoid  = effect AST.RetVoid
+retVoid  = effect RetVoid
 
 jump :: Ident -> BB ()
-jump l = effect (AST.Jump l)
+jump l = effect (Jump l)
 
 br :: IsValue a => Typed a -> Ident -> Ident -> BB ()
-br c t f = effect (AST.Br (toValue `fmap` c) t f)
+br c t f = effect (Br (toValue `fmap` c) t f)
 
 unreachable :: BB ()
-unreachable  = effect AST.Unreachable
+unreachable  = effect Unreachable
 
 unwind :: BB ()
-unwind  = effect AST.Unwind
+unwind  = effect Unwind
 
 binop :: (IsValue a, IsValue b)
       => (Typed Value -> Value -> Instr) -> Typed a -> b -> BB (Typed Value)
 binop k l r = observe (typedType l) (k (toValue `fmap` l) (toValue r))
 
 add :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-add  = binop (AST.Arith AST.Add)
+add  = binop (Arith Add)
 
 fadd :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-fadd  = binop (AST.Arith AST.FAdd)
+fadd  = binop (Arith FAdd)
 
 sub :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-sub  = binop (AST.Arith AST.Sub)
+sub  = binop (Arith Sub)
 
 fsub :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-fsub  = binop (AST.Arith AST.FSub)
+fsub  = binop (Arith FSub)
 
 mul :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-mul  = binop (AST.Arith AST.Mul)
+mul  = binop (Arith Mul)
 
 fmul :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-fmul  = binop (AST.Arith AST.FMul)
+fmul  = binop (Arith FMul)
 
 udiv :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-udiv  = binop (AST.Arith AST.UDiv)
+udiv  = binop (Arith UDiv)
 
 sdiv :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-sdiv  = binop (AST.Arith AST.SDiv)
+sdiv  = binop (Arith SDiv)
 
 fdiv :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-fdiv  = binop (AST.Arith AST.FDiv)
+fdiv  = binop (Arith FDiv)
 
 urem :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-urem  = binop (AST.Arith AST.URem)
+urem  = binop (Arith URem)
 
 srem :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-srem  = binop (AST.Arith AST.SRem)
+srem  = binop (Arith SRem)
 
 frem :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-frem  = binop (AST.Arith AST.FRem)
+frem  = binop (Arith FRem)
 
 shl :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-shl  = binop (AST.Bit AST.Shl)
+shl  = binop (Bit Shl)
 
 lshr :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-lshr  = binop (AST.Bit AST.Lshr)
+lshr  = binop (Bit Lshr)
 
 ashr :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-ashr  = binop (AST.Bit AST.Ashr)
+ashr  = binop (Bit Ashr)
 
 band :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-band  = binop (AST.Bit AST.And)
+band  = binop (Bit And)
 
 bor :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-bor  = binop (AST.Bit AST.Or)
+bor  = binop (Bit Or)
 
 bxor :: (IsValue a, IsValue b) => Typed a -> b -> BB (Typed Value)
-bxor  = binop (AST.Bit AST.Xor)
+bxor  = binop (Bit Xor)
 
 alloca :: Type -> Maybe (Typed Value) -> Maybe Int -> BB (Typed Value)
-alloca ty mb align = observe (PtrTo ty) (AST.Alloca ty es align)
+alloca ty mb align = observe (PtrTo ty) (Alloca ty es align)
   where
   es = fmap toValue `fmap` mb
 
 load :: IsValue a => Typed a -> BB (Typed Value)
 load tv =
   case typedType tv of
-    PtrTo ty -> observe ty (AST.Load (toValue `fmap` tv))
+    PtrTo ty -> observe ty (Load (toValue `fmap` tv))
     _        -> error "load not given a pointer"
 
 store :: (IsValue a, IsValue b) => a -> Typed b -> BB ()
 store a ptr =
   case typedType ptr of
-    PtrTo ty -> effect (AST.Store (ty -: a) (toValue `fmap` ptr))
+    PtrTo ty -> effect (Store (ty -: a) (toValue `fmap` ptr))
     _        -> error "store not given a pointer"
+
+nullPtr :: Type -> Typed Value
+nullPtr ty = ptrT ty =: ValNull
 
 convop :: IsValue a
        => (Typed Value -> Type -> Instr) -> Typed a -> Type -> BB (Typed Value)
 convop k a ty = observe ty (k (toValue `fmap` a) ty)
 
 trunc :: IsValue a => Typed a -> Type -> BB (Typed Value)
-trunc  = convop (AST.Conv AST.Trunc)
+trunc  = convop (Conv Trunc)
 
 zext :: IsValue a => Typed a -> Type -> BB (Typed Value)
-zext  = convop (AST.Conv AST.ZExt)
+zext  = convop (Conv ZExt)
 
 sext :: IsValue a => Typed a -> Type -> BB (Typed Value)
-sext  = convop (AST.Conv AST.SExt)
+sext  = convop (Conv SExt)
 
 fptrunc :: IsValue a => Typed a -> Type -> BB (Typed Value)
-fptrunc  = convop (AST.Conv AST.FpTrunc)
+fptrunc  = convop (Conv FpTrunc)
 
 fpext :: IsValue a => Typed a -> Type -> BB (Typed Value)
-fpext  = convop (AST.Conv AST.FpExt)
+fpext  = convop (Conv FpExt)
 
 fptoui :: IsValue a => Typed a -> Type -> BB (Typed Value)
-fptoui  = convop (AST.Conv AST.FpToUi)
+fptoui  = convop (Conv FpToUi)
 
 fptosi :: IsValue a => Typed a -> Type -> BB (Typed Value)
-fptosi  = convop (AST.Conv AST.FpToSi)
+fptosi  = convop (Conv FpToSi)
 
 uitofp :: IsValue a => Typed a -> Type -> BB (Typed Value)
-uitofp  = convop (AST.Conv AST.UiToFp)
+uitofp  = convop (Conv UiToFp)
 
 sitofp :: IsValue a => Typed a -> Type -> BB (Typed Value)
-sitofp  = convop (AST.Conv AST.SiToFp)
+sitofp  = convop (Conv SiToFp)
 
 ptrtoint :: IsValue a => Typed a -> Type -> BB (Typed Value)
-ptrtoint  = convop (AST.Conv AST.PtrToInt)
+ptrtoint  = convop (Conv PtrToInt)
 
 inttoptr :: IsValue a => Typed a -> Type -> BB (Typed Value)
-inttoptr  = convop (AST.Conv AST.IntToPtr)
+inttoptr  = convop (Conv IntToPtr)
 
 bitcast :: IsValue a => Typed a -> Type -> BB (Typed Value)
-bitcast  = convop (AST.Conv AST.BitCast)
+bitcast  = convop (Conv BitCast)
 
 icmp :: (IsValue a, IsValue b) => ICmpOp -> Typed a -> b -> BB (Typed Value)
-icmp op l r = observe (iT 1) (AST.ICmp op (toValue `fmap` l) (toValue r))
+icmp op l r = observe (iT 1) (ICmp op (toValue `fmap` l) (toValue r))
 
 fcmp :: (IsValue a, IsValue b) => FCmpOp -> Typed a -> b -> BB (Typed Value)
-fcmp op l r = observe (iT 1) (AST.FCmp op (toValue `fmap` l) (toValue r))
+fcmp op l r = observe (iT 1) (FCmp op (toValue `fmap` l) (toValue r))
 
 phi :: Type -> [(Value,Ident)] -> BB (Typed Value)
-phi ty vs = observe ty (AST.Phi ty vs)
+phi ty vs = observe ty (Phi ty vs)
 
 select :: (IsValue a, IsValue b, IsValue c)
        => Typed a -> Typed b -> Typed c -> BB (Typed Value)
 select c t f = observe (typedType t)
-             $ AST.Select (toValue `fmap` c) (toValue `fmap` t) (toValue f)
+             $ Select (toValue `fmap` c) (toValue `fmap` t) (toValue f)
 
 getelementptr :: IsValue a
               => Type -> Typed a -> [Typed Value] -> BB (Typed Value)
-getelementptr ty ptr ixs = observe ty (AST.GEP (toValue `fmap` ptr) ixs)
+getelementptr ty ptr ixs = observe ty (GEP (toValue `fmap` ptr) ixs)
 
 -- | Emit a call instruction, and generate a new variable for its result.
 call :: IsValue a => Type -> a -> [Typed Value] -> BB (Typed Value)
-call rty sym vs = observe rty (AST.Call False rty (toValue sym) vs)
+call rty sym vs = observe rty (Call False rty (toValue sym) vs)
 
 -- | Emit a call instruction, but don't generate a new variable for its result.
 call_ :: IsValue a => Type -> a -> [Typed Value] -> BB ()
-call_ rty sym vs = effect (AST.Call False rty (toValue sym) vs)
+call_ rty sym vs = effect (Call False rty (toValue sym) vs)
 
 
 -- Tests -----------------------------------------------------------------------
 
 test1 = snd $ runLLVM $ do
-  fact <- defineFresh (iT 32) [iT 32 =: Ident "a"] $ \[a] -> do
+  fact <- defineFresh emptyFunAttrs (iT 32) [iT 32] $ \[a] -> do
     entry <- freshLabel
     check <- freshLabel
     body  <- freshLabel
