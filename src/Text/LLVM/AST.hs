@@ -124,12 +124,6 @@ ppType (FunTy r as)      = ppType r <> parens (commas (map ppType as))
 ppType (Vector len pt)   = angles (int32 len <+> char 'x' <+> ppPrimType pt)
 ppType Opaque            = text "opaque"
 
-iTy :: Int32 -> Type
-iTy  = PrimType . Integer
-
-floatTy :: FloatType -> Type
-floatTy  = PrimType . FloatType
-
 -- Top-level Type Aliases ------------------------------------------------------
 
 data TypeDecl = TypeDecl
