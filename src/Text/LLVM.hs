@@ -5,6 +5,10 @@ module Text.LLVM (
     -- * LLVM Monad
     LLVM()
   , runLLVM
+  , emitTypeDecl
+  , emitGlobal
+  , emitDeclare
+  , emitDefine
 
     -- * Alias Introduction
   , alias
@@ -14,13 +18,17 @@ module Text.LLVM (
   , define
   , defineFresh
   , declare
+  , global
 
     -- * Types
   , iT, ptrT, voidT
   , (=:), (-:)
 
     -- * Values
-  , IsValue(..), int
+  , IsValue(..)
+  , int
+  , struct
+  , array
 
     -- * Basic Blocks
   , BB()
@@ -80,6 +88,7 @@ module Text.LLVM (
 import Text.LLVM.AST
 
 import Control.Monad.Fix (MonadFix)
+import Data.Char (ord)
 import Data.Int (Int32)
 import Data.Maybe (maybeToList)
 import MonadLib hiding (jump,Label)
@@ -98,9 +107,6 @@ nextName pfx ns =
   where
   fmt i = showString pfx (shows i "")
 
-class FreshName m where
-  freshName :: String -> m String
-
 
 -- LLVM Monad ------------------------------------------------------------------
 
@@ -108,18 +114,21 @@ newtype LLVM a = LLVM
   { unLLVM :: WriterT Module (StateT Names Id) a
   } deriving (Functor,Monad,MonadFix)
 
-instance FreshName LLVM where
-  freshName pfx = LLVM $ do
-    ns <- get
-    let (n,ns') = nextName pfx ns
-    set ns'
-    return n
+freshNameLLVM :: String -> LLVM String
+freshNameLLVM pfx = LLVM $ do
+  ns <- get
+  let (n,ns') = nextName pfx ns
+  set ns'
+  return n
 
 runLLVM :: LLVM a -> (a,Module)
 runLLVM  = fst . runId . runStateT Map.empty . runWriterT . unLLVM
 
 emitTypeDecl :: TypeDecl -> LLVM ()
 emitTypeDecl td = LLVM (put emptyModule { modTypes = [td] })
+
+emitGlobal :: Global -> LLVM ()
+emitGlobal g = LLVM (put emptyModule { modGlobals = [g] })
 
 emitDefine :: Define -> LLVM ()
 emitDefine d = LLVM (put emptyModule { modDefines = [d] })
@@ -131,12 +140,12 @@ alias :: Ident -> Type -> LLVM ()
 alias i ty = emitTypeDecl (TypeDecl i ty)
 
 freshSymbol :: LLVM Symbol
-freshSymbol  = Symbol `fmap` freshName "f"
+freshSymbol  = Symbol `fmap` freshNameLLVM "f"
 
 define :: FunAttrs -> Type -> Symbol -> [Type] -> ([Typed Value] -> BB ())
        -> LLVM Value
 define attrs rty fun tys body = do
-  names <- replicateM (length tys) (freshName "a")
+  names <- replicateM (length tys) (freshNameLLVM "a")
   let args = zipWith (\ty n -> Typed ty (Ident n)) tys names
   emitDefine Define
     { defAttrs   = attrs
@@ -164,18 +173,35 @@ declare rty sym tys = emitDeclare Declare
   }
 
 
+-- | Emit a global declaration.
+global :: Symbol -> Typed Value -> LLVM ()
+global sym val = emitGlobal Global
+  { globalSym   = sym
+  , globalType  = typedType val
+  , globalValue = typedValue val
+  }
+
+
+-- | Output a somewhat clunky representation for a string global, that deals
+-- well with escaping in the haskell-source string.
+string :: Symbol -> String -> LLVM ()
+string sym str = global sym (array (iT 8) bytes)
+  where
+  bytes = [ int (fromIntegral (ord c)) | c <- str ]
+
+
 -- Basic Block Monad -----------------------------------------------------------
 
 newtype BB a = BB
   { unBB :: WriterT [BasicBlock] (StateT RW Id) a
   } deriving (Functor,Monad,MonadFix)
 
-instance FreshName BB where
-  freshName pfx = BB $ do
-    rw <- get
-    let (n,ns') = nextName pfx (rwNames rw)
-    set rw { rwNames = ns' }
-    return n
+freshNameBB :: String -> BB String
+freshNameBB pfx = BB $ do
+  rw <- get
+  let (n,ns') = nextName pfx (rwNames rw)
+  set rw { rwNames = ns' }
+  return n
 
 runBB :: BB a -> (a,[BasicBlock])
 runBB m =
@@ -216,7 +242,7 @@ effect  = emitStmt . Effect
 
 observe :: Type -> Instr -> BB (Typed Value)
 observe ty i = do
-  name <- freshName ""
+  name <- freshNameBB ""
   let res = Ident name
   emitStmt (Result res i)
   return (Typed ty (ValIdent res))
@@ -224,7 +250,7 @@ observe ty i = do
 -- Basic Blocks ----------------------------------------------------------------
 
 freshLabel :: BB Ident
-freshLabel  = Ident `fmap` freshName "L"
+freshLabel  = Ident `fmap` freshNameBB "L"
 
 -- | Force termination of the current basic block, and start a new one with the
 -- given label.
@@ -290,8 +316,19 @@ ty =: a = Typed
   , typedValue = a
   }
 
-int :: Integer -> Value
+int :: Int -> Value
 int  = toValue
+
+integer :: Integer -> Value
+integer  = toValue
+
+struct :: Bool -> [Typed Value] -> Typed Value
+struct packed tvs
+  | packed    = PackedStruct (map typedType tvs) =: ValPackedStruct tvs
+  | otherwise = Struct (map typedType tvs)       =: ValStruct tvs
+
+array :: Type -> [Value] -> Typed Value
+array ty vs = Typed (Array (fromIntegral (length vs)) ty) (ValArray ty vs)
 
 
 -- Instructions ----------------------------------------------------------------
@@ -468,25 +505,19 @@ call_ rty sym vs = effect (Call False rty (toValue sym) vs)
 
 test1 = snd $ runLLVM $ do
   fact <- defineFresh emptyFunAttrs (iT 32) [iT 32] $ \[a] -> do
-    entry <- freshLabel
     check <- freshLabel
     body  <- freshLabel
     done  <- freshLabel
 
-    label entry
-    jump check
-
     rec label check
-        acc <- phi (iT 32) [(toValue (0 :: Integer),check)
-                           ,(toValue acc',body)]
-        i   <- phi (iT 32) [(toValue a,check)
-                           ,(toValue i',body)]
-        b   <- icmp Iugt i (0 :: Integer)
+        acc <- phi (iT 32) [(int 0,check),    (toValue acc',body)]
+        i   <- phi (iT 32) [(toValue a,check),(toValue i',body)]
+        b   <- icmp Iugt i (int 0)
         br b body done
 
         label body
         acc' <- mul acc i
-        i'   <- sub i (1 :: Integer)
+        i'   <- sub i (int 1)
         jump check
 
     label done

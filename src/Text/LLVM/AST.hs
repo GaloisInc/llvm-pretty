@@ -47,8 +47,9 @@ emptyModule  = Module
 ppModule :: Module -> Doc
 ppModule m = vcat $ concat
   [ map ppTypeDecl (modTypes m)
-  , map ppDeclare (modDeclares m)
-  , map ppDefine (modDefines m)
+  , map ppGlobal   (modGlobals m)
+  , map ppDeclare  (modDeclares m)
+  , map ppDefine   (modDefines m)
   ]
 
 -- Identifiers -----------------------------------------------------------------
@@ -487,15 +488,24 @@ data Value
   | ValIdent Ident
   | ValSymbol Symbol
   | ValNull
+  | ValArray Type [Value]
+  | ValStruct [Typed Value]
+  | ValPackedStruct [Typed Value]
+  | ValString String
     deriving (Show)
 
 ppValue :: Value -> Doc
-ppValue (ValInteger i) = integer i
-ppValue (ValFloat i)   = float i
-ppValue (ValDouble i)  = double i
-ppValue (ValIdent i)   = ppIdent i
-ppValue (ValSymbol s)  = ppSymbol s
-ppValue ValNull        = text "null"
+ppValue (ValInteger i)       = integer i
+ppValue (ValFloat i)         = float i
+ppValue (ValDouble i)        = double i
+ppValue (ValIdent i)         = ppIdent i
+ppValue (ValSymbol s)        = ppSymbol s
+ppValue ValNull              = text "null"
+ppValue (ValArray ty es)     = brackets
+                             $ commas (map (ppTyped ppValue . Typed ty) es)
+ppValue (ValStruct fs)       = braces (commas (map (ppTyped ppValue) fs))
+ppValue (ValPackedStruct fs) = angles
+                             $ braces (commas (map (ppTyped ppValue) fs))
 
 -- Statements ------------------------------------------------------------------
 
