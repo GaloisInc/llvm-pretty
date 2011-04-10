@@ -89,7 +89,7 @@ import Text.LLVM.AST
 
 import Control.Monad.Fix (MonadFix)
 import Data.Char (ord)
-import Data.Int (Int32)
+import Data.Int (Int8,Int16,Int32,Int64)
 import Data.Maybe (maybeToList)
 import MonadLib hiding (jump,Label)
 import qualified Data.Map as Map
@@ -299,6 +299,18 @@ instance IsValue Integer where
   toValue = ValInteger
 
 instance IsValue Int where
+  toValue = ValInteger . toInteger
+
+instance IsValue Int8 where
+  toValue = ValInteger . toInteger
+
+instance IsValue Int16 where
+  toValue = ValInteger . toInteger
+
+instance IsValue Int32 where
+  toValue = ValInteger . toInteger
+
+instance IsValue Int64 where
   toValue = ValInteger . toInteger
 
 instance IsValue Ident where
