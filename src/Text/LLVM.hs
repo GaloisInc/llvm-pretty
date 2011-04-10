@@ -102,7 +102,7 @@ type Names = Map.Map String Int
 nextName :: String -> Names -> (String,Names)
 nextName pfx ns =
   case Map.lookup pfx ns of
-    Nothing -> (fmt 1,  Map.insert pfx 2 ns)
+    Nothing -> (fmt 0,  Map.insert pfx 1 ns)
     Just ix -> (fmt ix, Map.insert pfx (ix+1) ns)
   where
   fmt i = showString pfx (shows i "")
@@ -242,7 +242,7 @@ effect  = emitStmt . Effect
 
 observe :: Type -> Instr -> BB (Typed Value)
 observe ty i = do
-  name <- freshNameBB ""
+  name <- freshNameBB "r"
   let res = Ident name
   emitStmt (Result res i)
   return (Typed ty (ValIdent res))
@@ -511,28 +511,3 @@ call rty sym vs = observe rty (Call False rty (toValue sym) vs)
 -- | Emit a call instruction, but don't generate a new variable for its result.
 call_ :: IsValue a => Type -> a -> [Typed Value] -> BB ()
 call_ rty sym vs = effect (Call False rty (toValue sym) vs)
-
-
--- Tests -----------------------------------------------------------------------
-
-test1 = snd $ runLLVM $ do
-  fact <- defineFresh emptyFunAttrs (iT 32) [iT 32] $ \[a] -> do
-    check <- freshLabel
-    body  <- freshLabel
-    done  <- freshLabel
-
-    rec label check
-        acc <- phi (iT 32) [(int 0,check),    (toValue acc',body)]
-        i   <- phi (iT 32) [(toValue a,check),(toValue i',body)]
-        b   <- icmp Iugt i (int 0)
-        br b body done
-
-        label body
-        acc' <- mul acc i
-        i'   <- sub i (int 1)
-        jump check
-
-    label done
-    ret acc
-
-  return ()
