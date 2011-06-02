@@ -4,6 +4,7 @@ import Data.Int (Int32)
 import Data.List (intersperse)
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Monoid(..))
+import Data.String (IsString(fromString))
 import Text.PrettyPrint.HughesPJ
 
 commas :: [Doc] -> Doc
@@ -57,6 +58,9 @@ ppModule m = vcat $ concat
 newtype Ident = Ident String
     deriving (Show,Eq,Ord)
 
+instance IsString Ident where
+  fromString = Ident
+
 ppIdent :: Ident -> Doc
 ppIdent (Ident n) = char '%' <> text n
 
@@ -64,6 +68,9 @@ ppIdent (Ident n) = char '%' <> text n
 
 newtype Symbol = Symbol String
     deriving (Show,Eq,Ord)
+
+instance IsString Symbol where
+  fromString = Symbol
 
 ppSymbol :: Symbol -> Doc
 ppSymbol (Symbol n) = char '@' <> text n

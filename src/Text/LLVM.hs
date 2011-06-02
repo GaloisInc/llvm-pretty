@@ -261,6 +261,11 @@ label l = do
     rw <- get
     set $! rw { rwLabel = Just l }
 
+instance IsString (BB a) where
+  fromString l = do
+    label (fromString l)
+    return (error ("Label ``" ++ l ++ "'' has no value"))
+
 terminateBasicBlock :: BB ()
 terminateBasicBlock  = BB $ do
   rw <- get
