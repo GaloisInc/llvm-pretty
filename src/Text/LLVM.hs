@@ -1,5 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DoRec #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Text.LLVM (
     -- * LLVM Monad
@@ -15,8 +20,9 @@ module Text.LLVM (
 
     -- * Function Definition
   , freshSymbol
-  , define
-  , defineFresh
+  , (:>)(..)
+  , define, defineFresh, DefineArgs()
+  , define'
   , declare
   , global
 
@@ -91,6 +97,7 @@ import Control.Monad.Fix (MonadFix)
 import Data.Char (ord)
 import Data.Int (Int8,Int16,Int32,Int64)
 import Data.Maybe (maybeToList)
+import Data.String (IsString(..))
 import MonadLib hiding (jump,Label)
 import qualified Data.Map as Map
 
@@ -142,28 +149,6 @@ alias i ty = emitTypeDecl (TypeDecl i ty)
 freshSymbol :: LLVM Symbol
 freshSymbol  = Symbol `fmap` freshNameLLVM "f"
 
-define :: FunAttrs -> Type -> Symbol -> [Type] -> ([Typed Value] -> BB ())
-       -> LLVM Value
-define attrs rty fun tys body = do
-  names <- replicateM (length tys) (freshNameLLVM "a")
-  let args = zipWith (\ty n -> Typed ty (Ident n)) tys names
-  emitDefine Define
-    { defAttrs   = attrs
-    , defName    = fun
-    , defRetType = rty
-    , defArgs    = args
-    , defBody    = snd (runBB (body (map (fmap toValue) args)))
-    }
-  return (ValSymbol fun)
-
--- | A combination of define and @freshSymbol@.
-defineFresh :: FunAttrs -> Type -> [Type] -> ([Typed Value] -> BB ())
-            -> LLVM Value
-defineFresh attrs rty args body = do
-  sym <- freshSymbol
-  define attrs rty sym args body
-
-
 -- | Emit a declaration.
 declare :: Type -> Symbol -> [Type] -> LLVM ()
 declare rty sym tys = emitDeclare Declare
@@ -171,7 +156,6 @@ declare rty sym tys = emitDeclare Declare
   , decName    = sym
   , decArgs    = tys
   }
-
 
 -- | Emit a global declaration.
 global :: Symbol -> Typed Value -> LLVM ()
@@ -181,7 +165,6 @@ global sym val = emitGlobal Global
   , globalValue = typedValue val
   }
 
-
 -- | Output a somewhat clunky representation for a string global, that deals
 -- well with escaping in the haskell-source string.
 string :: Symbol -> String -> LLVM ()
@@ -189,6 +172,76 @@ string sym str = global sym (array (iT 8) bytes)
   where
   bytes = [ int (fromIntegral (ord c)) | c <- str ]
 
+
+-- Function Definition ---------------------------------------------------------
+
+-- XXX Do not export
+freshArg :: Type -> LLVM (Typed Ident)
+freshArg ty = (Typed ty . Ident) `fmap` freshNameLLVM "a"
+
+infixr 0 :>
+data a :> b = a :> b
+    deriving Show
+
+-- | Types that can be used to define the body of a function.
+class DefineArgs a k | a -> k where
+  defineBody :: [Typed Ident] -> a -> k -> LLVM ([Typed Ident], [BasicBlock])
+
+instance DefineArgs () (BB ()) where
+  defineBody tys () body = return $ runBB $ do
+    body
+    return (reverse tys)
+
+instance DefineArgs as k => DefineArgs (Type :> as) (Typed Value -> k) where
+  defineBody args (ty :> as) f = do
+    arg <- freshArg ty
+    defineBody (arg:args) as (f (toValue `fmap` arg))
+
+-- helper instances for DefineArgs
+
+instance DefineArgs Type (Typed Value -> BB ()) where
+  defineBody tys ty body = defineBody tys (ty :> ()) body
+
+instance DefineArgs (Type,Type) (Typed Value -> Typed Value -> BB ()) where
+  defineBody tys (a,b) body = defineBody tys (a :> b :> ()) body
+
+instance DefineArgs (Type,Type,Type)
+                    (Typed Value -> Typed Value -> Typed Value -> BB ()) where
+  defineBody tys (a,b,c) body = defineBody tys (a :> b :> c :> ()) body
+
+-- | Define a function.
+define :: DefineArgs sig k => FunAttrs -> Type -> Symbol -> sig -> k
+       -> LLVM Value
+define attrs rty fun sig k = do
+  (args,body) <- defineBody [] sig k
+  emitDefine Define
+    { defAttrs   = attrs
+    , defName    = fun
+    , defRetType = rty
+    , defArgs    = args
+    , defBody    = body
+    }
+  return (ValSymbol fun)
+
+-- | A combination of define and @freshSymbol@.
+defineFresh :: DefineArgs sig k => FunAttrs -> Type -> sig -> k -> LLVM Value
+defineFresh attrs rty args body = do
+  sym <- freshSymbol
+  define attrs rty sym args body
+
+-- | Function definition when the argument list isn't statically known.  This is
+-- useful when generating code.
+define' :: FunAttrs -> Type -> Symbol -> [Type] -> ([Typed Value] -> BB ())
+        -> LLVM ()
+define' attrs rty sym sig k = do
+  args <- mapM freshArg sig
+  emitDefine Define
+    { defAttrs   = attrs
+    , defName    = sym
+    , defRetType = rty
+    , defArgs    = args
+    , defBody    = snd (runBB (k (map (fmap toValue) args)))
+    }
 
 -- Basic Block Monad -----------------------------------------------------------
 
@@ -246,6 +299,7 @@ observe ty i = do
   let res = Ident name
   emitStmt (Result res i)
   return (Typed ty (ValIdent res))
+
 
 -- Basic Blocks ----------------------------------------------------------------
 
