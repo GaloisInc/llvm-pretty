@@ -186,7 +186,7 @@ ppDefine d = text "define"
           <> parens (commas (map (ppTyped ppIdent) (defArgs d)))
          <+> ppMaybe (\gc -> text "gc" <+> ppGC gc) (funGC (defAttrs d))
          <+> char '{'
-         $+$ nest 2 (vcat (map ppBasicBlock (defBody d)))
+         $+$ vcat (map ppBasicBlock (defBody d))
          $+$ char '}'
 
 data FunAttrs = FunAttrs
@@ -212,7 +212,7 @@ anonBasicBlock  = BasicBlock Nothing
 
 ppBasicBlock :: BasicBlock -> Doc
 ppBasicBlock bb = maybe empty ppLabelDef (bbLabel bb)
-              $+$ vcat (map ppStmt (bbStmts bb))
+              $+$ nest 2 (vcat (map ppStmt (bbStmts bb)))
 
 ppLabelDef :: Ident -> Doc
 ppLabelDef (Ident l) = text l <> char ':'
