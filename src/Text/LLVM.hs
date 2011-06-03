@@ -83,7 +83,7 @@ module Text.LLVM (
     -- * Other Operations
   , icmp
   , fcmp
-  , phi
+  , phi, PhiArg, from
   , select
   , call, call_
 
@@ -551,8 +551,13 @@ icmp op l r = observe (iT 1) (ICmp op (toValue `fmap` l) (toValue r))
 fcmp :: (IsValue a, IsValue b) => FCmpOp -> Typed a -> b -> BB (Typed Value)
 fcmp op l r = observe (iT 1) (FCmp op (toValue `fmap` l) (toValue r))
 
-phi :: Type -> [(Value,Ident)] -> BB (Typed Value)
-phi ty vs = observe ty (Phi ty vs)
+data PhiArg = PhiArg Value Ident
+
+from :: IsValue a => a -> Ident -> PhiArg
+from a = PhiArg (toValue a)
+
+phi :: Type -> [PhiArg] -> BB (Typed Value)
+phi ty vs = observe ty (Phi ty [ (v,l) | PhiArg v l <- vs ])
 
 select :: (IsValue a, IsValue b, IsValue c)
        => Typed a -> Typed b -> Typed c -> BB (Typed Value)
