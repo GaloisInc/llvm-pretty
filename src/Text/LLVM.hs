@@ -6,6 +6,8 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+{-# LANGUAGE Trustworthy #-}
+
 module Text.LLVM (
     -- * LLVM Monad
     LLVM()

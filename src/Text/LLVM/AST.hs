@@ -1,3 +1,5 @@
+{-# LANGUAGE Safe #-}
+
 module Text.LLVM.AST where
 
 import Data.Int (Int32)
