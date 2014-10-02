@@ -166,7 +166,14 @@ data LayoutSpec
   | StackObjSize  !Int !Int (Maybe Int)
   | NativeIntSize [Int]
   | StackAlign    !Int
+  | Mangling Mangling
     deriving (Show)
+
+data Mangling = ElfMangling
+              | MipsMangling
+              | MachOMangling
+              | WindowsCoffMangling
+                deriving (Show,Eq)
 
 -- | Pretty print a single layout specification.
 ppLayoutSpec :: LayoutSpec -> Doc
@@ -180,6 +187,7 @@ ppLayoutSpec (AggregateSize sz abi pref) = char 'a'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (StackObjSize  sz abi pref) = char 's'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (NativeIntSize szs)         = char 'n'  <> colons (map int szs)
 ppLayoutSpec (StackAlign a)              = char 'S'  <> int a
+ppLayoutSpec (Mangling m)                = char 'm'  <> char ':' <> ppMangling m
 
 -- | Pretty-print the common case for data layout specifications.
 ppLayoutBody :: Int -> Int -> Maybe Int -> Doc
@@ -188,6 +196,12 @@ ppLayoutBody size abi mb = int size <> char ':' <> int abi <> pref
   pref = case mb of
     Nothing -> empty
     Just p  -> char ':' <> int p
+
+ppMangling :: Mangling -> Doc
+ppMangling ElfMangling         = char 'e'
+ppMangling MipsMangling        = char 'm'
+ppMangling MachOMangling       = char 'o'
+ppMangling WindowsCoffMangling = char 'w'
 
 -- | Parse the data layout string.
 parseDataLayout :: MonadPlus m => String -> m DataLayout
@@ -215,6 +229,13 @@ parseLayoutSpec str = msum
          'n' -> do ints <- mapM parseInt body
                    return (NativeIntSize ints)
 
+         'm' -> case tail body of
+                  ["e"] -> return (Mangling ElfMangling)
+                  ["m"] -> return (Mangling MipsMangling)
+                  ["o"] -> return (Mangling MachOMangling)
+                  ["w"] -> return (Mangling WindowsCoffMangling)
+                  _     -> mzero
+
          _   -> mzero
   ]
 
@@ -230,6 +251,7 @@ parseLayoutSpec str = msum
   parseInt s = case reads s of
     [(i,[])] -> return i
     _        -> mzero
+
 
 -- Inline Assembly -------------------------------------------------------------
 
