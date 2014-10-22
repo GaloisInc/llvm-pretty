@@ -530,6 +530,7 @@ data Define = Define
   , defName    :: Symbol
   , defArgs    :: [Typed Ident]
   , defVarArgs :: Bool
+  , defSection :: Maybe String
   , defBody    :: [BasicBlock]
   } deriving (Show)
 
@@ -539,6 +540,7 @@ ppDefine d = text "define"
          <+> ppType (defRetType d)
          <+> ppSymbol (defName d)
           <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
+         <+> ppMaybe (\s  -> text "section" <+> doubleQuotes (text s)) (defSection d)
          <+> ppMaybe (\gc -> text "gc" <+> ppGC gc) (funGC (defAttrs d))
          <+> char '{'
          $+$ vcat (map ppBasicBlock (defBody d))

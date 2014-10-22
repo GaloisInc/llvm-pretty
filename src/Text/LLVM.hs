@@ -237,6 +237,7 @@ define attrs rty fun sig k = do
     , defArgs    = args
     , defVarArgs = False
     , defBody    = body
+    , defSection = Nothing
     }
   let fnty = PtrTo (FunTy rty (map typedType args) False)
   return (Typed fnty (ValSymbol fun))
@@ -262,6 +263,7 @@ define' attrs rty sym sig va k = do
     , defArgs    = args
     , defVarArgs = va
     , defBody    = snd (runBB (k (map (fmap toValue) args)))
+    , defSection = Nothing
     }
   let fnty = PtrTo (FunTy rty sig False)
   return (Typed fnty (ValSymbol sym))
