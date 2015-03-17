@@ -110,6 +110,8 @@ import Data.Int (Int8,Int16,Int32,Int64)
 import Data.Maybe (maybeToList)
 import Data.String (IsString(..))
 import MonadLib hiding (jump,Label)
+import qualified Data.Foldable as F
+import qualified Data.Sequence as Seq
 import qualified Data.Map.Strict as Map
 
 
@@ -311,30 +313,29 @@ runBB m =
 data RW = RW
   { rwNames :: Names
   , rwLabel :: Maybe BlockLabel
-  , rwStmts :: [Stmt]
+  , rwStmts :: Seq.Seq Stmt
   } deriving Show
 
 emptyRW :: RW
 emptyRW  = RW
   { rwNames = Map.empty
   , rwLabel = Nothing
-  , rwStmts = []
+  , rwStmts = Seq.empty
   }
 
 rwBasicBlock :: RW -> (RW,Maybe BasicBlock)
-rwBasicBlock rw =
-  case rwStmts rw of
-    []    -> (rw,Nothing)
-    stmts ->
-      let rw' = rw { rwLabel = Nothing, rwStmts = [] }
-          bb  = BasicBlock (rwLabel rw) stmts
+rwBasicBlock rw
+  | Seq.null (rwStmts rw) = (rw,Nothing)
+  | otherwise             =
+      let rw' = rw { rwLabel = Nothing, rwStmts = Seq.empty }
+          bb  = BasicBlock (rwLabel rw) (F.toList (rwStmts rw))
        in (rw',Just bb)
 
 emitStmt :: Stmt -> BB ()
 emitStmt stmt = do
   BB $ do
     rw <- get
-    set $! rw { rwStmts = rwStmts rw ++ [stmt] }
+    set $! rw { rwStmts = rwStmts rw Seq.|> stmt }
   when (isTerminator (stmtInstr stmt)) terminateBasicBlock
 
 effect :: Instr -> BB ()
@@ -464,10 +465,13 @@ assign r@(Ident name) body = do
   avoidName name
   tv <- body
   rw <- BB get
-  case rwStmts rw of
-    Result _ i m : stmts -> do BB (set rw { rwStmts = Result r i m : stmts })
-                               return (const (ValIdent r) `fmap` tv)
-    _                    ->    fail "assign: invalid argument"
+  case Seq.viewr (rwStmts rw) of
+
+    stmts Seq.:> Result _ i m ->
+      do BB (set rw { rwStmts = stmts Seq.|> Result r i m })
+         return (const (ValIdent r) `fmap` tv)
+
+    _ -> fail "assign: invalid argument"
 
 -- | Emit the ``ret'' instruction and terminate the current basic block.
 ret :: IsValue a => Typed a -> BB ()
