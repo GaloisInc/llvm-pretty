@@ -44,6 +44,7 @@ module Text.LLVM (
   , freshLabel
   , label
   , comment
+  , assign
 
     -- * Terminator Instructions
   , ret
@@ -109,12 +110,20 @@ import Data.Int (Int8,Int16,Int32,Int64)
 import Data.Maybe (maybeToList)
 import Data.String (IsString(..))
 import MonadLib hiding (jump,Label)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 
 
 -- Fresh Names -----------------------------------------------------------------
 
 type Names = Map.Map String Int
+
+-- | Avoid generating the provided name.  When the name already exists, return
+-- Nothing.
+avoid :: String -> Names -> Maybe Names
+avoid name ns =
+  case Map.lookup name ns of
+    Nothing -> Just (Map.insert name 0 ns)
+    Just _  -> Nothing
 
 nextName :: String -> Names -> (String,Names)
 nextName pfx ns =
@@ -273,6 +282,13 @@ define' attrs rty sym sig va k = do
 newtype BB a = BB
   { unBB :: WriterT [BasicBlock] (StateT RW Id) a
   } deriving (Functor,Applicative,Monad,MonadFix)
+
+avoidName :: String -> BB ()
+avoidName name = BB $ do
+  rw <- get
+  case avoid name (rwNames rw) of
+    Just ns' -> set rw { rwNames = ns' }
+    Nothing  -> fail ("avoidName: " ++ name ++ " already registered")
 
 freshNameBB :: String -> BB String
 freshNameBB pfx = BB $ do
@@ -438,6 +454,20 @@ array ty vs = Typed (Array (fromIntegral (length vs)) ty) (ValArray ty vs)
 
 comment :: String -> BB ()
 comment str = effect (Comment str)
+
+-- | Emit an assignment that uses the given identifier to name the result of the
+-- BB operation.
+--
+-- WARNING: this can throw errors.
+assign :: IsValue a => Ident -> BB (Typed a) -> BB (Typed Value)
+assign r@(Ident name) body = do
+  avoidName name
+  tv <- body
+  rw <- BB get
+  case rwStmts rw of
+    Result _ i m : stmts -> do BB (set rw { rwStmts = Result r i m : stmts })
+                               return (const (ValIdent r) `fmap` tv)
+    _                    ->    fail "assign: invalid argument"
 
 -- | Emit the ``ret'' instruction and terminate the current basic block.
 ret :: IsValue a => Typed a -> BB ()
