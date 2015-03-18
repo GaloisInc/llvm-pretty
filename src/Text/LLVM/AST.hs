@@ -1,6 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Text.LLVM.AST where
 
@@ -516,6 +517,10 @@ data Declare = Declare
   , decVarArgs :: Bool
   } deriving (Show)
 
+-- | The function type of this declaration
+decFunType :: Declare -> Type
+decFunType Declare { .. } = PtrTo (FunTy decRetType decArgs decVarArgs)
+
 ppDeclare :: Declare -> Doc
 ppDeclare d = text "declare"
           <+> ppType (decRetType d)
@@ -533,6 +538,10 @@ data Define = Define
   , defSection :: Maybe String
   , defBody    :: [BasicBlock]
   } deriving (Show)
+
+defFunType :: Define -> Type
+defFunType Define { .. } =
+  PtrTo (FunTy defRetType (map typedType defArgs) defVarArgs)
 
 ppDefine :: Define -> Doc
 ppDefine d = text "define"

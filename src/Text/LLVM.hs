@@ -155,14 +155,20 @@ runLLVM  = fst . runId . runStateT Map.empty . runWriterT . unLLVM
 emitTypeDecl :: TypeDecl -> LLVM ()
 emitTypeDecl td = LLVM (put emptyModule { modTypes = [td] })
 
-emitGlobal :: Global -> LLVM ()
-emitGlobal g = LLVM (put emptyModule { modGlobals = [g] })
+emitGlobal :: Global -> LLVM (Typed Value)
+emitGlobal g =
+  do LLVM (put emptyModule { modGlobals = [g] })
+     return (globalType g -: globalSym g)
 
-emitDefine :: Define -> LLVM ()
-emitDefine d = LLVM (put emptyModule { modDefines = [d] })
+emitDefine :: Define -> LLVM (Typed Value)
+emitDefine d =
+  do LLVM (put emptyModule { modDefines = [d] })
+     return (defFunType d -: defName d)
 
-emitDeclare :: Declare -> LLVM ()
-emitDeclare d = LLVM (put emptyModule { modDeclares = [d] })
+emitDeclare :: Declare -> LLVM (Typed Value)
+emitDeclare d =
+  do LLVM (put emptyModule { modDeclares = [d] })
+     return (decFunType d -: decName d)
 
 alias :: Ident -> Type -> LLVM ()
 alias i ty = emitTypeDecl (TypeDecl i ty)
@@ -171,7 +177,7 @@ freshSymbol :: LLVM Symbol
 freshSymbol  = Symbol `fmap` freshNameLLVM "f"
 
 -- | Emit a declaration.
-declare :: Type -> Symbol -> [Type] -> Bool -> LLVM ()
+declare :: Type -> Symbol -> [Type] -> Bool -> LLVM (Typed Value)
 declare rty sym tys va = emitDeclare Declare
   { decRetType = rty
   , decName    = sym
@@ -180,7 +186,7 @@ declare rty sym tys va = emitDeclare Declare
   }
 
 -- | Emit a global declaration.
-global :: Symbol -> Typed Value -> LLVM ()
+global :: Symbol -> Typed Value -> LLVM (Typed Value)
 global sym val = emitGlobal Global
   { globalSym   = sym
   , globalType  = typedType val
@@ -194,7 +200,7 @@ global sym val = emitGlobal Global
 
 -- | Output a somewhat clunky representation for a string global, that deals
 -- well with escaping in the haskell-source string.
-string :: Symbol -> String -> LLVM ()
+string :: Symbol -> String -> LLVM (Typed Value)
 string sym str = global sym (array (iT 8) bytes)
   where
   bytes = [ int (fromIntegral (ord c)) | c <- str ]
@@ -250,8 +256,6 @@ define attrs rty fun sig k = do
     , defBody    = body
     , defSection = Nothing
     }
-  let fnty = PtrTo (FunTy rty (map typedType args) False)
-  return (Typed fnty (ValSymbol fun))
 
 -- | A combination of define and @freshSymbol@.
 defineFresh :: DefineArgs sig k => FunAttrs -> Type -> sig -> k
@@ -276,8 +280,6 @@ define' attrs rty sym sig va k = do
     , defBody    = snd (runBB (k (map (fmap toValue) args)))
     , defSection = Nothing
     }
-  let fnty = PtrTo (FunTy rty sig False)
-  return (Typed fnty (ValSymbol sym))
 
 -- Basic Block Monad -----------------------------------------------------------
 
@@ -403,6 +405,9 @@ instance IsValue Value where
 instance IsValue a => IsValue (Typed a) where
   toValue = toValue . typedValue
 
+instance IsValue Bool where
+  toValue = ValBool
+
 instance IsValue Integer where
   toValue = ValInteger
 
@@ -420,6 +425,12 @@ instance IsValue Int32 where
 
 instance IsValue Int64 where
   toValue = ValInteger . toInteger
+
+instance IsValue Float where
+  toValue = ValFloat
+
+instance IsValue Double where
+  toValue = ValDouble
 
 instance IsValue Ident where
   toValue = ValIdent
