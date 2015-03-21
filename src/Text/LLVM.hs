@@ -158,7 +158,7 @@ emitTypeDecl td = LLVM (put emptyModule { modTypes = [td] })
 emitGlobal :: Global -> LLVM (Typed Value)
 emitGlobal g =
   do LLVM (put emptyModule { modGlobals = [g] })
-     return (globalType g -: globalSym g)
+     return (ptrT (globalType g) -: globalSym g)
 
 emitDefine :: Define -> LLVM (Typed Value)
 emitDefine d =
@@ -186,24 +186,24 @@ declare rty sym tys va = emitDeclare Declare
   }
 
 -- | Emit a global declaration.
-global :: Symbol -> Typed Value -> LLVM (Typed Value)
-global sym val = emitGlobal Global
+global :: GlobalAttrs -> Symbol -> Type -> Maybe Value -> LLVM (Typed Value)
+global attrs sym ty mbVal = emitGlobal Global
   { globalSym   = sym
-  , globalType  = typedType val
-  , globalValue = typedValue val
-  , globalAttrs = GlobalAttrs
-    { gaLinkage  = Nothing
-    , gaConstant = False
-    }
+  , globalType  = ty
+  , globalValue = toValue `fmap` mbVal
+  , globalAttrs = attrs
   , globalAlign = Nothing
   }
 
 -- | Output a somewhat clunky representation for a string global, that deals
 -- well with escaping in the haskell-source string.
 string :: Symbol -> String -> LLVM (Typed Value)
-string sym str = global sym (array (iT 8) bytes)
+string sym str =
+  global emptyGlobalAttrs { gaConstant = True } sym (typedType val)
+      (Just (typedValue val))
   where
   bytes = [ int (fromIntegral (ord c)) | c <- str ]
+  val   = array (iT 8) bytes
 
 
 -- Function Definition ---------------------------------------------------------

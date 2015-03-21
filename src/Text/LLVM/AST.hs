@@ -484,14 +484,14 @@ data Global = Global
   { globalSym   :: Symbol
   , globalAttrs :: GlobalAttrs
   , globalType  :: Type
-  , globalValue :: Value
+  , globalValue :: Maybe Value
   , globalAlign :: Maybe Align
   } deriving Show
 
 ppGlobal :: Global -> Doc
 ppGlobal g = ppSymbol (globalSym g) <+> char '='
          <+> ppGlobalAttrs (globalAttrs g)
-         <+> ppType (globalType g) <+> ppValue (globalValue g)
+         <+> ppType (globalType g) <+> ppMaybe ppValue (globalValue g)
           <> ppAlign (globalAlign g)
 
 addGlobal :: Global -> Module -> Module
@@ -501,6 +501,12 @@ data GlobalAttrs = GlobalAttrs
   { gaLinkage    :: Maybe Linkage
   , gaConstant   :: Bool
   } deriving (Show)
+
+emptyGlobalAttrs :: GlobalAttrs
+emptyGlobalAttrs  = GlobalAttrs
+  { gaLinkage  = Nothing
+  , gaConstant = False
+  }
 
 ppGlobalAttrs :: GlobalAttrs -> Doc
 ppGlobalAttrs ga = ppMaybe ppLinkage (gaLinkage ga) <+> constant
