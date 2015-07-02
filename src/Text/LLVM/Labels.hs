@@ -131,6 +131,7 @@ instance HasLabel Value' where
 instance HasLabel ValMd' where
   relabel f md = case md of
     ValMdString str -> pure (ValMdString str)
+    ValMdValue tv   -> ValMdValue <$> T.mapM (relabel f) tv
     ValMdRef i      -> pure (ValMdRef i)
     ValMdNode es    -> ValMdNode <$> T.mapM (T.mapM (relabel f)) es
     ValMdLoc dl     -> ValMdLoc <$> relabel f dl
