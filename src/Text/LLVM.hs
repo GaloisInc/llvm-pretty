@@ -44,6 +44,7 @@ module Text.LLVM (
   , freshLabel
   , label
   , comment
+  , assign
 
     -- * Terminator Instructions
   , ret
@@ -109,12 +110,22 @@ import Data.Int (Int8,Int16,Int32,Int64)
 import Data.Maybe (maybeToList)
 import Data.String (IsString(..))
 import MonadLib hiding (jump,Label)
-import qualified Data.Map as Map
+import qualified Data.Foldable as F
+import qualified Data.Sequence as Seq
+import qualified Data.Map.Strict as Map
 
 
 -- Fresh Names -----------------------------------------------------------------
 
 type Names = Map.Map String Int
+
+-- | Avoid generating the provided name.  When the name already exists, return
+-- Nothing.
+avoid :: String -> Names -> Maybe Names
+avoid name ns =
+  case Map.lookup name ns of
+    Nothing -> Just (Map.insert name 0 ns)
+    Just _  -> Nothing
 
 nextName :: String -> Names -> (String,Names)
 nextName pfx ns =
@@ -144,14 +155,20 @@ runLLVM  = fst . runId . runStateT Map.empty . runWriterT . unLLVM
 emitTypeDecl :: TypeDecl -> LLVM ()
 emitTypeDecl td = LLVM (put emptyModule { modTypes = [td] })
 
-emitGlobal :: Global -> LLVM ()
-emitGlobal g = LLVM (put emptyModule { modGlobals = [g] })
+emitGlobal :: Global -> LLVM (Typed Value)
+emitGlobal g =
+  do LLVM (put emptyModule { modGlobals = [g] })
+     return (ptrT (globalType g) -: globalSym g)
 
-emitDefine :: Define -> LLVM ()
-emitDefine d = LLVM (put emptyModule { modDefines = [d] })
+emitDefine :: Define -> LLVM (Typed Value)
+emitDefine d =
+  do LLVM (put emptyModule { modDefines = [d] })
+     return (defFunType d -: defName d)
 
-emitDeclare :: Declare -> LLVM ()
-emitDeclare d = LLVM (put emptyModule { modDeclares = [d] })
+emitDeclare :: Declare -> LLVM (Typed Value)
+emitDeclare d =
+  do LLVM (put emptyModule { modDeclares = [d] })
+     return (decFunType d -: decName d)
 
 alias :: Ident -> Type -> LLVM ()
 alias i ty = emitTypeDecl (TypeDecl i ty)
@@ -160,7 +177,7 @@ freshSymbol :: LLVM Symbol
 freshSymbol  = Symbol `fmap` freshNameLLVM "f"
 
 -- | Emit a declaration.
-declare :: Type -> Symbol -> [Type] -> Bool -> LLVM ()
+declare :: Type -> Symbol -> [Type] -> Bool -> LLVM (Typed Value)
 declare rty sym tys va = emitDeclare Declare
   { decRetType = rty
   , decName    = sym
@@ -169,24 +186,24 @@ declare rty sym tys va = emitDeclare Declare
   }
 
 -- | Emit a global declaration.
-global :: Symbol -> Typed Value -> LLVM ()
-global sym val = emitGlobal Global
+global :: GlobalAttrs -> Symbol -> Type -> Maybe Value -> LLVM (Typed Value)
+global attrs sym ty mbVal = emitGlobal Global
   { globalSym   = sym
-  , globalType  = typedType val
-  , globalValue = typedValue val
-  , globalAttrs = GlobalAttrs
-    { gaLinkage  = Nothing
-    , gaConstant = False
-    }
+  , globalType  = ty
+  , globalValue = toValue `fmap` mbVal
+  , globalAttrs = attrs
   , globalAlign = Nothing
   }
 
 -- | Output a somewhat clunky representation for a string global, that deals
 -- well with escaping in the haskell-source string.
-string :: Symbol -> String -> LLVM ()
-string sym str = global sym (array (iT 8) bytes)
+string :: Symbol -> String -> LLVM (Typed Value)
+string sym str =
+  global emptyGlobalAttrs { gaConstant = True } sym (typedType val)
+      (Just (typedValue val))
   where
   bytes = [ int (fromIntegral (ord c)) | c <- str ]
+  val   = array (iT 8) bytes
 
 
 -- Function Definition ---------------------------------------------------------
@@ -239,8 +256,6 @@ define attrs rty fun sig k = do
     , defBody    = body
     , defSection = Nothing
     }
-  let fnty = PtrTo (FunTy rty (map typedType args) False)
-  return (Typed fnty (ValSymbol fun))
 
 -- | A combination of define and @freshSymbol@.
 defineFresh :: DefineArgs sig k => FunAttrs -> Type -> sig -> k
@@ -265,14 +280,19 @@ define' attrs rty sym sig va k = do
     , defBody    = snd (runBB (k (map (fmap toValue) args)))
     , defSection = Nothing
     }
-  let fnty = PtrTo (FunTy rty sig False)
-  return (Typed fnty (ValSymbol sym))
 
 -- Basic Block Monad -----------------------------------------------------------
 
 newtype BB a = BB
   { unBB :: WriterT [BasicBlock] (StateT RW Id) a
   } deriving (Functor,Applicative,Monad,MonadFix)
+
+avoidName :: String -> BB ()
+avoidName name = BB $ do
+  rw <- get
+  case avoid name (rwNames rw) of
+    Just ns' -> set rw { rwNames = ns' }
+    Nothing  -> fail ("avoidName: " ++ name ++ " already registered")
 
 freshNameBB :: String -> BB String
 freshNameBB pfx = BB $ do
@@ -295,30 +315,29 @@ runBB m =
 data RW = RW
   { rwNames :: Names
   , rwLabel :: Maybe BlockLabel
-  , rwStmts :: [Stmt]
+  , rwStmts :: Seq.Seq Stmt
   } deriving Show
 
 emptyRW :: RW
 emptyRW  = RW
   { rwNames = Map.empty
   , rwLabel = Nothing
-  , rwStmts = []
+  , rwStmts = Seq.empty
   }
 
 rwBasicBlock :: RW -> (RW,Maybe BasicBlock)
-rwBasicBlock rw =
-  case rwStmts rw of
-    []    -> (rw,Nothing)
-    stmts ->
-      let rw' = rw { rwLabel = Nothing, rwStmts = [] }
-          bb  = BasicBlock (rwLabel rw) stmts
+rwBasicBlock rw
+  | Seq.null (rwStmts rw) = (rw,Nothing)
+  | otherwise             =
+      let rw' = rw { rwLabel = Nothing, rwStmts = Seq.empty }
+          bb  = BasicBlock (rwLabel rw) (F.toList (rwStmts rw))
        in (rw',Just bb)
 
 emitStmt :: Stmt -> BB ()
 emitStmt stmt = do
   BB $ do
     rw <- get
-    set $! rw { rwStmts = rwStmts rw ++ [stmt] }
+    set $! rw { rwStmts = rwStmts rw Seq.|> stmt }
   when (isTerminator (stmtInstr stmt)) terminateBasicBlock
 
 effect :: Instr -> BB ()
@@ -386,6 +405,9 @@ instance IsValue Value where
 instance IsValue a => IsValue (Typed a) where
   toValue = toValue . typedValue
 
+instance IsValue Bool where
+  toValue = ValBool
+
 instance IsValue Integer where
   toValue = ValInteger
 
@@ -403,6 +425,12 @@ instance IsValue Int32 where
 
 instance IsValue Int64 where
   toValue = ValInteger . toInteger
+
+instance IsValue Float where
+  toValue = ValFloat
+
+instance IsValue Double where
+  toValue = ValDouble
 
 instance IsValue Ident where
   toValue = ValIdent
@@ -438,6 +466,23 @@ array ty vs = Typed (Array (fromIntegral (length vs)) ty) (ValArray ty vs)
 
 comment :: String -> BB ()
 comment str = effect (Comment str)
+
+-- | Emit an assignment that uses the given identifier to name the result of the
+-- BB operation.
+--
+-- WARNING: this can throw errors.
+assign :: IsValue a => Ident -> BB (Typed a) -> BB (Typed Value)
+assign r@(Ident name) body = do
+  avoidName name
+  tv <- body
+  rw <- BB get
+  case Seq.viewr (rwStmts rw) of
+
+    stmts Seq.:> Result _ i m ->
+      do BB (set rw { rwStmts = stmts Seq.|> Result r i m })
+         return (const (ValIdent r) `fmap` tv)
+
+    _ -> fail "assign: invalid argument"
 
 -- | Emit the ``ret'' instruction and terminate the current basic block.
 ret :: IsValue a => Typed a -> BB ()

@@ -1,6 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Text.LLVM.AST where
 
@@ -114,20 +115,25 @@ data NamedMd = NamedMd
   } deriving (Show)
 
 ppNamedMd :: NamedMd -> Doc
-ppNamedMd nm = ppMetadata (text (nmName nm)) <+> char '='
-  <+> ppMetadata (braces (commas (map (ppMetadata . int) (nmValues nm))))
+ppNamedMd nm =
+  sep [ ppMetadata (text (nmName nm)) <+> char '='
+      , ppMetadata (braces (commas (map (ppMetadata . int) (nmValues nm)))) ]
 
 -- Unnamed Metadata ------------------------------------------------------------
 
 data UnnamedMd = UnnamedMd
   { umIndex  :: !Int
-  , umValues :: [Typed Value]
+  , umValues :: [Maybe ValMd]
+  , umDistinct :: Bool
   } deriving (Show)
 
 ppUnnamedMd :: UnnamedMd -> Doc
-ppUnnamedMd um = ppMetadata (int (umIndex um))
-             <+> char '=' <+> text "metadata"
-             <+> ppMetadataNode (umValues um)
+ppUnnamedMd um =
+  sep [ ppMetadata (int (umIndex um)) <+> char '='
+      , distinct <+> ppMetadataNode (umValues um) ]
+  where
+  distinct | umDistinct um = text "distinct"
+           | otherwise     = empty
 
 -- Aliases ---------------------------------------------------------------------
 
@@ -483,14 +489,14 @@ data Global = Global
   { globalSym   :: Symbol
   , globalAttrs :: GlobalAttrs
   , globalType  :: Type
-  , globalValue :: Value
+  , globalValue :: Maybe Value
   , globalAlign :: Maybe Align
   } deriving Show
 
 ppGlobal :: Global -> Doc
 ppGlobal g = ppSymbol (globalSym g) <+> char '='
          <+> ppGlobalAttrs (globalAttrs g)
-         <+> ppType (globalType g) <+> ppValue (globalValue g)
+         <+> ppType (globalType g) <+> ppMaybe ppValue (globalValue g)
           <> ppAlign (globalAlign g)
 
 addGlobal :: Global -> Module -> Module
@@ -500,6 +506,12 @@ data GlobalAttrs = GlobalAttrs
   { gaLinkage    :: Maybe Linkage
   , gaConstant   :: Bool
   } deriving (Show)
+
+emptyGlobalAttrs :: GlobalAttrs
+emptyGlobalAttrs  = GlobalAttrs
+  { gaLinkage  = Nothing
+  , gaConstant = False
+  }
 
 ppGlobalAttrs :: GlobalAttrs -> Doc
 ppGlobalAttrs ga = ppMaybe ppLinkage (gaLinkage ga) <+> constant
@@ -515,6 +527,10 @@ data Declare = Declare
   , decArgs    :: [Type]
   , decVarArgs :: Bool
   } deriving (Show)
+
+-- | The function type of this declaration
+decFunType :: Declare -> Type
+decFunType Declare { .. } = PtrTo (FunTy decRetType decArgs decVarArgs)
 
 ppDeclare :: Declare -> Doc
 ppDeclare d = text "declare"
@@ -533,6 +549,10 @@ data Define = Define
   , defSection :: Maybe String
   , defBody    :: [BasicBlock]
   } deriving (Show)
+
+defFunType :: Define -> Type
+defFunType Define { .. } =
+  PtrTo (FunTy defRetType (map typedType defArgs) defVarArgs)
 
 ppDefine :: Define -> Doc
 ppDefine d = text "define"
@@ -1024,8 +1044,9 @@ type Value = Value' BlockLabel
 
 data ValMd' lab
   = ValMdString String
-  | ValMdNode [Typed (Value' lab)]
+  | ValMdValue (Typed (Value' lab))
   | ValMdRef Int
+  | ValMdNode [Maybe (ValMd' lab)]
   | ValMdLoc (DebugLoc' lab)
     deriving (Show,Functor)
 
@@ -1077,17 +1098,22 @@ ppValue val = case val of
 ppValMd :: ValMd -> Doc
 ppValMd m = case m of
   ValMdString str -> ppMetadata (ppStringLiteral str)
-  ValMdNode vs    -> ppMetadataNode vs
+  ValMdValue tv   -> ppTyped ppValue tv
   ValMdRef i      -> ppMetadata (int i)
+  ValMdNode vs    -> ppMetadataNode vs
   ValMdLoc l      -> ppDebugLoc l
 
 ppDebugLoc :: DebugLoc -> Doc
-ppDebugLoc dl = ppMetadata $ structBraces $ commas
-  [ ppType (PrimType (Integer 32)) <+> int32 (dlLine dl)
-  , ppType (PrimType (Integer 32)) <+> int32 (dlCol dl)
-  , ppTypedValMd (dlScope dl)
-  , maybe (text "null") ppTypedValMd (dlIA dl)
-  ]
+ppDebugLoc dl = text "!MDLocation"
+             <> parens (commas [ text "line:"    <+> int32 (dlLine dl)
+                               , text "column:"  <+> int32 (dlCol dl)
+                               , text "scope:"   <+> ppValMd (dlScope dl)
+                               ] <+> mbIA)
+
+  where
+  mbIA = case dlIA dl of
+           Just md -> comma <+> text "inlinedAt:" <+> ppValMd md
+           Nothing -> empty
 
 ppTypedValMd :: ValMd -> Doc
 ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
@@ -1095,8 +1121,10 @@ ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
 ppMetadata :: Doc -> Doc
 ppMetadata body = char '!' <> body
 
-ppMetadataNode :: [Typed Value] -> Doc
-ppMetadataNode vs = ppMetadata (braces (commas (map (ppTyped ppValue) vs)))
+ppMetadataNode :: [Maybe ValMd] -> Doc
+ppMetadataNode vs = ppMetadata (braces (commas (map arg vs)))
+  where
+  arg = maybe (text "null") ppValMd
 
 ppBool :: Bool -> Doc
 ppBool b | b         = text "true"
