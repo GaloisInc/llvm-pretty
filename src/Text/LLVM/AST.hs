@@ -601,23 +601,24 @@ ppLabel (Anon i)  = char '%' <> int i
 -- Basic Blocks ----------------------------------------------------------------
 
 data BasicBlock' lab = BasicBlock
-  { bbLabel :: lab
-  , bbStmts :: [Stmt]
+  { bbLabel :: Maybe lab
+  , bbStmts :: [Stmt' lab]
   } deriving (Show)
 
-type BasicBlock = BasicBlock' (Maybe BlockLabel)
+type BasicBlock = BasicBlock' BlockLabel
 
 ppBasicBlock :: BasicBlock -> Doc
 ppBasicBlock bb = ppMaybe ppLabelDef (bbLabel bb)
               $+$ nest 2 (vcat (map ppStmt (bbStmts bb)))
 
--- TODO: Consider making this function have type BasicBlock' lab -> [lab]
-brTargets :: BasicBlock' lab -> [BlockLabel]
-brTargets (BasicBlock _ (stmtInstr . last -> termInst)) =
-  case termInst of
+brTargets :: BasicBlock' lab -> [lab]
+brTargets (BasicBlock _ stmts) =
+  case stmtInstr (last stmts) of
     Br _ t1 t2         -> [t1, t2]
     Invoke _ _ _ to uw -> [to, uw]
     Jump t             -> [t]
+    Switch _ l ls      -> l : map snd ls
+    IndirectBr _ ls    -> ls
     _                  -> []
 
 -- Attributes ------------------------------------------------------------------
