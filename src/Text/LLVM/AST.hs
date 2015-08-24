@@ -697,11 +697,58 @@ ppTyped fmt ty = ppType (typedType ty) <+> fmt (typedValue ty)
 -- Instructions ----------------------------------------------------------------
 
 data ArithOp
-  = Add Bool Bool | FAdd
-  | Sub Bool Bool | FSub
-  | Mul Bool Bool | FMul
-  | UDiv Bool     | SDiv Bool | FDiv
-  | URem          | SRem      | FRem
+  = Add Bool Bool
+    {- ^ * Integral addition.
+         * First boolean flag: check for unsigned overflow.
+         * Second boolean flag: check for signed overflow.
+         * If the checks fail, then the result is poisoned. -}
+  | FAdd
+    -- ^ Floating point addition.
+
+  | Sub Bool Bool
+    {- ^ * Integral subtraction.
+         * First boolean flag: check for unsigned overflow.
+         * Second boolean flag: check for signed overflow.
+         * If the checks fail, then the result is poisoned. -}
+
+  | FSub
+    -- ^ Floating point subtraction.
+
+  | Mul Bool Bool
+    {- ^ * Integral multiplication.
+         * First boolean flag: check for unsigned overflow.
+         * Second boolean flag: check for signed overflow.
+         * If the checks fail, then the result is poisoned. -}
+
+  | FMul
+    -- ^ Floating point multiplication.
+
+  | UDiv Bool
+    {- ^ * Integral unsigned division.
+         * Boolean flag: check for exact result.
+         * If the check fails, then the result is poisoned. -}
+
+  | SDiv Bool
+    {- ^ * Integral signed division.
+         * Boolean flag: check for exact result.
+         * If the check fails, then the result is poisoned. -}
+
+  | FDiv
+    -- ^ Floating point division.
+
+  | URem
+    -- ^ Integral unsigned reminder resulting from unsigned division.
+    -- Division by 0 is undefined.
+
+  | SRem
+    -- ^ * Integral signded reminder resulting from signed division.
+    --   * The sign of the reminder matches the divident (first parameter).
+    --   * Division by 0 is undefined.
+
+  | FRem
+    -- ^ * Floating point reminder resulting from floating point division.
+    --   * The reminder has the same sign as the divident (first parameter).
+
     deriving (Eq,Show)
 
 ppSignBits :: Bool -> Bool -> Doc
@@ -738,8 +785,39 @@ isFArith :: ArithOp -> Bool
 isFArith  = not . isIArith
 
 data BitOp
-  = Shl Bool Bool | Lshr Bool | Ashr Bool
-  | And           | Or   | Xor
+  = Shl Bool Bool
+    {- ^ * Shift left.
+         * First bool flag: check for unsigned overflow (i.e., shifted out a 1).
+         * Second bool flag: check for signed overflow
+              (i.e., shifted out something that does not match the sign bit)
+
+         If a check fails, then the result is poisoned.
+
+         The value of the second parameter must be strictly less than the
+           nubmer of bits in the first parameter,
+           otherwise the result is undefined.  -}
+
+  | Lshr Bool
+    {- ^ * Logical shift right.
+         * The boolean is for exact check: posion the result,
+              if we shift out a 1 bit (i.e., had to round).
+
+    The value of the second parameter must be strictly less than the
+    nubmer of bits in the first parameter, otherwise the result is undefined.
+    -}
+
+  | Ashr Bool
+    {- ^ * Arithmetic shift right.
+         * The boolean is for exact check: posion the result,
+                if we shift out a 1 bit (i.e., had to round).
+
+    The value of the second parameter must be strictly less than the
+    nubmer of bits in the first parameter, otherwise the result is undefined.
+    -}
+
+  | And
+  | Or
+  | Xor
     deriving Show
 
 ppBitOp :: BitOp -> Doc
@@ -783,35 +861,157 @@ type Align = Int
 
 data Instr' lab
   = Ret (Typed (Value' lab))
+    {- ^ * Return from function with the given value.
+         * Ends basic block. -}
+
   | RetVoid
+    {- ^ * Return from function.
+         * Ends basic block. -}
+
   | Arith ArithOp (Typed (Value' lab)) (Value' lab)
+    {- ^ * Binary arithmetic operation, both operands have the same type.
+         * Middle of basic block.
+         * The result is the same as parameters. -}
+
   | Bit BitOp (Typed (Value' lab)) (Value' lab)
+    {- ^ * Binary bit-vector operation, both operands have the same type.
+         * Middle of basic block.
+         * The result is the same as parameters. -}
+
   | Conv ConvOp (Typed (Value' lab)) Type
+    {- ^ * Convert a value from one type to another.
+         * Middle of basic block.
+         * The result matches the 3rd parameter. -}
+
   | Call Bool Type (Value' lab) [Typed (Value' lab)]
+    {- ^ * Call a function.
+            The boolean is tail-call hint (XXX: needs to be updated)
+         * Middle of basic block.
+         * The result is as indicated by the provided type. -}
+
   | Alloca Type (Maybe (Typed (Value' lab))) (Maybe Int)
+    {- ^ * Allocated space on the stack:
+           type of elements;
+           how many elements (1 if 'Nothing');
+           required alignment.
+         * Middle of basic block.
+         * Returns a pointer to hold the given number of elemets. -}
+
   | Load (Typed (Value' lab)) (Maybe Align)
+    {- ^ * Read a value from the given address:
+           address to read from;
+           assumptions about alignment of the given pointer.
+         * Middle of basic block.
+         * Returns a value of type matching the pointer. -}
+
   | Store (Typed (Value' lab)) (Typed (Value' lab)) (Maybe Align)
+    {- ^ * Write a value ot memory:
+             value to store;
+             pointer to location where to store;
+             assumptions about the alignment of the given pointer.
+         * Middle olf basic block.
+         * Effect. -}
+
   | ICmp ICmpOp (Typed (Value' lab)) (Value' lab)
+    {- ^ * Compare two integral values.
+         * Middle of basic block.
+         * Returns a boolean value. -}
+
   | FCmp FCmpOp (Typed (Value' lab)) (Value' lab)
+    {- ^ * Compare two floating point values.
+         * Middle of basic block.
+         * Returns a boolean value. -}
+
   | Phi Type [((Value' lab),lab)]
+    {- ^ * Join point for an SSA value: we get one value per predecessor
+           basic block.
+         * Middle of basic block.
+         * Returns a value of the specified type. -}
+
   | GEP Bool (Typed (Value' lab)) [Typed (Value' lab)]
+    {- ^ * "Get element pointer",
+            compute the address of a field in a structure:
+            inbounds check (value poisoned if this fails);
+            pointer to parent strucutre;
+            path to a sub-component of a strucutre.
+         * Middle of basic block.
+         * Returns the address of the requiested member.
+
+    The types in path are the types of the index, not the fields.
+
+    The indexes are in units of a fields (i.e., the first element in
+    a struct is field 0, the next one is 1, etc., regardless of the size
+    of the fields in bytes). -}
+
   | Select (Typed (Value' lab)) (Typed (Value' lab)) (Value' lab)
+    {- ^ * Local if-then-else; the first argument is boolean, if
+           true pick the 2nd argument, otherwise evaluate to the 3rd.
+         * Middle of basic block.
+         * Returns either the 2nd or the 3rd argument. -}
+
   | ExtractValue (Typed (Value' lab)) [Int32]
+    {- ^ * Get the value of a member of an aggregate value:
+           the first argument is an aggregate value (not a pointer!),
+           the second is a path of indexes, similar to the one in 'GEP'. 
+         * Middle of basic block.
+         * Returns the given member of the aggregate value. -}
+
   | InsertValue (Typed (Value' lab)) (Typed (Value' lab)) [Int32]
+    {- ^ * Set the value for a member of an aggregate value:
+           the first argument is the value to insert, the second is the
+           aggreagate value to be modified.
+         * Middle of basic block.
+         * Returns an updated aggregate value. -}
+
   | ExtractElt (Typed (Value' lab)) (Value' lab)
+    {- ^ * Get an element from a vector: the first argument is a vector,
+           the second an index.
+         * Middle of basic block.
+         * Returns the element at the given positoin. -}
+
   | InsertElt (Typed (Value' lab)) (Typed (Value' lab)) (Value' lab)
+    {- ^ * Modify an element of a vector: the first argument is the vector,
+           the second the value to be inserted, the third is the index where
+           to insert the value.
+         * Middle of basic block.
+         * Returns an updated vector. -}
+
+
   | ShuffleVector (Typed (Value' lab)) (Value' lab) (Typed (Value' lab))
+
+
   | Jump lab
+    {- ^ * Jump to the given basic block.
+         * Ends basic block. -}
+
   | Br (Typed (Value' lab)) lab lab
+    {- ^ * Conditional jump: if the value is true jump to the first basic
+           block, otherwise jump to the second.
+         * Ends basic block. -}
+
   | Invoke Type (Value' lab) [Typed (Value' lab)] lab lab
+
   | Comment String
+    -- ^ Comment
+
   | Unreachable
+    -- ^ No defined sematics, we should not get to here.
+
   | Unwind
   | VaArg (Typed (Value' lab)) Type
   | IndirectBr (Typed (Value' lab)) [lab]
+
   | Switch (Typed (Value' lab)) lab [(Integer,lab)]
+    {- ^ * Multi-way branch: the first value determines the direction 
+           of the branch, the label is a default direction, if the value
+           does not appear in the jump table, the last argument is the
+           jump table.
+         * Ends basic block. -}
+
   | LandingPad Type (Typed (Value' lab)) Bool [Clause' lab]
+
   | Resume (Typed (Value' lab))
+
     deriving (Show,Functor)
 
 type Instr = Instr' BlockLabel
