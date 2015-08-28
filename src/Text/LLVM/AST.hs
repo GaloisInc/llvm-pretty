@@ -1436,6 +1436,21 @@ isInvalid ir = case ir of
   Invalid -> True
   _       -> False
 
+-- | Resolves the type of a GEP instruction. Type aliases are resolved
+-- using the given function. An invalid use of GEP or one relying
+-- on unknown type aliases will return 'Nothing'
+resolveGepFull ::
+  (Ident -> Maybe Type) {- ^ Type alias resolution -} ->
+  Type                  {- ^ Pointer type          -} ->
+  [Typed (Value' lab)]  {- ^ Path                  -} ->
+  Maybe Type            {- ^ Type of result        -}
+resolveGepFull env t ixs = go (resolveGep t ixs)
+  where
+  go Invalid                = Nothing
+  go (HasType result)       = Just result
+  go (Resolve ident resume) = go . resume =<< env ident
+
+
 -- | Resolve the type of a GEP instruction.  Note that the type produced is the
 -- type of the result, not necessarily a pointer.
 resolveGep :: Type -> [Typed (Value' lab)] -> IndexResult
