@@ -1,22 +1,30 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(x,y,z) 1
+#endif
+
 module Text.LLVM.AST where
 
-import Control.Applicative ((<$))
 import Control.Monad (MonadPlus(mzero),(<=<),msum,guard,liftM,liftM3)
 import Data.Char (isAscii,isPrint,ord,toUpper)
-import Data.Foldable (Foldable(foldMap))
 import Data.Int (Int32)
 import Data.List (intersperse,genericIndex,genericLength,unfoldr)
 import Data.Maybe (fromMaybe)
-import Data.Monoid (Monoid(..))
 import Data.String (IsString(fromString))
-import Data.Traversable (Traversable(sequenceA))
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
+
+#if !(MIN_VERSION_base(4,8,0))
+import Control.Applicative ((<$))
+import Data.Foldable (Foldable(foldMap))
+import Data.Monoid (Monoid(..))
+import Data.Traversable (Traversable(sequenceA))
+#endif
 
 
 commas :: [Doc] -> Doc

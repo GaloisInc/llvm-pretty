@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE TypeOperators #-}
@@ -6,6 +7,10 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(x,y,z) 1
+#endif
 
 module Text.LLVM (
     -- * LLVM Monad
@@ -103,7 +108,6 @@ module Text.LLVM (
 
 import Text.LLVM.AST
 
-import Control.Applicative ( Applicative )
 import Control.Monad.Fix (MonadFix)
 import Data.Char (ord)
 import Data.Int (Int8,Int16,Int32,Int64)
@@ -113,6 +117,10 @@ import MonadLib hiding (jump,Label)
 import qualified Data.Foldable as F
 import qualified Data.Sequence as Seq
 import qualified Data.Map.Strict as Map
+
+#if !(MIN_VERSION_base(4,8,0))
+import Control.Applicative ( Applicative )
+#endif
 
 
 -- Fresh Names -----------------------------------------------------------------

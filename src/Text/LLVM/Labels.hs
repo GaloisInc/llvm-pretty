@@ -1,9 +1,18 @@
+{-# LANGUAGE CPP #-}
+
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(x,y,z) 1
+#endif
+
 module Text.LLVM.Labels where
 
 import Text.LLVM.AST
 
-import Control.Applicative ((<$>),Applicative(..))
 import qualified Data.Traversable as T
+
+#if !(MIN_VERSION_base(4,8,0))
+import Control.Applicative ((<$>),Applicative(..))
+#endif
 
 class Functor f => HasLabel f where
   -- | Given a function for resolving labels, where the presence of a symbol
