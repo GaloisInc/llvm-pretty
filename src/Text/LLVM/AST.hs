@@ -293,6 +293,10 @@ ppIdent (Ident n) = char '%' <> text n
 newtype Symbol = Symbol String
     deriving (Show,Eq,Ord)
 
+instance Monoid Symbol where
+  mappend (Symbol a) (Symbol b) = Symbol (mappend a b)
+  mempty                        = Symbol mempty
+
 instance IsString Symbol where
   fromString = Symbol
 
