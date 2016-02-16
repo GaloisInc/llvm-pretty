@@ -100,6 +100,7 @@ module Text.LLVM (
   , select
   , call, call_
   , invoke
+  , switch
   , shuffleVector
 
     -- * Re-exported
@@ -694,3 +695,8 @@ invoke :: IsValue a =>
           Type -> a -> [Typed Value] -> Ident -> Ident -> BB (Typed Value)
 invoke rty sym vs to uw = observe rty
                         $ Invoke rty (toValue sym) vs (Named to) (Named uw)
+
+-- | Emit a call instruction, but don't generate a new variable for its result.
+switch :: IsValue a => Typed a -> Ident -> [(Integer, Ident)] -> BB ()
+switch idx def dests = effect (Switch (toValue `fmap` idx) (Named def)
+                                      (map (\(n, l) -> (n, Named l)) dests))
