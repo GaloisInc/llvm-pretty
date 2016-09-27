@@ -9,16 +9,15 @@
 --
 -- This is the pretty-printer for llvm assembly versions 3.6 and lower.
 --
-module Text.LLVM.PP36 where
+module Text.LLVM.PP where
 
 import Text.LLVM.AST
-import Text.LLVM.Util
+import Text.LLVM.PP.Core
 
 import Data.Char (isAscii,isPrint,ord,toUpper)
 import Data.List (intersperse)
 import Data.Maybe (fromMaybe)
 import Numeric (showHex)
-import Text.PrettyPrint.HughesPJ
 
 
 -- Modules ---------------------------------------------------------------------
@@ -306,8 +305,7 @@ ppInstr instr = case instr of
                         <+> text "to" <+> ppType ty
   Call tc ty f args      -> ppCall tc ty f args
   Alloca ty len align    -> ppAlloca ty len align
-  Load ptr ma            -> text "load" <+> ppTyped ppValue ptr
-                         <> ppAlign ma
+  Load ptr ma            -> ppLoad ptr ma
   Store a ptr ma         -> text "store" <+> ppTyped ppValue a
                          <> comma <+> ppTyped ppValue ptr
                          <> ppAlign ma
@@ -364,6 +362,18 @@ ppInstr instr = case instr of
                         <+> ppTyped ppValue fn
                          $$ nest 2 (ppClauses c cs)
   Resume tv              -> text "resume" <+> ppTyped ppValue tv
+
+ppLoad :: Typed (Value' BlockLabel) -> Maybe Align -> Doc
+ppLoad ptr ma =
+  do isImplicit <- checkConfig cfgLoadImplicitType
+
+     text "load" <+> (if isImplicit then empty else explicit)
+                 <+> ppTyped ppValue ptr
+                  <> ppAlign ma
+
+  where
+  explicit = maybe empty ppType (elimPtrTo (typedType ptr))
+          <> comma
 
 ppClauses :: Bool -> [Clause] -> Doc
 ppClauses isCleanup cs = vcat (cleanup : map ppClause cs)
