@@ -1,9 +1,7 @@
 module Text.LLVM.Util where
 
 import Control.Monad (MonadPlus,mzero)
-import Data.Int (Int32)
 import Data.List (unfoldr)
-import Text.PrettyPrint.HughesPJ
 
 
 breaks :: (a -> Bool) -> [a] -> [[a]]

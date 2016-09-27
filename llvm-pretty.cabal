@@ -25,8 +25,9 @@ Library
   Exposed-modules:     Text.LLVM
                        Text.LLVM.AST
                        Text.LLVM.Labels
-                       Text.LLVM.PP36
-  Other-modules:       Text.LLVM.Util
+                       Text.LLVM.PP
+  Other-modules:       Text.LLVM.PP.Core
+                       Text.LLVM.Util
 
   Build-depends:       base       >= 4 && < 5,
                        containers >= 0.4,

@@ -9,7 +9,13 @@
 --
 -- This is the pretty-printer for llvm assembly versions 3.6 and lower.
 --
-module Text.LLVM.PP where
+module Text.LLVM.PP (
+    module Text.LLVM.PP
+  , ppLLVM
+  , ppLLVM35
+  , ppLLVM36
+  , ppLLVM37
+  ) where
 
 import Text.LLVM.AST
 import Text.LLVM.PP.Core
@@ -372,8 +378,10 @@ ppLoad ptr ma =
                   <> ppAlign ma
 
   where
-  explicit = maybe empty ppType (elimPtrTo (typedType ptr))
-          <> comma
+  explicit =
+    case typedType ptr of
+      PtrTo ty -> ppType ty <> comma
+      ty       -> ppType ty <> comma
 
 ppClauses :: Bool -> [Clause] -> Doc
 ppClauses isCleanup cs = vcat (cleanup : map ppClause cs)

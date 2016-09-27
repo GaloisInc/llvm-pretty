@@ -13,7 +13,10 @@ data Config = Config { cfgLoadImplicitType :: Bool
                        -- implicitly.
                      }
 
-ppLLVM35, ppLLVM36, ppLLVM37 :: Doc -> PP.Doc
+
+ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37 :: Doc -> PP.Doc
+
+ppLLVM = ppLLVM37
 
 ppLLVM35 = ppLLVM36
 
@@ -90,7 +93,7 @@ hcat :: [Doc] -> Doc
 hcat ds = DocM (\cfg -> PP.hcat (map (runDoc cfg) ds))
 
 vcat :: [Doc] -> Doc
-vcat ds = DocM (\cfg -> PP.hcat (map (runDoc cfg) ds))
+vcat ds = DocM (\cfg -> PP.vcat (map (runDoc cfg) ds))
 
 commas :: [Doc] -> Doc
 commas ds = DocM (\cfg -> PP.fsep (PP.punctuate PP.comma (map (runDoc cfg) ds)))
