@@ -36,11 +36,11 @@ data Config = Config { cfgLoadImplicitType :: Bool
                        -- implicitly.
                      }
 
-withConfig :: Config -> (LLVM => Doc) -> Doc
+withConfig :: Config -> (LLVM => a) -> a
 withConfig cfg body = let ?config = cfg in body
 
 
-ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37 :: (LLVM => Doc) -> Doc
+ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37 :: (LLVM => a) -> a
 
 ppLLVM = ppLLVM37
 
