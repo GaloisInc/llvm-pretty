@@ -42,13 +42,15 @@ withConfig cfg body = let ?config = cfg in body
 
 ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37 :: (LLVM => a) -> a
 
-ppLLVM = ppLLVM37
+ppLLVM = ppLLVM38
 
 ppLLVM35 = ppLLVM36
 
 ppLLVM36 = withConfig Config { cfgLoadImplicitType = True
                              }
 ppLLVM37 = withConfig Config { cfgLoadImplicitType = False
+                             }
+ppLLVM38 = withConfig Config { cfgLoadImplicitType = True
                              }
 
 checkConfig :: LLVM => (Config -> Bool) -> Bool
