@@ -1,5 +1,9 @@
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE Rank2Types #-}
+
 -- |
--- Module      :  Text.LLVM.PP36
+-- Module      :  Text.LLVM.PP
 -- Copyright   :  Trevor Elliott 2011-2016
 -- License     :  BSD3
 --
@@ -9,26 +13,51 @@
 --
 -- This is the pretty-printer for llvm assembly versions 3.6 and lower.
 --
-module Text.LLVM.PP (
-    module Text.LLVM.PP
-  , ppLLVM
-  , ppLLVM35
-  , ppLLVM36
-  , ppLLVM37
-  ) where
+module Text.LLVM.PP where
 
 import Text.LLVM.AST
-import Text.LLVM.PP.Core
 
 import Data.Char (isAscii,isPrint,ord,toUpper)
+import Data.Int (Int32)
 import Data.List (intersperse)
 import Data.Maybe (fromMaybe)
 import Numeric (showHex)
+import Text.PrettyPrint.HughesPJ
+
+
+-- Pretty-printer Config -------------------------------------------------------
+
+type LLVM = ?config :: Config
+
+-- | The differences between various versions of the llvm textual AST.
+data Config = Config { cfgLoadImplicitType :: Bool
+                       -- ^ True when the type of the result of a load is
+                       -- derived from its pointer argument, or supplied
+                       -- implicitly.
+                     }
+
+withConfig :: Config -> (LLVM => Doc) -> Doc
+withConfig cfg body = let ?config = cfg in body
+
+
+ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37 :: (LLVM => Doc) -> Doc
+
+ppLLVM = ppLLVM37
+
+ppLLVM35 = ppLLVM36
+
+ppLLVM36 = withConfig Config { cfgLoadImplicitType = True
+                             }
+ppLLVM37 = withConfig Config { cfgLoadImplicitType = False
+                             }
+
+checkConfig :: LLVM => (Config -> Bool) -> Bool
+checkConfig p = p ?config
 
 
 -- Modules ---------------------------------------------------------------------
 
-ppModule :: Module -> Doc
+ppModule :: LLVM => Module -> Doc
 ppModule m = foldr ($+$) empty
   $ ppDataLayout (modDataLayout m)
   : ppInlineAsm  (modInlineAsm m)
@@ -183,7 +212,7 @@ ppDeclare d = text "declare"
            <> ppArgList (decVarArgs d) (map ppType (decArgs d))
 
 
-ppDefine :: Define -> Doc
+ppDefine :: LLVM => Define -> Doc
 ppDefine d = text "define"
          <+> ppMaybe ppLinkage (funLinkage (defAttrs d))
          <+> ppType (defRetType d)
@@ -206,14 +235,14 @@ ppLabel :: BlockLabel -> Doc
 ppLabel (Named l) = ppIdent l
 ppLabel (Anon i)  = char '%' <> int i
 
-ppBasicBlock :: BasicBlock -> Doc
+ppBasicBlock :: LLVM => BasicBlock -> Doc
 ppBasicBlock bb = ppMaybe ppLabelDef (bbLabel bb)
               $+$ nest 2 (vcat (map ppStmt (bbStmts bb)))
 
 
 -- Statements ------------------------------------------------------------------
 
-ppStmt :: Stmt -> Doc
+ppStmt :: LLVM => Stmt -> Doc
 ppStmt stmt = case stmt of
   Result var i mds -> ppIdent var <+> char '=' <+> ppInstr i
                    <> ppAttachedMetadata mds
@@ -299,7 +328,7 @@ ppConvOp PtrToInt = text "ptrtoint"
 ppConvOp IntToPtr = text "inttoptr"
 ppConvOp BitCast  = text "bitcast"
 
-ppInstr :: Instr -> Doc
+ppInstr :: LLVM => Instr -> Doc
 ppInstr instr = case instr of
   Ret tv                 -> text "ret" <+> ppTyped ppValue tv
   RetVoid                -> text "ret void"
@@ -369,15 +398,15 @@ ppInstr instr = case instr of
                          $$ nest 2 (ppClauses c cs)
   Resume tv              -> text "resume" <+> ppTyped ppValue tv
 
-ppLoad :: Typed (Value' BlockLabel) -> Maybe Align -> Doc
+ppLoad :: LLVM => Typed (Value' BlockLabel) -> Maybe Align -> Doc
 ppLoad ptr ma =
-  do isImplicit <- checkConfig cfgLoadImplicitType
-
-     text "load" <+> (if isImplicit then empty else explicit)
-                 <+> ppTyped ppValue ptr
-                  <> ppAlign ma
+  text "load" <+> (if isImplicit then empty else explicit)
+              <+> ppTyped ppValue ptr
+               <> ppAlign ma
 
   where
+  isImplicit = checkConfig cfgLoadImplicitType
+
   explicit =
     case typedType ptr of
       PtrTo ty -> ppType ty <> comma
@@ -577,3 +606,25 @@ ppConstExpr (ConstBlockAddr t l)= text "blockaddress" <+> parens
 ppArgList :: Bool -> [Doc] -> Doc
 ppArgList True  ds = parens (commas (ds ++ [text "..."]))
 ppArgList False ds = parens (commas ds)
+
+int32 :: Int32 -> Doc
+int32  = int . fromIntegral
+
+opt :: Bool -> Doc -> Doc
+opt True  = id
+opt False = const empty
+
+commas :: [Doc] -> Doc
+commas  = fsep . punctuate comma
+
+angles :: Doc -> Doc
+angles d = char '<' <> d <> char '>'
+
+structBraces :: Doc -> Doc
+structBraces body = char '{' <+> body <+> char '}'
+
+ppMaybe :: (a -> Doc) -> Maybe a -> Doc
+ppMaybe  = maybe empty
+
+colons :: [Doc] -> Doc
+colons  = fsep . punctuate (char ':')
