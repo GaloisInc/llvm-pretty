@@ -34,23 +34,30 @@ data Config = Config { cfgLoadImplicitType :: Bool
                        -- ^ True when the type of the result of a load is
                        -- derived from its pointer argument, or supplied
                        -- implicitly.
+
+                     , cfgGEPImplicitType :: Bool
+                       -- ^ True when the type of the result of the GEP
+                       -- instruction is implied.
                      }
 
 withConfig :: Config -> (LLVM => a) -> a
 withConfig cfg body = let ?config = cfg in body
 
 
-ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37 :: (LLVM => a) -> a
+ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37, ppLLVM38 :: (LLVM => a) -> a
 
 ppLLVM = ppLLVM38
 
 ppLLVM35 = ppLLVM36
 
 ppLLVM36 = withConfig Config { cfgLoadImplicitType = True
+                             , cfgGEPImplicitType  = True
                              }
 ppLLVM37 = withConfig Config { cfgLoadImplicitType = False
+                             , cfgGEPImplicitType  = False
                              }
-ppLLVM38 = withConfig Config { cfgLoadImplicitType = True
+ppLLVM38 = withConfig Config { cfgLoadImplicitType = False
+                             , cfgGEPImplicitType  = False
                              }
 
 checkConfig :: LLVM => (Config -> Bool) -> Bool
@@ -461,10 +468,18 @@ ppCallSym :: Type -> Value -> Doc
 ppCallSym (PtrTo (FunTy res _ _)) (ValSymbol sym) = ppType res <+> ppSymbol sym
 ppCallSym ty              val                     = ppType ty  <+> ppValue val
 
-ppGEP :: Bool -> Typed Value -> [Typed Value] -> Doc
+ppGEP :: LLVM => Bool -> Typed Value -> [Typed Value] -> Doc
 ppGEP ib ptr ixs = text "getelementptr" <+> inbounds
+               <+> (if isImplicit then empty else explicit)
                <+> commas (map (ppTyped ppValue) (ptr:ixs))
   where
+  isImplicit = checkConfig cfgGEPImplicitType
+
+  explicit =
+    case typedType ptr of
+      PtrTo ty -> ppType ty <> comma
+      ty       -> ppType ty <> comma
+
   inbounds | ib        = text "inbounds"
            | otherwise = empty
 
