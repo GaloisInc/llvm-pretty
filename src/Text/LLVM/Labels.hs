@@ -142,6 +142,7 @@ instance HasLabel ValMd' where
     ValMdRef i      -> pure (ValMdRef i)
     ValMdNode es    -> ValMdNode <$> traverse (traverse (relabel f)) es
     ValMdLoc dl     -> ValMdLoc <$> relabel f dl
+    ValMdFile df    -> pure (ValMdFile df)
 
 instance HasLabel DebugLoc' where
   relabel f dl = upd <$> relabel f (dlScope dl)

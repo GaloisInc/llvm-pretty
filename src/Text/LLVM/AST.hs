@@ -845,6 +845,7 @@ data ValMd' lab
   | ValMdRef Int
   | ValMdNode [Maybe (ValMd' lab)]
   | ValMdLoc (DebugLoc' lab)
+  | ValMdFile DebugFile
     deriving (Show,Functor)
 
 type ValMd = ValMd' BlockLabel
@@ -857,6 +858,11 @@ data DebugLoc' lab = DebugLoc
   } deriving (Show,Functor)
 
 type DebugLoc = DebugLoc' BlockLabel
+
+data DebugFile = DebugFile
+  { dfFilename  :: FilePath
+  , dfDirectory :: FilePath
+  } deriving (Show)
 
 isConst :: Value' lab -> Bool
 isConst ValInteger{}   = True

@@ -555,6 +555,7 @@ ppValMd m = case m of
   ValMdRef i      -> ppMetadata (int i)
   ValMdNode vs    -> ppMetadataNode vs
   ValMdLoc l      -> ppDebugLoc l
+  ValMdFile f     -> ppDebugFile f
 
 ppDebugLoc :: DebugLoc -> Doc
 ppDebugLoc dl = text "!MDLocation"
@@ -567,6 +568,12 @@ ppDebugLoc dl = text "!MDLocation"
   mbIA = case dlIA dl of
            Just md -> comma <+> text "inlinedAt:" <+> ppValMd md
            Nothing -> empty
+
+ppDebugFile :: DebugFile -> Doc
+ppDebugFile df = text "!MDFile"
+  <> parens (commas [ text "filename:" <+> quotes (text (dfFilename df))
+                    , text "directory:" <+> quotes (text (dfDirectory df))
+                    ])
 
 ppTypedValMd :: ValMd -> Doc
 ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
