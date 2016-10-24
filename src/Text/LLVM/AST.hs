@@ -13,9 +13,11 @@ module Text.LLVM.AST where
 import Text.LLVM.Util (breaks,uncons)
 
 import Control.Monad (MonadPlus(mzero),(<=<),msum,guard,liftM,liftM3)
-import Data.Int (Int32)
+import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
+import qualified Data.Map as Map
 import Data.String (IsString(fromString))
+import Data.Word (Word8,Word16,Word32,Word64)
 
 #if !(MIN_VERSION_base(4,8,0))
 import Control.Applicative ((<$))
@@ -393,13 +395,14 @@ decFunType Declare { .. } = PtrTo (FunTy decRetType decArgs decVarArgs)
 -- Function Definitions --------------------------------------------------------
 
 data Define = Define
-  { defAttrs   :: FunAttrs
-  , defRetType :: Type
-  , defName    :: Symbol
-  , defArgs    :: [Typed Ident]
-  , defVarArgs :: Bool
-  , defSection :: Maybe String
-  , defBody    :: [BasicBlock]
+  { defAttrs    :: FunAttrs
+  , defRetType  :: Type
+  , defName     :: Symbol
+  , defArgs     :: [Typed Ident]
+  , defVarArgs  :: Bool
+  , defSection  :: Maybe String
+  , defBody     :: [BasicBlock]
+  , defMetadata :: FnMdAttachments
   } deriving (Show)
 
 defFunType :: Define -> Type
@@ -845,13 +848,17 @@ data ValMd' lab
   | ValMdRef Int
   | ValMdNode [Maybe (ValMd' lab)]
   | ValMdLoc (DebugLoc' lab)
+  | ValMdDebugInfo (DebugInfo' lab)
     deriving (Show,Functor)
 
 type ValMd = ValMd' BlockLabel
 
+type KindMd = String
+type FnMdAttachments = Map.Map KindMd ValMd
+
 data DebugLoc' lab = DebugLoc
-  { dlLine  :: Int32
-  , dlCol   :: Int32
+  { dlLine  :: Word32
+  , dlCol   :: Word32
   , dlScope :: ValMd' lab
   , dlIA    :: Maybe (ValMd' lab)
   } deriving (Show,Functor)
@@ -913,7 +920,200 @@ data ConstExpr' lab
 
 type ConstExpr = ConstExpr' BlockLabel
 
+-- DWARF Debug Info ------------------------------------------------------------
 
+data DebugInfo' lab
+  = DebugInfoBasicType DIBasicType
+  | DebugInfoCompileUnit (DICompileUnit' lab)
+  | DebugInfoCompositeType (DICompositeType' lab)
+  | DebugInfoDerivedType (DIDerivedType' lab)
+  | DebugInfoExpression DIExpression
+  | DebugInfoFile DIFile
+  | DebugInfoGlobalVariable (DIGlobalVariable' lab)
+  | DebugInfoLexicalBlock (DILexicalBlock' lab)
+  | DebugInfoLexicalBlockFile (DILexicalBlockFile' lab)
+  | DebugInfoLocalVariable (DILocalVariable' lab)
+  | DebugInfoSubprogram (DISubprogram' lab)
+  | DebugInfoSubrange DISubrange
+  | DebugInfoSubroutineType (DISubroutineType' lab)
+  deriving (Show,Functor)
+
+type DebugInfo = DebugInfo' BlockLabel
+
+-- TODO: Turn these into sum types
+-- See https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/Support/Dwarf.def
+type DwarfAttrEncoding = Word8
+type DwarfLang = Word16
+type DwarfTag = Word16
+type DwarfVirtuality = Word8
+-- See https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/IR/DebugInfoMetadata.h#L175
+type DIFlags = Word32
+-- This seems to be defined internally as a small enum, and defined
+-- differently across versions. Maybe turn this into a sum type once
+-- it stabilizes.
+type DIEmissionKind = Word8
+
+data DIBasicType = DIBasicType
+  { dibtTag :: DwarfTag
+  , dibtName :: String
+  , dibtSize :: Word64
+  , dibtAlign :: Word64
+  , dibtEncoding :: DwarfAttrEncoding
+  } deriving (Show)
+
+data DICompileUnit' lab = DICompileUnit
+  { dicuLanguage           :: DwarfLang
+  , dicuFile               :: Maybe (ValMd' lab)
+  , dicuProducer           :: Maybe String
+  , dicuIsOptimized        :: Bool
+  , dicuFlags              :: DIFlags
+  , dicuRuntimeVersion     :: Word16
+  , dicuSplitDebugFilename :: Maybe FilePath
+  , dicuEmissionKind       :: DIEmissionKind
+  , dicuEnums              :: Maybe (ValMd' lab)
+  , dicuRetainedTypes      :: Maybe (ValMd' lab)
+  , dicuSubprograms        :: Maybe (ValMd' lab)
+  , dicuGlobals            :: Maybe (ValMd' lab)
+  , dicuImports            :: Maybe (ValMd' lab)
+  , dicuMacros             :: Maybe (ValMd' lab)
+  , dicuDWOId              :: Word64
+  }
+  deriving (Show,Functor)
+
+type DICompileUnit = DICompileUnit' BlockLabel
+
+data DICompositeType' lab = DICompositeType
+  { dictTag            :: DwarfTag
+  , dictName           :: Maybe String
+  , dictFile           :: Maybe (ValMd' lab)
+  , dictLine           :: Word32
+  , dictScope          :: Maybe (ValMd' lab)
+  , dictBaseType       :: Maybe (ValMd' lab)
+  , dictSize           :: Word64
+  , dictAlign          :: Word64
+  , dictOffset         :: Word64
+  , dictFlags          :: DIFlags
+  , dictElements       :: Maybe (ValMd' lab)
+  , dictRuntimeLang    :: DwarfLang
+  , dictVTableHolder   :: Maybe (ValMd' lab)
+  , dictTemplateParams :: Maybe (ValMd' lab)
+  , dictIdentifier     :: Maybe String
+  }
+  deriving (Show,Functor)
+
+type DICompositeType = DICompositeType' BlockLabel
+
+data DIDerivedType' lab = DIDerivedType
+  { didtTag :: DwarfTag
+  , didtName :: Maybe String
+  , didtFile :: Maybe (ValMd' lab)
+  , didtLine :: Word32
+  , didtScope :: Maybe (ValMd' lab)
+  , didtBaseType :: Maybe (ValMd' lab)
+  , didtSize :: Word64
+  , didtAlign :: Word64
+  , didtOffset :: Word64
+  , didtFlags :: DIFlags
+  , didtExtraData :: Maybe (ValMd' lab)
+  }
+  deriving (Show,Functor)
+
+type DIDerivedType = DIDerivedType' BlockLabel
+
+data DIExpression = DIExpression
+  { dieElements :: [Word64]
+  }
+  deriving (Show)
+
+data DIFile = DIFile
+  { difFilename  :: FilePath
+  , difDirectory :: FilePath
+  } deriving (Show)
+
+data DIGlobalVariable' lab = DIGlobalVariable
+  { digvScope                :: Maybe (ValMd' lab)
+  , digvName                 :: Maybe String
+  , digvLinkageName          :: Maybe String
+  , digvFile                 :: Maybe (ValMd' lab)
+  , digvLine                 :: Word32
+  , digvType                 :: Maybe (ValMd' lab)
+  , digvIsLocal              :: Bool
+  , digvIsDefinition         :: Bool
+  , digvVariable             :: Maybe (ValMd' lab)
+  , digvDeclaration          :: Maybe (ValMd' lab)
+  }
+  deriving (Show,Functor)
+
+type DIGlobalVariable = DIGlobalVariable' BlockLabel
+
+data DILexicalBlock' lab = DILexicalBlock
+  { dilbScope  :: Maybe (ValMd' lab)
+  , dilbFile   :: Maybe (ValMd' lab)
+  , dilbLine   :: Word32
+  , dilbColumn :: Word16
+  }
+  deriving (Show,Functor)
+
+type DILexicalBlock = DILexicalBlock' BlockLabel
+
+data DILexicalBlockFile' lab = DILexicalBlockFile
+  { dilbfScope         :: ValMd' lab
+  , dilbfFile          :: Maybe (ValMd' lab)
+  , dilbfDiscriminator :: Word32
+  }
+  deriving (Show,Functor)
+
+type DILexicalBlockFile = DILexicalBlockFile' BlockLabel
+
+data DILocalVariable' lab = DILocalVariable
+  { dilvScope :: Maybe (ValMd' lab)
+  , dilvName :: Maybe String
+  , dilvFile :: Maybe (ValMd' lab)
+  , dilvLine :: Word32
+  , dilvType :: Maybe (ValMd' lab)
+  , dilvArg :: Word16
+  , dilvFlags :: DIFlags
+  }
+  deriving (Show,Functor)
+
+type DILocalVariable = DILocalVariable' BlockLabel
+
+data DISubprogram' lab = DISubprogram
+  { dispScope          :: Maybe (ValMd' lab)
+  , dispName           :: Maybe String
+  , dispLinkageName    :: Maybe String
+  , dispFile           :: Maybe (ValMd' lab)
+  , dispLine           :: Word32
+  , dispType           :: Maybe (ValMd' lab)
+  , dispIsLocal        :: Bool
+  , dispIsDefinition   :: Bool
+  , dispScopeLine      :: Word32
+  , dispContainingType :: Maybe (ValMd' lab)
+  , dispVirtuality     :: DwarfVirtuality
+  , dispVirtualIndex   :: Word32
+  , dispFlags          :: DIFlags
+  , dispIsOptimized    :: Bool
+  , dispTemplateParams :: Maybe (ValMd' lab)
+  , dispDeclaration    :: Maybe (ValMd' lab)
+  , dispVariables      :: Maybe (ValMd' lab)
+  }
+  deriving (Show,Functor)
+
+type DISubprogram = DISubprogram' BlockLabel
+
+data DISubrange = DISubrange
+  { disrCount :: Int64
+  , disrLowerBound :: Int64
+  }
+  deriving (Show)
+
+data DISubroutineType' lab = DISubroutineType
+  { distFlags :: DIFlags
+  , distTypeArray :: Maybe (ValMd' lab)
+  }
+  deriving (Show,Functor)
+
+type DISubroutineType = DISubroutineType' BlockLabel
 
 -- Aggregate Utilities ---------------------------------------------------------
 
