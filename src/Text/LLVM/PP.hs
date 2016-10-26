@@ -238,7 +238,7 @@ ppDefine d = "define"
   ppMds mdm =
     case Map.toList mdm of
       [] -> empty
-      mds -> parens (commas [ "!" <> text k <+> ppValMd md | (k, md) <- mds ])
+      mds -> hsep [ "!" <> text k <+> ppValMd md | (k, md) <- mds ]
 
 -- Basic Blocks ----------------------------------------------------------------
 
@@ -575,27 +575,67 @@ ppDebugLoc dl = "!MDLocation"
            Just md -> comma <+> "inlinedAt:" <+> ppValMd md
            Nothing -> empty
 
+ppTypedValMd :: ValMd -> Doc
+ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
+
+ppMetadata :: Doc -> Doc
+ppMetadata body = char '!' <> body
+
+ppMetadataNode :: [Maybe ValMd] -> Doc
+ppMetadataNode vs = ppMetadata (braces (commas (map arg vs)))
+  where
+  arg = maybe ("null") ppValMd
+
+ppStringLiteral :: String -> Doc
+ppStringLiteral  = doubleQuotes . text . concatMap escape
+  where
+  escape c | isAscii c && isPrint c = [c]
+           | otherwise              = '\\' : pad (ord c)
+
+  pad n | n < 0x10  = '0' : map toUpper (showHex n "")
+        | otherwise =       map toUpper (showHex n "")
+
+ppAsm :: Bool -> Bool -> String -> String -> Doc
+ppAsm s a i c =
+  "asm" <+> sideeffect <+> alignstack
+        <+> ppStringLiteral i <> comma <+> ppStringLiteral c
+  where
+  sideeffect | s         = "sideeffect"
+             | otherwise = empty
+
+  alignstack | a         = "alignstack"
+             | otherwise = empty
+
+
+ppConstExpr :: ConstExpr -> Doc
+ppConstExpr (ConstGEP inb ixs)  = "getelementptr"
+                              <+> opt inb "inbounds"
+                              <+> parens (commas (map (ppTyped ppValue) ixs))
+ppConstExpr (ConstConv op tv t) = ppConvOp op <+> parens
+                                 (ppTyped ppValue tv <+> "to" <+> ppType t)
+ppConstExpr (ConstSelect c l r) = "select" <+> parens
+                                 (commas [ ppTyped ppValue c, ppTyped ppValue l
+                                         , ppTyped ppValue r])
+ppConstExpr (ConstBlockAddr t l)= "blockaddress" <+> parens
+                                 (ppSymbol t <> comma <+> ppLabel l)
+
+-- DWARF Debug Info ------------------------------------------------------------
+
 ppDebugInfo :: DebugInfo -> Doc
 ppDebugInfo di = case di of
-  DebugInfoFile f               -> ppDIFile f
   DebugInfoBasicType bt         -> ppDIBasicType bt
+  DebugInfoCompileUnit cu       -> ppDICompileUnit cu
+  DebugInfoCompositeType ct     -> ppDICompositeType ct
   DebugInfoDerivedType dt       -> ppDIDerivedType dt
-  DebugInfoSubroutineType st    -> ppDISubroutineType st
+  DebugInfoExpression e         -> ppDIExpression e
+  DebugInfoFile f               -> ppDIFile f
   DebugInfoGlobalVariable gv    -> ppDIGlobalVariable gv
   DebugInfoLexicalBlock lb      -> ppDILexicalBlock lb
+  DebugInfoLexicalBlockFile lbf -> ppDILexicalBlockFile lbf
   DebugInfoLocalVariable lv     -> ppDILocalVariable lv
   DebugInfoSubprogram sp        -> ppDISubprogram sp
   DebugInfoSubrange sr          -> ppDISubrange sr
-  DebugInfoCompositeType ct     -> ppDICompositeType ct
-  DebugInfoCompileUnit cu       -> ppDICompileUnit cu
-  DebugInfoExpression e         -> ppDIExpression e
-  DebugInfoLexicalBlockFile lbf -> ppDILexicalBlockFile lbf
-
-ppDIFile :: DIFile -> Doc
-ppDIFile f = "!DIFile"
-  <> parens (commas [ "filename:"  <+> quotes (text (difFilename f))
-                    , "directory:" <+> quotes (text (difDirectory f))
-                    ])
+  DebugInfoSubroutineType st    -> ppDISubroutineType st
 
 ppDIBasicType :: DIBasicType -> Doc
 ppDIBasicType bt = "!DIBasicType"
@@ -606,8 +646,45 @@ ppDIBasicType bt = "!DIBasicType"
                     , "encoding:" <+> hex (dibtEncoding bt)
                     ])
 
-mcommas :: [Maybe Doc] -> Doc
-mcommas = commas . catMaybes
+ppDICompileUnit :: DICompileUnit -> Doc
+ppDICompileUnit cu = "!DICompileUnit"
+  <> parens (mcommas
+       [ pure ("language:"           <+> hex (dicuLanguage cu))
+       ,     (("file:"               <+>) . ppValMd) <$> (dicuFile cu)
+       ,     (("producer:"           <+>) . quotes . text) <$> (dicuProducer cu)
+       , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
+       , pure ("flags:"              <+> hex (dicuFlags cu))
+       , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
+       ,     (("splitDebugFilename:" <+>) . quotes . text)
+             <$> (dicuSplitDebugFilename cu)
+       , pure ("emissionKind:"       <+> hex (dicuEmissionKind cu))
+       ,     (("enums:"              <+>) . ppValMd) <$> (dicuEnums cu)
+       ,     (("retainedTypes:"      <+>) . ppValMd) <$> (dicuRetainedTypes cu)
+       ,     (("subprograms:"        <+>) . ppValMd) <$> (dicuSubprograms cu)
+       ,     (("globals:"            <+>) . ppValMd) <$> (dicuGlobals cu)
+       ,     (("imports:"            <+>) . ppValMd) <$> (dicuImports cu)
+       ,     (("macros:"             <+>) . ppValMd) <$> (dicuMacros cu)
+       , pure ("dwoId:"              <+> integral (dicuDWOId cu))
+       ])
+
+ppDICompositeType :: DICompositeType -> Doc
+ppDICompositeType ct = "!DICompositeType"
+  <> parens (mcommas
+       [ pure ("tag:"            <+> hex (dictTag ct))
+       ,     (("name:"           <+>) . quotes . text) <$> (dictName ct)
+       ,     (("file:"           <+>) . ppValMd) <$> (dictFile ct)
+       , pure ("line:"           <+> integral (dictLine ct))
+       ,     (("baseType:"       <+>) . ppValMd) <$> (dictBaseType ct)
+       , pure ("size:"           <+> integral (dictSize ct))
+       , pure ("align:"          <+> integral (dictAlign ct))
+       , pure ("offset:"         <+> integral (dictOffset ct))
+       , pure ("flags:"          <+> hex (dictFlags ct))
+       ,     (("elements:"       <+>) . ppValMd) <$> (dictElements ct)
+       , pure ("runtimeLang:"    <+> hex (dictRuntimeLang ct))
+       ,     (("vtableHolder:"   <+>) . ppValMd) <$> (dictVTableHolder ct)
+       ,     (("templateParams:" <+>) . ppValMd) <$> (dictTemplateParams ct)
+       ,     (("identifier:"     <+>) . quotes . text) <$> (dictIdentifier ct)
+       ])
 
 ppDIDerivedType :: DIDerivedType -> Doc
 ppDIDerivedType dt = "!DIDerivedType"
@@ -624,12 +701,15 @@ ppDIDerivedType dt = "!DIDerivedType"
        ,     (("extraData:" <+>) . ppValMd) <$> (didtExtraData dt)
        ])
 
-ppDISubroutineType :: DISubroutineType -> Doc
-ppDISubroutineType st = "!DISubroutineType"
-  <> parens (commas
-       [ "flags:" <+> hex (distFlags st)
-       , "types:" <+> fromMaybe "null" (ppValMd <$> (distTypeArray st))
-       ])
+ppDIExpression :: DIExpression -> Doc
+ppDIExpression e = "!DIExpression"
+  <> parens (commas (map integral (dieElements e)))
+
+ppDIFile :: DIFile -> Doc
+ppDIFile f = "!DIFile"
+  <> parens (commas [ "filename:"  <+> quotes (text (difFilename f))
+                    , "directory:" <+> quotes (text (difDirectory f))
+                    ])
 
 ppDIGlobalVariable :: DIGlobalVariable -> Doc
 ppDIGlobalVariable gv = "!DIGlobalVariable"
@@ -644,6 +724,23 @@ ppDIGlobalVariable gv = "!DIGlobalVariable"
        , pure ("isDefinition:" <+> ppBool (digvIsDefinition gv))
        ,      (("variable:"    <+>) . ppValMd) <$> (digvType gv)
        ,      (("declaration:" <+>) . ppValMd) <$> (digvDeclaration gv)
+       ])
+
+ppDILexicalBlock :: DILexicalBlock -> Doc
+ppDILexicalBlock ct = "!DILexicalBlock"
+  <> parens (mcommas
+       [     (("scope:"  <+>) . ppValMd) <$> (dilbScope ct)
+       ,     (("file:"   <+>) . ppValMd) <$> (dilbFile ct)
+       , pure ("line:"   <+> integral (dilbLine ct))
+       , pure ("column:" <+> integral (dilbColumn ct))
+       ])
+
+ppDILexicalBlockFile :: DILexicalBlockFile -> Doc
+ppDILexicalBlockFile lbf = "!DILexicalBlockFile"
+  <> parens (mcommas
+       [ pure ("scope:"         <+> ppValMd (dilbfScope lbf))
+       ,     (("file:"          <+>) . ppValMd) <$> (dilbfFile lbf)
+       , pure ("discriminator:" <+> integral (dilbfDiscriminator lbf))
        ])
 
 ppDILocalVariable :: DILocalVariable -> Doc
@@ -686,117 +783,18 @@ ppDISubrange sr = "!DISubrange"
                     , "lowerBound:" <+> integral (disrLowerBound sr)
                     ])
 
-ppDICompositeType :: DICompositeType -> Doc
-ppDICompositeType ct = "!DICompositeType"
-  <> parens (mcommas
-       [ pure ("tag:"            <+> hex (dictTag ct))
-       ,     (("name:"           <+>) . quotes . text) <$> (dictName ct)
-       ,     (("file:"           <+>) . ppValMd) <$> (dictFile ct)
-       , pure ("line:"           <+> integral (dictLine ct))
-       ,     (("baseType:"       <+>) . ppValMd) <$> (dictBaseType ct)
-       , pure ("size:"           <+> integral (dictSize ct))
-       , pure ("align:"          <+> integral (dictAlign ct))
-       , pure ("offset:"         <+> integral (dictOffset ct))
-       , pure ("flags:"          <+> hex (dictFlags ct))
-       ,     (("elements:"       <+>) . ppValMd) <$> (dictElements ct)
-       , pure ("runtimeLang:"    <+> hex (dictRuntimeLang ct))
-       ,     (("vtableHolder:"   <+>) . ppValMd) <$> (dictVTableHolder ct)
-       ,     (("templateParams:" <+>) . ppValMd) <$> (dictTemplateParams ct)
-       ,     (("identifier:"     <+>) . quotes . text) <$> (dictIdentifier ct)
+ppDISubroutineType :: DISubroutineType -> Doc
+ppDISubroutineType st = "!DISubroutineType"
+  <> parens (commas
+       [ "flags:" <+> hex (distFlags st)
+       , "types:" <+> fromMaybe "null" (ppValMd <$> (distTypeArray st))
        ])
 
-ppDILexicalBlock :: DILexicalBlock -> Doc
-ppDILexicalBlock ct = "!DILexicalBlock"
-  <> parens (mcommas
-       [     (("scope:"  <+>) . ppValMd) <$> (dilbScope ct)
-       ,     (("file:"   <+>) . ppValMd) <$> (dilbFile ct)
-       , pure ("line:"   <+> integral (dilbLine ct))
-       , pure ("column:" <+> integral (dilbColumn ct))
-       ])
-
-ppDICompileUnit :: DICompileUnit -> Doc
-ppDICompileUnit cu = "!DICompileUnit"
-  <> parens (mcommas
-       [ pure ("language:"           <+> hex (dicuLanguage cu))
-       ,     (("file:"               <+>) . ppValMd) <$> (dicuFile cu)
-       ,     (("producer:"           <+>) . quotes . text) <$> (dicuProducer cu)
-       , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
-       , pure ("flags:"              <+> hex (dicuFlags cu))
-       , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
-       ,     (("splitDebugFilename:" <+>) . quotes . text)
-             <$> (dicuSplitDebugFilename cu)
-       , pure ("emissionKind:"       <+> hex (dicuEmissionKind cu))
-       ,     (("enums:"              <+>) . ppValMd) <$> (dicuEnums cu)
-       ,     (("retainedTypes:"      <+>) . ppValMd) <$> (dicuRetainedTypes cu)
-       ,     (("subprograms:"        <+>) . ppValMd) <$> (dicuSubprograms cu)
-       ,     (("globals:"            <+>) . ppValMd) <$> (dicuGlobals cu)
-       ,     (("imports:"            <+>) . ppValMd) <$> (dicuImports cu)
-       ,     (("macros:"             <+>) . ppValMd) <$> (dicuMacros cu)
-       , pure ("dwoId:"              <+> integral (dicuDWOId cu))
-       ])
-
-ppDIExpression :: DIExpression -> Doc
-ppDIExpression e = "!DIExpression"
-  <> parens (commas (map integral (dieElements e)))
-
-ppDILexicalBlockFile :: DILexicalBlockFile -> Doc
-ppDILexicalBlockFile lbf = "!DILexicalBlockFile"
-  <> parens (mcommas
-       [ pure ("scope:"         <+> ppValMd (dilbfScope lbf))
-       ,     (("file:"          <+>) . ppValMd) <$> (dilbfFile lbf)
-       , pure ("discriminator:" <+> integral (dilbfDiscriminator lbf))
-       ])
-
-ppTypedValMd :: ValMd -> Doc
-ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
-
-ppMetadata :: Doc -> Doc
-ppMetadata body = char '!' <> body
-
-ppMetadataNode :: [Maybe ValMd] -> Doc
-ppMetadataNode vs = ppMetadata (braces (commas (map arg vs)))
-  where
-  arg = maybe ("null") ppValMd
+-- Utilities -------------------------------------------------------------------
 
 ppBool :: Bool -> Doc
 ppBool b | b         = "true"
          | otherwise = "false"
-
-ppStringLiteral :: String -> Doc
-ppStringLiteral  = doubleQuotes . text . concatMap escape
-  where
-  escape c | isAscii c && isPrint c = [c]
-           | otherwise              = '\\' : pad (ord c)
-
-  pad n | n < 0x10  = '0' : map toUpper (showHex n "")
-        | otherwise =       map toUpper (showHex n "")
-
-ppAsm :: Bool -> Bool -> String -> String -> Doc
-ppAsm s a i c =
-  "asm" <+> sideeffect <+> alignstack
-        <+> ppStringLiteral i <> comma <+> ppStringLiteral c
-  where
-  sideeffect | s         = "sideeffect"
-             | otherwise = empty
-
-  alignstack | a         = "alignstack"
-             | otherwise = empty
-
-
-ppConstExpr :: ConstExpr -> Doc
-ppConstExpr (ConstGEP inb ixs)  = "getelementptr"
-                              <+> opt inb "inbounds"
-                              <+> parens (commas (map (ppTyped ppValue) ixs))
-ppConstExpr (ConstConv op tv t) = ppConvOp op <+> parens
-                                 (ppTyped ppValue tv <+> "to" <+> ppType t)
-ppConstExpr (ConstSelect c l r) = "select" <+> parens
-                                 (commas [ ppTyped ppValue c, ppTyped ppValue l
-                                         , ppTyped ppValue r])
-ppConstExpr (ConstBlockAddr t l)= "blockaddress" <+> parens
-                                 (ppSymbol t <> comma <+> ppLabel l)
-
-
--- Utilities -------------------------------------------------------------------
 
 -- | Build a variable-argument argument list.
 ppArgList :: Bool -> [Doc] -> Doc
@@ -815,6 +813,11 @@ opt False = const empty
 
 commas :: [Doc] -> Doc
 commas  = fsep . punctuate comma
+
+-- | Helpful for all of the optional fields that appear in the
+-- metadata values
+mcommas :: [Maybe Doc] -> Doc
+mcommas = commas . catMaybes
 
 angles :: Doc -> Doc
 angles d = char '<' <> d <> char '>'

@@ -155,20 +155,32 @@ instance HasLabel DebugLoc' where
 
 instance HasLabel DebugInfo' where
   relabel f di = case di of
-    DebugInfoFile dif            -> pure (DebugInfoFile dif)
-    DebugInfoBasicType dibt      -> pure (DebugInfoBasicType dibt)
-    DebugInfoDerivedType didt    -> DebugInfoDerivedType <$> relabel f didt
-    DebugInfoSubroutineType dist -> DebugInfoSubroutineType <$> relabel f dist
-    DebugInfoGlobalVariable digv -> DebugInfoGlobalVariable <$> relabel f digv
-    DebugInfoLocalVariable dilv  -> DebugInfoLocalVariable <$> relabel f dilv
-    DebugInfoSubprogram disp     -> DebugInfoSubprogram <$> relabel f disp
-    DebugInfoSubrange disr       -> pure (DebugInfoSubrange disr)
-    DebugInfoCompositeType dict  -> DebugInfoCompositeType <$> relabel f dict
-    DebugInfoLexicalBlock dilb   -> DebugInfoLexicalBlock <$> relabel f dilb
-    DebugInfoCompileUnit dicu    -> DebugInfoCompileUnit <$> relabel f dicu
-    DebugInfoExpression die      -> pure (DebugInfoExpression die)
+    DebugInfoBasicType dibt ->
+      pure (DebugInfoBasicType dibt)
+    DebugInfoCompileUnit dicu ->
+      DebugInfoCompileUnit <$> relabel f dicu
+    DebugInfoCompositeType dict ->
+      DebugInfoCompositeType <$> relabel f dict
+    DebugInfoDerivedType didt ->
+      DebugInfoDerivedType <$> relabel f didt
+    DebugInfoExpression die ->
+      pure (DebugInfoExpression die)
+    DebugInfoFile dif ->
+      pure (DebugInfoFile dif)
+    DebugInfoGlobalVariable digv ->
+      DebugInfoGlobalVariable <$> relabel f digv
+    DebugInfoLexicalBlock dilb ->
+      DebugInfoLexicalBlock <$> relabel f dilb
     DebugInfoLexicalBlockFile dilbf ->
       DebugInfoLexicalBlockFile <$> relabel f dilbf
+    DebugInfoLocalVariable dilv ->
+      DebugInfoLocalVariable <$> relabel f dilv
+    DebugInfoSubprogram disp ->
+      DebugInfoSubprogram <$> relabel f disp
+    DebugInfoSubrange disr ->
+      pure (DebugInfoSubrange disr)
+    DebugInfoSubroutineType dist ->
+      DebugInfoSubroutineType <$> relabel f dist
 
 instance HasLabel DIDerivedType' where
   relabel f didt = DIDerivedType
