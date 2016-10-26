@@ -20,6 +20,7 @@ import Text.LLVM.AST
 
 import Data.Char (isAscii,isPrint,ord,toUpper)
 import Data.List (intersperse)
+import qualified Data.Map as Map
 import Data.Maybe (catMaybes,fromMaybe)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
@@ -229,10 +230,15 @@ ppDefine d = "define"
           <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
          <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
          <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (funGC (defAttrs d))
+         <+> ppMds (defMetadata d)
          <+> char '{'
          $+$ vcat (map ppBasicBlock (defBody d))
          $+$ char '}'
-
+  where
+  ppMds mdm =
+    case Map.toList mdm of
+      [] -> empty
+      mds -> parens (commas [ "!" <> text k <+> ppValMd md | (k, md) <- mds ])
 
 -- Basic Blocks ----------------------------------------------------------------
 

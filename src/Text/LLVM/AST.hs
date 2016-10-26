@@ -15,6 +15,7 @@ import Text.LLVM.Util (breaks,uncons)
 import Control.Monad (MonadPlus(mzero),(<=<),msum,guard,liftM,liftM3)
 import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
+import qualified Data.Map as Map
 import Data.String (IsString(fromString))
 import Data.Word (Word8,Word16,Word32,Word64)
 
@@ -401,6 +402,7 @@ data Define = Define
   , defVarArgs :: Bool
   , defSection :: Maybe String
   , defBody    :: [BasicBlock]
+  , defMetadata :: FnMdAttachments
   } deriving (Show)
 
 defFunType :: Define -> Type
@@ -851,6 +853,9 @@ data ValMd' lab
 
 type ValMd = ValMd' BlockLabel
 
+type KindMd = String
+type FnMdAttachments = Map.Map KindMd ValMd
+
 data DebugLoc' lab = DebugLoc
   { dlLine  :: Word32
   , dlCol   :: Word32
@@ -1027,21 +1032,6 @@ data DILexicalBlock' lab = DILexicalBlock
   deriving (Show,Functor)
 
 type DILexicalBlock = DILexicalBlock' BlockLabel
-
-{-
-  DEFINE_MDNODE_GET_DISTINCT_TEMPORARY(
-      DICompileUnit,
-      (unsigned SourceLanguage, DIFile *File, StringRef Producer,
-       bool IsOptimized, StringRef Flags, unsigned RuntimeVersion,
-       StringRef SplitDebugFilename, unsigned EmissionKind,
-       DICompositeTypeArray EnumTypes, DITypeArray RetainedTypes,
-       DISubprogramArray Subprograms, DIGlobalVariableArray GlobalVariables,
-       DIImportedEntityArray ImportedEntities, DIMacroNodeArray Macros,
-       uint64_t DWOId),
-      (SourceLanguage, File, Producer, IsOptimized, Flags, RuntimeVersion,
-       SplitDebugFilename, EmissionKind, EnumTypes, RetainedTypes, Subprograms,
-       GlobalVariables, ImportedEntities, Macros, DWOId))
--}
 
 -- | This seems to be defined internally as a small enum, and defined
 -- differently across versions. Maybe turn this into a sum type once
