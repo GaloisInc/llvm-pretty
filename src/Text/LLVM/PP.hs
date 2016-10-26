@@ -577,18 +577,19 @@ ppDebugLoc dl = "!MDLocation"
 
 ppDebugInfo :: DebugInfo -> Doc
 ppDebugInfo di = case di of
-  DebugInfoFile f            -> ppDIFile f
-  DebugInfoBasicType bt      -> ppDIBasicType bt
-  DebugInfoDerivedType dt    -> ppDIDerivedType dt
-  DebugInfoSubroutineType st -> ppDISubroutineType st
-  DebugInfoGlobalVariable gv -> ppDIGlobalVariable gv
-  DebugInfoLexicalBlock lb   -> ppDILexicalBlock lb
-  DebugInfoLocalVariable lv  -> ppDILocalVariable lv
-  DebugInfoSubprogram sp     -> ppDISubprogram sp
-  DebugInfoSubrange sr       -> ppDISubrange sr
-  DebugInfoCompositeType ct  -> ppDICompositeType ct
-  DebugInfoCompileUnit cu    -> ppDICompileUnit cu
-  DebugInfoExpression e      -> ppDIExpression e
+  DebugInfoFile f               -> ppDIFile f
+  DebugInfoBasicType bt         -> ppDIBasicType bt
+  DebugInfoDerivedType dt       -> ppDIDerivedType dt
+  DebugInfoSubroutineType st    -> ppDISubroutineType st
+  DebugInfoGlobalVariable gv    -> ppDIGlobalVariable gv
+  DebugInfoLexicalBlock lb      -> ppDILexicalBlock lb
+  DebugInfoLocalVariable lv     -> ppDILocalVariable lv
+  DebugInfoSubprogram sp        -> ppDISubprogram sp
+  DebugInfoSubrange sr          -> ppDISubrange sr
+  DebugInfoCompositeType ct     -> ppDICompositeType ct
+  DebugInfoCompileUnit cu       -> ppDICompileUnit cu
+  DebugInfoExpression e         -> ppDIExpression e
+  DebugInfoLexicalBlockFile lbf -> ppDILexicalBlockFile lbf
 
 ppDIFile :: DIFile -> Doc
 ppDIFile f = "!DIFile"
@@ -737,6 +738,14 @@ ppDICompileUnit cu = "!DICompileUnit"
 ppDIExpression :: DIExpression -> Doc
 ppDIExpression e = "!DIExpression"
   <> parens (commas (map integral (dieElements e)))
+
+ppDILexicalBlockFile :: DILexicalBlockFile -> Doc
+ppDILexicalBlockFile lbf = "!DILexicalBlockFile"
+  <> parens (mcommas
+       [ pure ("scope:"         <+> ppValMd (dilbfScope lbf))
+       ,     (("file:"          <+>) . ppValMd) <$> (dilbfFile lbf)
+       , pure ("discriminator:" <+> integral (dilbfDiscriminator lbf))
+       ])
 
 ppTypedValMd :: ValMd -> Doc
 ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)

@@ -167,6 +167,8 @@ instance HasLabel DebugInfo' where
     DebugInfoLexicalBlock dilb   -> DebugInfoLexicalBlock <$> relabel f dilb
     DebugInfoCompileUnit dicu    -> DebugInfoCompileUnit <$> relabel f dicu
     DebugInfoExpression die      -> pure (DebugInfoExpression die)
+    DebugInfoLexicalBlockFile dilbf ->
+      DebugInfoLexicalBlockFile <$> relabel f dilbf
 
 instance HasLabel DIDerivedType' where
   relabel f didt = DIDerivedType
@@ -272,6 +274,12 @@ instance HasLabel DICompileUnit' where
     <*> traverse (relabel f) (dicuImports dicu)
     <*> traverse (relabel f) (dicuMacros dicu)
     <*> pure (dicuDWOId dicu)
+
+instance HasLabel DILexicalBlockFile' where
+  relabel f dilbf = DILexicalBlockFile
+    <$> relabel f (dilbfScope dilbf)
+    <*> traverse (relabel f) (dilbfFile dilbf)
+    <*> pure (dilbfDiscriminator dilbf)
 
 instance HasLabel ConstExpr' where
   relabel f (ConstGEP inb is)   = ConstGEP inb

@@ -878,6 +878,7 @@ data DebugInfo' lab
   | DebugInfoLexicalBlock (DILexicalBlock' lab)
   | DebugInfoCompileUnit (DICompileUnit' lab)
   | DebugInfoExpression DIExpression
+  | DebugInfoLexicalBlockFile (DILexicalBlockFile' lab)
   deriving (Show,Functor)
 
 type DebugInfo = DebugInfo' BlockLabel
@@ -1063,6 +1064,15 @@ data DIExpression = DIExpression
   { dieElements :: [Word64]
   }
   deriving (Show)
+
+data DILexicalBlockFile' lab = DILexicalBlockFile
+  { dilbfScope         :: ValMd' lab
+  , dilbfFile          :: Maybe (ValMd' lab)
+  , dilbfDiscriminator :: Word32
+  }
+  deriving (Show,Functor)
+
+type DILexicalBlockFile = DILexicalBlockFile' BlockLabel
 
 isConst :: Value' lab -> Bool
 isConst ValInteger{}   = True
