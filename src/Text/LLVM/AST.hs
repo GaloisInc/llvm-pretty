@@ -667,11 +667,11 @@ data Instr' lab
          * Returns a value of type matching the pointer. -}
 
   | Store (Typed (Value' lab)) (Typed (Value' lab)) (Maybe Align)
-    {- ^ * Write a value ot memory:
+    {- ^ * Write a value to memory:
              value to store;
              pointer to location where to store;
              assumptions about the alignment of the given pointer.
-         * Middle olf basic block.
+         * Middle of basic block.
          * Effect. -}
 
   | ICmp ICmpOp (Typed (Value' lab)) (Value' lab)
@@ -916,6 +916,8 @@ data ConstExpr' lab
   | ConstConv ConvOp (Typed (Value' lab)) Type
   | ConstSelect (Typed (Value' lab)) (Typed (Value' lab)) (Typed (Value' lab))
   | ConstBlockAddr Symbol lab
+  | ConstFCmp FCmpOp (Typed (Value' lab)) (Typed (Value' lab))
+  | ConstICmp ICmpOp (Typed (Value' lab)) (Typed (Value' lab))
     deriving (Show,Functor)
 
 type ConstExpr = ConstExpr' BlockLabel

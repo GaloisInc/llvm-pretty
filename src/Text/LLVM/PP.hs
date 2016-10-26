@@ -619,6 +619,12 @@ ppConstExpr (ConstSelect c l r) = "select" <+> parens
 ppConstExpr (ConstBlockAddr t l)= "blockaddress" <+> parens
                                  (ppSymbol t <> comma <+> ppLabel l)
 
+ppConstExpr (ConstFCmp op a b)  = "fcmp" <+> ppFCmpOp op <+> parens
+                                 (ppTyped ppValue a <> comma <+> ppTyped ppValue b)
+
+ppConstExpr (ConstICmp op a b)  = "icmp" <+> ppICmpOp op <+> parens
+                                 (ppTyped ppValue a <> comma <+> ppTyped ppValue b)
+
 -- DWARF Debug Info ------------------------------------------------------------
 
 ppDebugInfo :: DebugInfo -> Doc

@@ -305,3 +305,11 @@ instance HasLabel ConstExpr' where
                               <*> traverse (relabel f) r
   relabel f (ConstBlockAddr t l)= ConstBlockAddr t
                               <$> f (Just t) l
+
+  relabel f (ConstFCmp op l r)  = ConstFCmp op
+                              <$> traverse (relabel f) l
+                              <*> traverse (relabel f) r
+
+  relabel f (ConstICmp op l r)  = ConstICmp op
+                              <$> traverse (relabel f) l
+                              <*> traverse (relabel f) r
