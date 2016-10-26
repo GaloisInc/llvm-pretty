@@ -395,13 +395,13 @@ decFunType Declare { .. } = PtrTo (FunTy decRetType decArgs decVarArgs)
 -- Function Definitions --------------------------------------------------------
 
 data Define = Define
-  { defAttrs   :: FunAttrs
-  , defRetType :: Type
-  , defName    :: Symbol
-  , defArgs    :: [Typed Ident]
-  , defVarArgs :: Bool
-  , defSection :: Maybe String
-  , defBody    :: [BasicBlock]
+  { defAttrs    :: FunAttrs
+  , defRetType  :: Type
+  , defName     :: Symbol
+  , defArgs     :: [Typed Ident]
+  , defVarArgs  :: Bool
+  , defSection  :: Maybe String
+  , defBody     :: [BasicBlock]
   , defMetadata :: FnMdAttachments
   } deriving (Show)
 

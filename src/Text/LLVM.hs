@@ -257,13 +257,14 @@ define :: DefineArgs sig k => FunAttrs -> Type -> Symbol -> sig -> k
 define attrs rty fun sig k = do
   (args,body) <- defineBody [] sig k
   emitDefine Define
-    { defAttrs   = attrs
-    , defName    = fun
-    , defRetType = rty
-    , defArgs    = args
-    , defVarArgs = False
-    , defBody    = body
-    , defSection = Nothing
+    { defAttrs    = attrs
+    , defName     = fun
+    , defRetType  = rty
+    , defArgs     = args
+    , defVarArgs  = False
+    , defBody     = body
+    , defSection  = Nothing
+    , defMetadata = Map.empty
     }
 
 -- | A combination of define and @freshSymbol@.
@@ -281,13 +282,14 @@ define' :: FunAttrs -> Type -> Symbol -> [Type] -> Bool
 define' attrs rty sym sig va k = do
   args <- mapM freshArg sig
   emitDefine Define
-    { defAttrs   = attrs
-    , defName    = sym
-    , defRetType = rty
-    , defArgs    = args
-    , defVarArgs = va
-    , defBody    = snd (runBB (k (map (fmap toValue) args)))
-    , defSection = Nothing
+    { defAttrs    = attrs
+    , defName     = sym
+    , defRetType  = rty
+    , defArgs     = args
+    , defVarArgs  = va
+    , defBody     = snd (runBB (k (map (fmap toValue) args)))
+    , defSection  = Nothing
+    , defMetadata = Map.empty
     }
 
 -- Basic Block Monad -----------------------------------------------------------
