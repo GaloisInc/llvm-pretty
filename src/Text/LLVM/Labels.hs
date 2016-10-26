@@ -137,12 +137,12 @@ instance HasLabel Value' where
 
 instance HasLabel ValMd' where
   relabel f md = case md of
-    ValMdString str -> pure (ValMdString str)
-    ValMdValue tv   -> ValMdValue <$> traverse (relabel f) tv
-    ValMdRef i      -> pure (ValMdRef i)
-    ValMdNode es    -> ValMdNode <$> traverse (traverse (relabel f)) es
-    ValMdLoc dl     -> ValMdLoc <$> relabel f dl
-    ValMdFile df    -> pure (ValMdFile df)
+    ValMdString str    -> pure (ValMdString str)
+    ValMdValue tv      -> ValMdValue <$> traverse (relabel f) tv
+    ValMdRef i         -> pure (ValMdRef i)
+    ValMdNode es       -> ValMdNode <$> traverse (traverse (relabel f)) es
+    ValMdLoc dl        -> ValMdLoc <$> relabel f dl
+    ValMdDebugInfo di  -> ValMdDebugInfo <$> relabel f di
 
 instance HasLabel DebugLoc' where
   relabel f dl = upd <$> relabel f (dlScope dl)
@@ -152,6 +152,126 @@ instance HasLabel DebugLoc' where
       { dlScope = scope
       , dlIA    = ia
       }
+
+instance HasLabel DebugInfo' where
+  relabel f di = case di of
+    DebugInfoFile dif            -> pure (DebugInfoFile dif)
+    DebugInfoBasicType dibt      -> pure (DebugInfoBasicType dibt)
+    DebugInfoDerivedType didt    -> DebugInfoDerivedType <$> relabel f didt
+    DebugInfoSubroutineType dist -> DebugInfoSubroutineType <$> relabel f dist
+    DebugInfoGlobalVariable digv -> DebugInfoGlobalVariable <$> relabel f digv
+    DebugInfoLocalVariable dilv  -> DebugInfoLocalVariable <$> relabel f dilv
+    DebugInfoSubprogram disp     -> DebugInfoSubprogram <$> relabel f disp
+    DebugInfoSubrange disr       -> pure (DebugInfoSubrange disr)
+    DebugInfoCompositeType dict  -> DebugInfoCompositeType <$> relabel f dict
+    DebugInfoLexicalBlock dilb   -> DebugInfoLexicalBlock <$> relabel f dilb
+    DebugInfoCompileUnit dicu    -> DebugInfoCompileUnit <$> relabel f dicu
+    DebugInfoExpression die      -> pure (DebugInfoExpression die)
+
+instance HasLabel DIDerivedType' where
+  relabel f didt = DIDerivedType
+    <$> pure (didtTag didt)
+    <*> pure (didtName didt)
+    <*> traverse (relabel f) (didtFile didt)
+    <*> pure (didtLine didt)
+    <*> traverse (relabel f) (didtScope didt)
+    <*> traverse (relabel f) (didtBaseType didt)
+    <*> pure (didtSize didt)
+    <*> pure (didtAlign didt)
+    <*> pure (didtOffset didt)
+    <*> pure (didtFlags didt)
+    <*> traverse (relabel f) (didtExtraData didt)
+
+instance HasLabel DISubroutineType' where
+  relabel f dist = DISubroutineType
+    <$> pure (distFlags dist)
+    <*> traverse (relabel f) (distTypeArray dist)
+
+instance HasLabel DIGlobalVariable' where
+  relabel f digv = DIGlobalVariable
+    <$> traverse (relabel f) (digvScope digv)
+    <*> pure (digvName digv)
+    <*> pure (digvLinkageName digv)
+    <*> traverse (relabel f) (digvFile digv)
+    <*> pure (digvLine digv)
+    <*> traverse (relabel f) (digvType digv)
+    <*> pure (digvIsLocal digv)
+    <*> pure (digvIsDefinition digv)
+    <*> traverse (relabel f) (digvVariable digv)
+    <*> traverse (relabel f) (digvDeclaration digv)
+
+instance HasLabel DILocalVariable' where
+  relabel f dilv = DILocalVariable
+    <$> traverse (relabel f) (dilvScope dilv)
+    <*> pure (dilvName dilv)
+    <*> traverse (relabel f) (dilvFile dilv)
+    <*> pure (dilvLine dilv)
+    <*> traverse (relabel f) (dilvType dilv)
+    <*> pure (dilvArg dilv)
+    <*> pure (dilvFlags dilv)
+
+instance HasLabel DISubprogram' where
+  relabel f disp = DISubprogram
+    <$> traverse (relabel f) (dispScope disp)
+    <*> pure (dispName disp)
+    <*> pure (dispLinkageName disp)
+    <*> traverse (relabel f) (dispFile disp)
+    <*> pure (dispLine disp)
+    <*> traverse (relabel f) (dispType disp)
+    <*> pure (dispIsLocal disp)
+    <*> pure (dispIsDefinition disp)
+    <*> pure (dispScopeLine disp)
+    <*> traverse (relabel f) (dispContainingType disp)
+    <*> pure (dispVirtuality disp)
+    <*> pure (dispVirtualIndex disp)
+    <*> pure (dispFlags disp)
+    <*> pure (dispIsOptimized disp)
+    <*> traverse (relabel f) (dispTemplateParams disp)
+    <*> traverse (relabel f) (dispDeclaration disp)
+    <*> traverse (relabel f) (dispVariables disp)
+
+instance HasLabel DICompositeType' where
+  relabel f dict = DICompositeType
+    <$> pure (dictTag dict)
+    <*> pure (dictName dict)
+    <*> traverse (relabel f) (dictFile dict)
+    <*> pure (dictLine dict)
+    <*> traverse (relabel f) (dictScope dict)
+    <*> traverse (relabel f) (dictBaseType dict)
+    <*> pure (dictSize dict)
+    <*> pure (dictAlign dict)
+    <*> pure (dictOffset dict)
+    <*> pure (dictFlags dict)
+    <*> traverse (relabel f) (dictElements dict)
+    <*> pure (dictRuntimeLang dict)
+    <*> traverse (relabel f) (dictVTableHolder dict)
+    <*> traverse (relabel f) (dictTemplateParams dict)
+    <*> pure (dictIdentifier dict)
+
+instance HasLabel DILexicalBlock' where
+  relabel f dilb = DILexicalBlock
+    <$> traverse (relabel f) (dilbScope dilb)
+    <*> traverse (relabel f) (dilbFile dilb)
+    <*> pure (dilbLine dilb)
+    <*> pure (dilbColumn dilb)
+
+instance HasLabel DICompileUnit' where
+  relabel f dicu = DICompileUnit
+    <$> pure (dicuLanguage dicu)
+    <*> traverse (relabel f) (dicuFile dicu)
+    <*> pure (dicuProducer dicu)
+    <*> pure (dicuIsOptimized dicu)
+    <*> pure (dicuFlags dicu)
+    <*> pure (dicuRuntimeVersion dicu)
+    <*> pure (dicuSplitDebugFilename dicu)
+    <*> pure (dicuEmissionKind dicu)
+    <*> traverse (relabel f) (dicuEnums dicu)
+    <*> traverse (relabel f) (dicuRetainedTypes dicu)
+    <*> traverse (relabel f) (dicuSubprograms dicu)
+    <*> traverse (relabel f) (dicuGlobals dicu)
+    <*> traverse (relabel f) (dicuImports dicu)
+    <*> traverse (relabel f) (dicuMacros dicu)
+    <*> pure (dicuDWOId dicu)
 
 instance HasLabel ConstExpr' where
   relabel f (ConstGEP inb is)   = ConstGEP inb

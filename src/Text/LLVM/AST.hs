@@ -13,9 +13,10 @@ module Text.LLVM.AST where
 import Text.LLVM.Util (breaks,uncons)
 
 import Control.Monad (MonadPlus(mzero),(<=<),msum,guard,liftM,liftM3)
-import Data.Int (Int32)
+import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
 import Data.String (IsString(fromString))
+import Data.Word (Word8,Word16,Word32,Word64)
 
 #if !(MIN_VERSION_base(4,8,0))
 import Control.Applicative ((<$))
@@ -845,24 +846,233 @@ data ValMd' lab
   | ValMdRef Int
   | ValMdNode [Maybe (ValMd' lab)]
   | ValMdLoc (DebugLoc' lab)
-  | ValMdFile DebugFile
+  | ValMdDebugInfo (DebugInfo' lab)
     deriving (Show,Functor)
 
 type ValMd = ValMd' BlockLabel
 
 data DebugLoc' lab = DebugLoc
-  { dlLine  :: Int32
-  , dlCol   :: Int32
+  { dlLine  :: Word32
+  , dlCol   :: Word32
   , dlScope :: ValMd' lab
   , dlIA    :: Maybe (ValMd' lab)
   } deriving (Show,Functor)
 
 type DebugLoc = DebugLoc' BlockLabel
 
-data DebugFile = DebugFile
-  { dfFilename  :: FilePath
-  , dfDirectory :: FilePath
+data DebugInfo' lab
+  = DebugInfoFile DIFile
+  | DebugInfoBasicType DIBasicType
+  | DebugInfoDerivedType (DIDerivedType' lab)
+  | DebugInfoSubroutineType (DISubroutineType' lab)
+  | DebugInfoGlobalVariable (DIGlobalVariable' lab)
+  | DebugInfoLocalVariable (DILocalVariable' lab)
+  | DebugInfoSubprogram (DISubprogram' lab)
+  | DebugInfoSubrange DISubrange
+  | DebugInfoCompositeType (DICompositeType' lab)
+  | DebugInfoLexicalBlock (DILexicalBlock' lab)
+  | DebugInfoCompileUnit (DICompileUnit' lab)
+  | DebugInfoExpression DIExpression
+  deriving (Show,Functor)
+
+type DebugInfo = DebugInfo' BlockLabel
+
+data DIFile = DIFile
+  { difFilename  :: FilePath
+  , difDirectory :: FilePath
   } deriving (Show)
+
+-- | See
+-- https://github.com/llvm-mirror/llvm/blob/93e6e5414ded14bcbb233baaaa5567132fee9a0c/include/llvm/Support/Dwarf.def
+-- TODO: Turn this into a sum type
+type DwarfTag = Word16
+
+-- | See
+-- https://github.com/llvm-mirror/llvm/blob/93e6e5414ded14bcbb233baaaa5567132fee9a0c/include/llvm/Support/Dwarf.def
+-- TODO: Turn this into a sum type
+type DwarfAttrEncoding = Word8
+
+data DIBasicType = DIBasicType
+  { dibtTag :: DwarfTag
+  , dibtName :: String
+  , dibtSize :: Word64
+  , dibtAlign :: Word64
+  , dibtEncoding :: DwarfAttrEncoding
+  } deriving (Show)
+
+-- | See https://github.com/llvm-mirror/llvm/blob/e69c459a6e9756ca1ff3acb1dcfc434843aee80f/include/llvm/IR/DebugInfoMetadata.h#L175
+-- TODO: Turn this into a sum type
+type DIFlags = Word32
+
+data DIDerivedType' lab = DIDerivedType
+  { didtTag :: DwarfTag
+  , didtName :: Maybe String
+  , didtFile :: Maybe (ValMd' lab)
+  , didtLine :: Word32
+  , didtScope :: Maybe (ValMd' lab)
+  , didtBaseType :: Maybe (ValMd' lab)
+  , didtSize :: Word64
+  , didtAlign :: Word64
+  , didtOffset :: Word64
+  , didtFlags :: DIFlags
+  , didtExtraData :: Maybe (ValMd' lab)
+  }
+  deriving (Show,Functor)
+
+type DIDerivedType = DIDerivedType' BlockLabel
+
+data DISubroutineType' lab = DISubroutineType
+  { distFlags :: DIFlags
+  , distTypeArray :: Maybe (ValMd' lab)
+  }
+  deriving (Show,Functor)
+
+type DISubroutineType = DISubroutineType' BlockLabel
+
+data DILocalVariable' lab = DILocalVariable
+  { dilvScope :: Maybe (ValMd' lab)
+  , dilvName :: Maybe String
+  , dilvFile :: Maybe (ValMd' lab)
+  , dilvLine :: Word32
+  , dilvType :: Maybe (ValMd' lab)
+  , dilvArg :: Word16
+  , dilvFlags :: DIFlags
+  }
+  deriving (Show,Functor)
+
+type DILocalVariable = DILocalVariable' BlockLabel
+
+-- | See
+-- https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/Support/Dwarf.def#L343
+-- TODO: Turn this into a sum type
+type DwarfVirtuality = Word8
+
+data DISubprogram' lab = DISubprogram
+  { dispScope          :: Maybe (ValMd' lab)
+  , dispName           :: Maybe String
+  , dispLinkageName    :: Maybe String
+  , dispFile           :: Maybe (ValMd' lab)
+  , dispLine           :: Word32
+  , dispType           :: Maybe (ValMd' lab)
+  , dispIsLocal        :: Bool
+  , dispIsDefinition   :: Bool
+  , dispScopeLine      :: Word32
+  , dispContainingType :: Maybe (ValMd' lab)
+  , dispVirtuality     :: DwarfVirtuality
+  , dispVirtualIndex   :: Word32
+  , dispFlags          :: DIFlags
+  , dispIsOptimized    :: Bool
+  , dispTemplateParams :: Maybe (ValMd' lab)
+  , dispDeclaration    :: Maybe (ValMd' lab)
+  , dispVariables      :: Maybe (ValMd' lab)
+  }
+  deriving (Show,Functor)
+
+type DISubprogram = DISubprogram' BlockLabel
+
+data DISubrange = DISubrange
+  { disrCount :: Int64
+  , disrLowerBound :: Int64
+  }
+  deriving (Show)
+
+-- | See
+-- https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/Support/Dwarf.def#L284
+-- TODO: Turn this into a sum type
+type DwarfLang = Word16
+
+data DICompositeType' lab = DICompositeType
+  { dictTag            :: DwarfTag
+  , dictName           :: Maybe String
+  , dictFile           :: Maybe (ValMd' lab)
+  , dictLine           :: Word32
+  , dictScope          :: Maybe (ValMd' lab)
+  , dictBaseType       :: Maybe (ValMd' lab)
+  , dictSize           :: Word64
+  , dictAlign          :: Word64
+  , dictOffset         :: Word64
+  , dictFlags          :: DIFlags
+  , dictElements       :: Maybe (ValMd' lab)
+  , dictRuntimeLang    :: DwarfLang
+  , dictVTableHolder   :: Maybe (ValMd' lab)
+  , dictTemplateParams :: Maybe (ValMd' lab)
+  , dictIdentifier     :: Maybe String
+  }
+  deriving (Show,Functor)
+
+type DICompositeType = DICompositeType' BlockLabel
+
+data DIGlobalVariable' lab = DIGlobalVariable
+  { digvScope                :: Maybe (ValMd' lab)
+  , digvName                 :: Maybe String
+  , digvLinkageName          :: Maybe String
+  , digvFile                 :: Maybe (ValMd' lab)
+  , digvLine                 :: Word32
+  , digvType                 :: Maybe (ValMd' lab)
+  , digvIsLocal              :: Bool
+  , digvIsDefinition         :: Bool
+  , digvVariable             :: Maybe (ValMd' lab)
+  , digvDeclaration          :: Maybe (ValMd' lab)
+  }
+  deriving (Show,Functor)
+
+type DIGlobalVariable = DIGlobalVariable' BlockLabel
+
+data DILexicalBlock' lab = DILexicalBlock
+  { dilbScope  :: Maybe (ValMd' lab)
+  , dilbFile   :: Maybe (ValMd' lab)
+  , dilbLine   :: Word32
+  , dilbColumn :: Word16
+  }
+  deriving (Show,Functor)
+
+type DILexicalBlock = DILexicalBlock' BlockLabel
+
+{-
+  DEFINE_MDNODE_GET_DISTINCT_TEMPORARY(
+      DICompileUnit,
+      (unsigned SourceLanguage, DIFile *File, StringRef Producer,
+       bool IsOptimized, StringRef Flags, unsigned RuntimeVersion,
+       StringRef SplitDebugFilename, unsigned EmissionKind,
+       DICompositeTypeArray EnumTypes, DITypeArray RetainedTypes,
+       DISubprogramArray Subprograms, DIGlobalVariableArray GlobalVariables,
+       DIImportedEntityArray ImportedEntities, DIMacroNodeArray Macros,
+       uint64_t DWOId),
+      (SourceLanguage, File, Producer, IsOptimized, Flags, RuntimeVersion,
+       SplitDebugFilename, EmissionKind, EnumTypes, RetainedTypes, Subprograms,
+       GlobalVariables, ImportedEntities, Macros, DWOId))
+-}
+
+-- | This seems to be defined internally as a small enum, and defined
+-- differently across versions. Maybe turn this into a sum type once
+-- it stabilizes.
+type DIEmissionKind = Word8
+
+data DICompileUnit' lab = DICompileUnit
+  { dicuLanguage           :: DwarfLang
+  , dicuFile               :: Maybe (ValMd' lab)
+  , dicuProducer           :: Maybe String
+  , dicuIsOptimized        :: Bool
+  , dicuFlags              :: DIFlags
+  , dicuRuntimeVersion     :: Word16
+  , dicuSplitDebugFilename :: Maybe FilePath
+  , dicuEmissionKind       :: DIEmissionKind
+  , dicuEnums              :: Maybe (ValMd' lab)
+  , dicuRetainedTypes      :: Maybe (ValMd' lab)
+  , dicuSubprograms        :: Maybe (ValMd' lab)
+  , dicuGlobals            :: Maybe (ValMd' lab)
+  , dicuImports            :: Maybe (ValMd' lab)
+  , dicuMacros             :: Maybe (ValMd' lab)
+  , dicuDWOId              :: Word64
+  }
+  deriving (Show,Functor)
+
+type DICompileUnit = DICompileUnit' BlockLabel
+
+data DIExpression = DIExpression
+  { dieElements :: [Word64]
+  }
+  deriving (Show)
 
 isConst :: Value' lab -> Bool
 isConst ValInteger{}   = True

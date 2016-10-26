@@ -1,5 +1,6 @@
-{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 
 -- |
@@ -18,9 +19,8 @@ module Text.LLVM.PP where
 import Text.LLVM.AST
 
 import Data.Char (isAscii,isPrint,ord,toUpper)
-import Data.Int (Int32)
 import Data.List (intersperse)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes,fromMaybe)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
 
@@ -92,7 +92,7 @@ ppUnnamedMd um =
   sep [ ppMetadata (int (umIndex um)) <+> char '='
       , distinct <+> ppMetadataNode (umValues um) ]
   where
-  distinct | umDistinct um = text "distinct"
+  distinct | umDistinct um = "distinct"
            | otherwise     = empty
 
 
@@ -112,14 +112,14 @@ ppGlobalAlias g = ppSymbol (aliasName g) <+> char '=' <+> body
 -- | Pretty print a data layout specification.
 ppDataLayout :: DataLayout -> Doc
 ppDataLayout [] = empty
-ppDataLayout ls = text "target" <+> text "datalayout" <+> char '='
+ppDataLayout ls = "target" <+> "datalayout" <+> char '='
     <+> doubleQuotes (hcat (intersperse (char '-') (map ppLayoutSpec ls)))
 
 -- | Pretty print a single layout specification.
 ppLayoutSpec :: LayoutSpec -> Doc
 ppLayoutSpec  BigEndian                  = char 'E'
 ppLayoutSpec  LittleEndian               = char 'e'
-ppLayoutSpec (PointerSize   sz abi pref) = text "p:" <> ppLayoutBody sz abi pref
+ppLayoutSpec (PointerSize   sz abi pref) =      "p:" <> ppLayoutBody sz abi pref
 ppLayoutSpec (IntegerSize   sz abi pref) = char 'i'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (VectorSize    sz abi pref) = char 'v'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (FloatSize     sz abi pref) = char 'f'  <> ppLayoutBody sz abi pref
@@ -150,7 +150,7 @@ ppMangling WindowsCoffMangling = char 'w'
 ppInlineAsm :: InlineAsm -> Doc
 ppInlineAsm  = foldr ($+$) empty . map ppLine
   where
-  ppLine l = text "module asm" <+> doubleQuotes (text l)
+  ppLine l = "module asm" <+> doubleQuotes (text l)
 
 
 -- Identifiers -----------------------------------------------------------------
@@ -168,35 +168,35 @@ ppSymbol (Symbol n) = char '@' <> text n
 -- Types -----------------------------------------------------------------------
 
 ppPrimType :: PrimType -> Doc
-ppPrimType Label          = text "label"
-ppPrimType Void           = text "void"
+ppPrimType Label          = "label"
+ppPrimType Void           = "void"
 ppPrimType (Integer i)    = char 'i' <> integer (toInteger i)
 ppPrimType (FloatType ft) = ppFloatType ft
-ppPrimType X86mmx         = text "x86mmx"
-ppPrimType Metadata       = text "metadata"
+ppPrimType X86mmx         = "x86mmx"
+ppPrimType Metadata       = "metadata"
 
 ppFloatType :: FloatType -> Doc
-ppFloatType Half      = text "half"
-ppFloatType Float     = text "float"
-ppFloatType Double    = text "double"
-ppFloatType Fp128     = text "fp128"
-ppFloatType X86_fp80  = text "x86_fp80"
-ppFloatType PPC_fp128 = text "ppc_fp128"
+ppFloatType Half      = "half"
+ppFloatType Float     = "float"
+ppFloatType Double    = "double"
+ppFloatType Fp128     = "fp128"
+ppFloatType X86_fp80  = "x86_fp80"
+ppFloatType PPC_fp128 = "ppc_fp128"
 
 ppType :: Type -> Doc
 ppType (PrimType pt)     = ppPrimType pt
 ppType (Alias i)         = ppIdent i
-ppType (Array len ty)    = brackets (int32 len <+> char 'x' <+> ppType ty)
+ppType (Array len ty)    = brackets (integral len <+> char 'x' <+> ppType ty)
 ppType (PtrTo ty)        = ppType ty <> char '*'
 ppType (Struct ts)       = structBraces (commas (map ppType ts))
 ppType (PackedStruct ts) = angles (structBraces (commas (map ppType ts)))
 ppType (FunTy r as va)   = ppType r <> ppArgList va (map ppType as)
-ppType (Vector len pt)   = angles (int32 len <+> char 'x' <+> ppType pt)
-ppType Opaque            = text "opaque"
+ppType (Vector len pt)   = angles (integral len <+> char 'x' <+> ppType pt)
+ppType Opaque            = "opaque"
 
 ppTypeDecl :: TypeDecl -> Doc
 ppTypeDecl td = ppIdent (typeName td) <+> char '='
-            <+> text "type" <+> ppType (typeValue td)
+            <+> "type" <+> ppType (typeValue td)
 
 
 -- Declarations ----------------------------------------------------------------
@@ -210,25 +210,25 @@ ppGlobal g = ppSymbol (globalSym g) <+> char '='
 ppGlobalAttrs :: GlobalAttrs -> Doc
 ppGlobalAttrs ga = ppMaybe ppLinkage (gaLinkage ga) <+> constant
   where
-  constant | gaConstant ga = text "constant"
-           | otherwise     = text "global"
+  constant | gaConstant ga = "constant"
+           | otherwise     = "global"
 
 
 ppDeclare :: Declare -> Doc
-ppDeclare d = text "declare"
+ppDeclare d = "declare"
           <+> ppType (decRetType d)
           <+> ppSymbol (decName d)
            <> ppArgList (decVarArgs d) (map ppType (decArgs d))
 
 
 ppDefine :: LLVM => Define -> Doc
-ppDefine d = text "define"
+ppDefine d = "define"
          <+> ppMaybe ppLinkage (funLinkage (defAttrs d))
          <+> ppType (defRetType d)
          <+> ppSymbol (defName d)
           <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
-         <+> ppMaybe (\s  -> text "section" <+> doubleQuotes (text s)) (defSection d)
-         <+> ppMaybe (\gc -> text "gc" <+> ppGC gc) (funGC (defAttrs d))
+         <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
+         <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (funGC (defAttrs d))
          <+> char '{'
          $+$ vcat (map ppBasicBlock (defBody d))
          $+$ char '}'
@@ -238,7 +238,7 @@ ppDefine d = text "define"
 
 ppLabelDef :: BlockLabel -> Doc
 ppLabelDef (Named (Ident l)) = text l <> char ':'
-ppLabelDef (Anon i)          = char ';' <+> text "<label>:" <+> int i
+ppLabelDef (Anon i)          = char ';' <+> "<label>:" <+> int i
 
 ppLabel :: BlockLabel -> Doc
 ppLabel (Named l) = ppIdent l
@@ -269,22 +269,22 @@ ppAttachedMetadata mds
 
 ppLinkage :: Linkage -> Doc
 ppLinkage linkage = case linkage of
-  Private                  -> text "private"
-  LinkerPrivate            -> text "linker_private"
-  LinkerPrivateWeak        -> text "linker_private_weak"
-  LinkerPrivateWeakDefAuto -> text "linker_private_weak_def_auto"
-  Internal                 -> text "internal"
-  AvailableExternally      -> text "available_externally"
-  Linkonce                 -> text "linkonce"
-  Weak                     -> text "weak"
-  Common                   -> text "common"
-  Appending                -> text "appending"
-  ExternWeak               -> text "extern_weak"
-  LinkonceODR              -> text "linkonce_ddr"
-  WeakODR                  -> text "weak_odr"
-  External                 -> text "external"
-  DLLImport                -> text "dllimport"
-  DLLExport                -> text "dllexport"
+  Private                  -> "private"
+  LinkerPrivate            -> "linker_private"
+  LinkerPrivateWeak        -> "linker_private_weak"
+  LinkerPrivateWeakDefAuto -> "linker_private_weak_def_auto"
+  Internal                 -> "internal"
+  AvailableExternally      -> "available_externally"
+  Linkonce                 -> "linkonce"
+  Weak                     -> "weak"
+  Common                   -> "common"
+  Appending                -> "appending"
+  ExternWeak               -> "extern_weak"
+  LinkonceODR              -> "linkonce_ddr"
+  WeakODR                  -> "weak_odr"
+  External                 -> "external"
+  DLLImport                -> "dllimport"
+  DLLExport                -> "dllexport"
 
 ppGC :: GC -> Doc
 ppGC  = doubleQuotes . text . getGC
@@ -296,122 +296,122 @@ ppTyped :: (a -> Doc) -> Typed a -> Doc
 ppTyped fmt ty = ppType (typedType ty) <+> fmt (typedValue ty)
 
 ppSignBits :: Bool -> Bool -> Doc
-ppSignBits nuw nsw = opt nuw (text "nuw") <+> opt nsw (text "nsw")
+ppSignBits nuw nsw = opt nuw "nuw" <+> opt nsw "nsw"
 
 ppExact :: Bool -> Doc
-ppExact e = opt e (text "exact")
+ppExact e = opt e "exact"
 
 ppArithOp :: ArithOp -> Doc
-ppArithOp (Add nuw nsw) = text "add" <+> ppSignBits nuw nsw
-ppArithOp FAdd          = text "fadd"
-ppArithOp (Sub nuw nsw) = text "sub" <+> ppSignBits nuw nsw
-ppArithOp FSub          = text "fsub"
-ppArithOp (Mul nuw nsw) = text "mul" <+> ppSignBits nuw nsw
-ppArithOp FMul          = text "fmul"
-ppArithOp (UDiv e)      = text "udiv" <+> ppExact e
-ppArithOp (SDiv e)      = text "sdiv" <+> ppExact e
-ppArithOp FDiv          = text "fdiv"
-ppArithOp URem          = text "urem"
-ppArithOp SRem          = text "srem"
-ppArithOp FRem          = text "frem"
+ppArithOp (Add nuw nsw) = "add" <+> ppSignBits nuw nsw
+ppArithOp FAdd          = "fadd"
+ppArithOp (Sub nuw nsw) = "sub" <+> ppSignBits nuw nsw
+ppArithOp FSub          = "fsub"
+ppArithOp (Mul nuw nsw) = "mul" <+> ppSignBits nuw nsw
+ppArithOp FMul          = "fmul"
+ppArithOp (UDiv e)      = "udiv" <+> ppExact e
+ppArithOp (SDiv e)      = "sdiv" <+> ppExact e
+ppArithOp FDiv          = "fdiv"
+ppArithOp URem          = "urem"
+ppArithOp SRem          = "srem"
+ppArithOp FRem          = "frem"
 
 ppBitOp :: BitOp -> Doc
-ppBitOp (Shl nuw nsw) = text "shl"  <+> ppSignBits nuw nsw
-ppBitOp (Lshr e)      = text "lshr" <+> ppExact e
-ppBitOp (Ashr e)      = text "ashr" <+> ppExact e
-ppBitOp And           = text "and"
-ppBitOp Or            = text "or"
-ppBitOp Xor           = text "xor"
+ppBitOp (Shl nuw nsw) = "shl"  <+> ppSignBits nuw nsw
+ppBitOp (Lshr e)      = "lshr" <+> ppExact e
+ppBitOp (Ashr e)      = "ashr" <+> ppExact e
+ppBitOp And           = "and"
+ppBitOp Or            = "or"
+ppBitOp Xor           = "xor"
 
 ppConvOp :: ConvOp -> Doc
-ppConvOp Trunc    = text "trunc"
-ppConvOp ZExt     = text "zext"
-ppConvOp SExt     = text "sext"
-ppConvOp FpTrunc  = text "fptrunc"
-ppConvOp FpExt    = text "fpext"
-ppConvOp FpToUi   = text "fptoui"
-ppConvOp FpToSi   = text "fptosi"
-ppConvOp UiToFp   = text "uitofp"
-ppConvOp SiToFp   = text "sitofp"
-ppConvOp PtrToInt = text "ptrtoint"
-ppConvOp IntToPtr = text "inttoptr"
-ppConvOp BitCast  = text "bitcast"
+ppConvOp Trunc    = "trunc"
+ppConvOp ZExt     = "zext"
+ppConvOp SExt     = "sext"
+ppConvOp FpTrunc  = "fptrunc"
+ppConvOp FpExt    = "fpext"
+ppConvOp FpToUi   = "fptoui"
+ppConvOp FpToSi   = "fptosi"
+ppConvOp UiToFp   = "uitofp"
+ppConvOp SiToFp   = "sitofp"
+ppConvOp PtrToInt = "ptrtoint"
+ppConvOp IntToPtr = "inttoptr"
+ppConvOp BitCast  = "bitcast"
 
 ppInstr :: LLVM => Instr -> Doc
 ppInstr instr = case instr of
-  Ret tv                 -> text "ret" <+> ppTyped ppValue tv
-  RetVoid                -> text "ret void"
+  Ret tv                 -> "ret" <+> ppTyped ppValue tv
+  RetVoid                -> "ret void"
   Arith op l r           -> ppArithOp op <+> ppTyped ppValue l
                          <> comma <+> ppValue r
   Bit op l r             -> ppBitOp op <+> ppTyped ppValue l
                          <> comma <+> ppValue r
   Conv op a ty           -> ppConvOp op <+> ppTyped ppValue a
-                        <+> text "to" <+> ppType ty
+                        <+> "to" <+> ppType ty
   Call tc ty f args      -> ppCall tc ty f args
   Alloca ty len align    -> ppAlloca ty len align
   Load ptr ma            -> ppLoad ptr ma
-  Store a ptr ma         -> text "store" <+> ppTyped ppValue a
+  Store a ptr ma         -> "store" <+> ppTyped ppValue a
                          <> comma <+> ppTyped ppValue ptr
                          <> ppAlign ma
-  ICmp op l r            -> text "icmp" <+> ppICmpOp op
+  ICmp op l r            -> "icmp" <+> ppICmpOp op
                         <+> ppTyped ppValue l <> comma <+> ppValue r
-  FCmp op l r            -> text "fcmp" <+> ppFCmpOp op
+  FCmp op l r            -> "fcmp" <+> ppFCmpOp op
                         <+> ppTyped ppValue l <> comma <+> ppValue r
-  Phi ty vls             -> text "phi" <+> ppType ty
+  Phi ty vls             -> "phi" <+> ppType ty
                         <+> commas (map ppPhiArg vls)
-  Select c t f           -> text "select" <+> ppTyped ppValue c
+  Select c t f           -> "select" <+> ppTyped ppValue c
                          <> comma <+> ppTyped ppValue t
                          <> comma <+> ppTyped ppValue (f <$ t)
-  ExtractValue v is      -> text "extractvalue" <+> ppTyped ppValue v
-                         <> comma <+> (commas (map int32 is))
-  InsertValue a v is     -> text "insertvalue" <+> ppTyped ppValue a
+  ExtractValue v is      -> "extractvalue" <+> ppTyped ppValue v
+                         <> comma <+> (commas (map integral is))
+  InsertValue a v is     -> "insertvalue" <+> ppTyped ppValue a
                          <> comma <+> ppTyped ppValue v
-                         <> comma <+> commas (map int32 is)
-  ShuffleVector a b m    -> text "shufflevector" <+> ppTyped ppValue a
+                         <> comma <+> commas (map integral is)
+  ShuffleVector a b m    -> "shufflevector" <+> ppTyped ppValue a
                          <> comma <+> ppTyped ppValue (b <$ a)
                          <> comma <+> ppTyped ppValue m
   GEP ib ptr ixs         -> ppGEP ib ptr ixs
   Comment str            -> char ';' <+> text str
-  Jump i                 -> text "br"
+  Jump i                 -> "br"
                         <+> ppTypedLabel i
-  Br c t f               -> text "br" <+> ppTyped ppValue c
+  Br c t f               -> "br" <+> ppTyped ppValue c
                          <> comma <+> ppType (PrimType Label)
                         <+> ppLabel t
                          <> comma <+> ppType (PrimType Label)
                         <+> ppLabel f
   Invoke ty f args to uw -> ppInvoke ty f args to uw
-  Unreachable            -> text "unreachable"
-  Unwind                 -> text "unwind"
-  VaArg al t             -> text "va_arg" <+> ppTyped ppValue al
+  Unreachable            -> "unreachable"
+  Unwind                 -> "unwind"
+  VaArg al t             -> "va_arg" <+> ppTyped ppValue al
                          <> comma <+> ppType t
-  ExtractElt v i         -> text "extractelement"
+  ExtractElt v i         -> "extractelement"
                         <+> ppTyped ppValue v
                          <> comma <+> ppVectorIndex i
-  InsertElt v e i        -> text "insertelement"
+  InsertElt v e i        -> "insertelement"
                         <+> ppTyped ppValue v
                          <> comma <+> ppTyped ppValue e
                          <> comma <+> ppVectorIndex i
-  IndirectBr d ls        -> text "indirectbr"
+  IndirectBr d ls        -> "indirectbr"
                         <+> ppTyped ppValue d
                          <> comma <+> commas (map ppTypedLabel ls)
-  Switch c d ls          -> text "switch"
+  Switch c d ls          -> "switch"
                         <+> ppTyped ppValue c
                          <> comma <+> ppTypedLabel d
                         <+> char '['
                          $$ nest 2 (vcat (map (ppSwitchEntry (typedType c)) ls))
                          $$ char ']'
-  LandingPad ty fn c cs  -> text "landingpad"
+  LandingPad ty fn c cs  -> "landingpad"
                         <+> ppType ty
-                        <+> text "personality"
+                        <+> "personality"
                         <+> ppTyped ppValue fn
                          $$ nest 2 (ppClauses c cs)
-  Resume tv              -> text "resume" <+> ppTyped ppValue tv
+  Resume tv              -> "resume" <+> ppTyped ppValue tv
 
 ppLoad :: LLVM => Typed (Value' BlockLabel) -> Maybe Align -> Doc
 ppLoad ptr ma =
-  text "load" <+> (if isImplicit then empty else explicit)
-              <+> ppTyped ppValue ptr
-               <> ppAlign ma
+  "load" <+> (if isImplicit then empty else explicit)
+         <+> ppTyped ppValue ptr
+          <> ppAlign ma
 
   where
   isImplicit = checkConfig cfgLoadImplicitType
@@ -424,13 +424,13 @@ ppLoad ptr ma =
 ppClauses :: Bool -> [Clause] -> Doc
 ppClauses isCleanup cs = vcat (cleanup : map ppClause cs)
   where
-  cleanup | isCleanup = text "cleanup"
+  cleanup | isCleanup = "cleanup"
           | otherwise = empty
 
 ppClause :: Clause -> Doc
 ppClause c = case c of
-  Catch  tv -> text "catch"  <+> ppTyped ppValue tv
-  Filter tv -> text "filter" <+> ppTyped ppValue tv
+  Catch  tv -> "catch"  <+> ppTyped ppValue tv
+  Filter tv -> "filter" <+> ppTyped ppValue tv
 
 
 ppTypedLabel :: BlockLabel -> Doc
@@ -444,24 +444,24 @@ ppVectorIndex i = ppType (PrimType (Integer 32)) <+> ppValue i
 
 ppAlign :: Maybe Align -> Doc
 ppAlign Nothing      = empty
-ppAlign (Just align) = comma <+> text "align" <+> int align
+ppAlign (Just align) = comma <+> "align" <+> int align
 
 ppAlloca :: Type -> Maybe (Typed Value) -> Maybe Int -> Doc
-ppAlloca ty mbLen mbAlign = text "alloca" <+> ppType ty <> len <> align
+ppAlloca ty mbLen mbAlign = "alloca" <+> ppType ty <> len <> align
   where
   len = fromMaybe empty $ do
     l <- mbLen
     return (comma <+> ppTyped ppValue l)
   align = fromMaybe empty $ do
     a <- mbAlign
-    return (comma <+> text "align" <+> int a)
+    return (comma <+> "align" <+> int a)
 
 ppCall :: Bool -> Type -> Value -> [Typed Value] -> Doc
 ppCall tc ty f args
-  | tc        = text "tail" <+> body
+  | tc        = "tail" <+> body
   | otherwise = body
   where
-  body = text "call" <+> ppCallSym ty f
+  body = "call" <+> ppCallSym ty f
       <> parens (commas (map (ppTyped ppValue) args))
 
 ppCallSym :: Type -> Value -> Doc
@@ -469,7 +469,7 @@ ppCallSym (PtrTo (FunTy res _ _)) (ValSymbol sym) = ppType res <+> ppSymbol sym
 ppCallSym ty              val                     = ppType ty  <+> ppValue val
 
 ppGEP :: LLVM => Bool -> Typed Value -> [Typed Value] -> Doc
-ppGEP ib ptr ixs = text "getelementptr" <+> inbounds
+ppGEP ib ptr ixs = "getelementptr" <+> inbounds
                <+> (if isImplicit then empty else explicit)
                <+> commas (map (ppTyped ppValue) (ptr:ixs))
   where
@@ -480,49 +480,49 @@ ppGEP ib ptr ixs = text "getelementptr" <+> inbounds
       PtrTo ty -> ppType ty <> comma
       ty       -> ppType ty <> comma
 
-  inbounds | ib        = text "inbounds"
+  inbounds | ib        = "inbounds"
            | otherwise = empty
 
 ppInvoke :: Type -> Value -> [Typed Value] -> BlockLabel -> BlockLabel -> Doc
 ppInvoke ty f args to uw = body
   where
-  body = text "invoke" <+> ppType ty <+> ppValue f
+  body = "invoke" <+> ppType ty <+> ppValue f
       <> parens (commas (map (ppTyped ppValue) args))
-     <+> text "to" <+> ppType (PrimType Label) <+> ppLabel to
-     <+> text "unwind" <+> ppType (PrimType Label) <+> ppLabel uw
+     <+> "to" <+> ppType (PrimType Label) <+> ppLabel to
+     <+> "unwind" <+> ppType (PrimType Label) <+> ppLabel uw
 
 ppPhiArg :: (Value,BlockLabel) -> Doc
 ppPhiArg (v,l) = char '[' <+> ppValue v <> comma <+> ppLabel l <+> char ']'
 
 ppICmpOp :: ICmpOp -> Doc
-ppICmpOp Ieq  = text "eq"
-ppICmpOp Ine  = text "ne"
-ppICmpOp Iugt = text "ugt"
-ppICmpOp Iuge = text "uge"
-ppICmpOp Iult = text "ult"
-ppICmpOp Iule = text "ule"
-ppICmpOp Isgt = text "sgt"
-ppICmpOp Isge = text "sge"
-ppICmpOp Islt = text "slt"
-ppICmpOp Isle = text "sle"
+ppICmpOp Ieq  = "eq"
+ppICmpOp Ine  = "ne"
+ppICmpOp Iugt = "ugt"
+ppICmpOp Iuge = "uge"
+ppICmpOp Iult = "ult"
+ppICmpOp Iule = "ule"
+ppICmpOp Isgt = "sgt"
+ppICmpOp Isge = "sge"
+ppICmpOp Islt = "slt"
+ppICmpOp Isle = "sle"
 
 ppFCmpOp :: FCmpOp -> Doc
-ppFCmpOp Ffalse = text "false"
-ppFCmpOp Foeq   = text "oeq"
-ppFCmpOp Fogt   = text "ogt"
-ppFCmpOp Foge   = text "oge"
-ppFCmpOp Folt   = text "olt"
-ppFCmpOp Fole   = text "ole"
-ppFCmpOp Fone   = text "one"
-ppFCmpOp Ford   = text "ord"
-ppFCmpOp Fueq   = text "ueq"
-ppFCmpOp Fugt   = text "ugt"
-ppFCmpOp Fuge   = text "uge"
-ppFCmpOp Fult   = text "ult"
-ppFCmpOp Fule   = text "ule"
-ppFCmpOp Fune   = text "une"
-ppFCmpOp Funo   = text "uno"
-ppFCmpOp Ftrue  = text "true"
+ppFCmpOp Ffalse = "false"
+ppFCmpOp Foeq   = "oeq"
+ppFCmpOp Fogt   = "ogt"
+ppFCmpOp Foge   = "oge"
+ppFCmpOp Folt   = "olt"
+ppFCmpOp Fole   = "ole"
+ppFCmpOp Fone   = "one"
+ppFCmpOp Ford   = "ord"
+ppFCmpOp Fueq   = "ueq"
+ppFCmpOp Fugt   = "ugt"
+ppFCmpOp Fuge   = "uge"
+ppFCmpOp Fult   = "ult"
+ppFCmpOp Fule   = "ule"
+ppFCmpOp Fune   = "une"
+ppFCmpOp Funo   = "uno"
+ppFCmpOp Ftrue  = "true"
 
 ppValue :: Value -> Doc
 ppValue val = case val of
@@ -532,7 +532,7 @@ ppValue val = case val of
   ValDouble i        -> double i
   ValIdent i         -> ppIdent i
   ValSymbol s        -> ppSymbol s
-  ValNull            -> text "null"
+  ValNull            -> "null"
   ValArray ty es     -> brackets
                       $ commas (map (ppTyped ppValue . Typed ty) es)
   ValVector ty es   -> angles $ commas
@@ -542,38 +542,195 @@ ppValue val = case val of
                       $ structBraces (commas (map (ppTyped ppValue) fs))
   ValString s        -> char 'c' <> ppStringLiteral s
   ValConstExpr ce    -> ppConstExpr ce
-  ValUndef           -> text "undef"
+  ValUndef           -> "undef"
   ValLabel l         -> ppLabel l
-  ValZeroInit        -> text "zeroinitializer"
+  ValZeroInit        -> "zeroinitializer"
   ValAsm s a i c     -> ppAsm s a i c
   ValMd m            -> ppValMd m
 
 ppValMd :: ValMd -> Doc
 ppValMd m = case m of
-  ValMdString str -> ppMetadata (ppStringLiteral str)
-  ValMdValue tv   -> ppTyped ppValue tv
-  ValMdRef i      -> ppMetadata (int i)
-  ValMdNode vs    -> ppMetadataNode vs
-  ValMdLoc l      -> ppDebugLoc l
-  ValMdFile f     -> ppDebugFile f
+  ValMdString str   -> ppMetadata (ppStringLiteral str)
+  ValMdValue tv     -> ppTyped ppValue tv
+  ValMdRef i        -> ppMetadata (int i)
+  ValMdNode vs      -> ppMetadataNode vs
+  ValMdLoc l        -> ppDebugLoc l
+  ValMdDebugInfo di -> ppDebugInfo di
 
 ppDebugLoc :: DebugLoc -> Doc
-ppDebugLoc dl = text "!MDLocation"
-             <> parens (commas [ text "line:"    <+> int32 (dlLine dl)
-                               , text "column:"  <+> int32 (dlCol dl)
-                               , text "scope:"   <+> ppValMd (dlScope dl)
+ppDebugLoc dl = "!MDLocation"
+             <> parens (commas [ "line:"   <+> integral (dlLine dl)
+                               , "column:" <+> integral (dlCol dl)
+                               , "scope:"  <+> ppValMd (dlScope dl)
                                ] <+> mbIA)
 
   where
   mbIA = case dlIA dl of
-           Just md -> comma <+> text "inlinedAt:" <+> ppValMd md
+           Just md -> comma <+> "inlinedAt:" <+> ppValMd md
            Nothing -> empty
 
-ppDebugFile :: DebugFile -> Doc
-ppDebugFile df = text "!MDFile"
-  <> parens (commas [ text "filename:" <+> quotes (text (dfFilename df))
-                    , text "directory:" <+> quotes (text (dfDirectory df))
+ppDebugInfo :: DebugInfo -> Doc
+ppDebugInfo di = case di of
+  DebugInfoFile f            -> ppDIFile f
+  DebugInfoBasicType bt      -> ppDIBasicType bt
+  DebugInfoDerivedType dt    -> ppDIDerivedType dt
+  DebugInfoSubroutineType st -> ppDISubroutineType st
+  DebugInfoGlobalVariable gv -> ppDIGlobalVariable gv
+  DebugInfoLexicalBlock lb   -> ppDILexicalBlock lb
+  DebugInfoLocalVariable lv  -> ppDILocalVariable lv
+  DebugInfoSubprogram sp     -> ppDISubprogram sp
+  DebugInfoSubrange sr       -> ppDISubrange sr
+  DebugInfoCompositeType ct  -> ppDICompositeType ct
+  DebugInfoCompileUnit cu    -> ppDICompileUnit cu
+  DebugInfoExpression e      -> ppDIExpression e
+
+ppDIFile :: DIFile -> Doc
+ppDIFile f = "!DIFile"
+  <> parens (commas [ "filename:"  <+> quotes (text (difFilename f))
+                    , "directory:" <+> quotes (text (difDirectory f))
                     ])
+
+ppDIBasicType :: DIBasicType -> Doc
+ppDIBasicType bt = "!DIBasicType"
+  <> parens (commas [ "tag:"      <+> hex (dibtTag bt)
+                    , "name:"     <+> quotes (text (dibtName bt))
+                    , "size:"     <+> integral (dibtSize bt)
+                    , "align:"    <+> integral (dibtAlign bt)
+                    , "encoding:" <+> hex (dibtEncoding bt)
+                    ])
+
+mcommas :: [Maybe Doc] -> Doc
+mcommas = commas . catMaybes
+
+ppDIDerivedType :: DIDerivedType -> Doc
+ppDIDerivedType dt = "!DIDerivedType"
+  <> parens (mcommas
+       [ pure ("tag:"       <+> hex (didtTag dt))
+       ,     (("name:"      <+>) . quotes . text) <$> (didtName dt)
+       ,     (("file:"      <+>) . ppValMd) <$> (didtFile dt)
+       , pure ("line:"      <+> integral (didtLine dt))
+       ,     (("baseType:"  <+>) . ppValMd) <$> (didtBaseType dt)
+       , pure ("size:"      <+> integral (didtSize dt))
+       , pure ("align:"     <+> integral (didtAlign dt))
+       , pure ("offset:"    <+> integral (didtOffset dt))
+       , pure ("flags:"     <+> hex (didtFlags dt))
+       ,     (("extraData:" <+>) . ppValMd) <$> (didtExtraData dt)
+       ])
+
+ppDISubroutineType :: DISubroutineType -> Doc
+ppDISubroutineType st = "!DISubroutineType"
+  <> parens (commas
+       [ "flags:" <+> hex (distFlags st)
+       , "types:" <+> fromMaybe "null" (ppValMd <$> (distTypeArray st))
+       ])
+
+ppDIGlobalVariable :: DIGlobalVariable -> Doc
+ppDIGlobalVariable gv = "!DIGlobalVariable"
+  <> parens (mcommas
+       [      (("scope:"       <+>) . ppValMd) <$> (digvScope gv)
+       ,      (("name:"        <+>) . quotes . text) <$> (digvName gv)
+       ,      (("linkageName:" <+>) . quotes . text) <$> (digvLinkageName gv)
+       ,      (("file:"        <+>) . ppValMd) <$> (digvFile gv)
+       , pure ("line:"         <+> integral (digvLine gv))
+       ,      (("type:"        <+>) . ppValMd) <$> (digvType gv)
+       , pure ("isLocal:"      <+> ppBool (digvIsLocal gv))
+       , pure ("isDefinition:" <+> ppBool (digvIsDefinition gv))
+       ,      (("variable:"    <+>) . ppValMd) <$> (digvType gv)
+       ,      (("declaration:" <+>) . ppValMd) <$> (digvDeclaration gv)
+       ])
+
+ppDILocalVariable :: DILocalVariable -> Doc
+ppDILocalVariable lv = "!DILocalVariable"
+  <> parens (mcommas
+       [      (("scope:" <+>) . ppValMd) <$> (dilvScope lv)
+       ,      (("name:"  <+>) . quotes . text) <$> (dilvName lv)
+       ,      (("file:"  <+>) . ppValMd) <$> (dilvFile lv)
+       , pure ("line:"   <+> integral (dilvLine lv))
+       ,      (("type:"  <+>) . ppValMd) <$> (dilvType lv)
+       , pure ("arg:"    <+> integral (dilvArg lv))
+       , pure ("flags:"  <+> hex (dilvFlags lv))
+       ])
+
+ppDISubprogram :: DISubprogram -> Doc
+ppDISubprogram sp = "!DISubprogram"
+  <> parens (mcommas
+       [      (("scope:"          <+>) . ppValMd) <$> (dispScope sp)
+       ,      (("name:"           <+>) . quotes . text) <$> (dispName sp)
+       ,      (("linkageName:"    <+>) . quotes . text) <$> (dispLinkageName sp)
+       ,      (("file:"           <+>) . ppValMd) <$> (dispFile sp)
+       , pure ("line:"            <+> integral (dispLine sp))
+       ,      (("type:"           <+>) . ppValMd) <$> (dispType sp)
+       , pure ("isLocal:"         <+> ppBool (dispIsLocal sp))
+       , pure ("isDefinition:"    <+> ppBool (dispIsDefinition sp))
+       , pure ("scopeLine:"       <+> integral (dispScopeLine sp))
+       ,      (("containingType:" <+>) . ppValMd) <$> (dispContainingType sp)
+       , pure ("virtuality:"      <+> hex (dispVirtuality sp))
+       , pure ("virtualIndex:"    <+> integral (dispVirtualIndex sp))
+       , pure ("flags:"           <+> hex (dispFlags sp))
+       , pure ("isOptimized:"     <+> ppBool (dispIsOptimized sp))
+       ,      (("templateParams:" <+>) . ppValMd) <$> (dispTemplateParams sp)
+       ,      (("declaration:"    <+>) . ppValMd) <$> (dispDeclaration sp)
+       ,      (("variables:"      <+>) . ppValMd) <$> (dispVariables sp)
+       ])
+
+ppDISubrange :: DISubrange -> Doc
+ppDISubrange sr = "!DISubrange"
+  <> parens (commas [ "count:" <+> integral (disrCount sr)
+                    , "lowerBound:" <+> integral (disrLowerBound sr)
+                    ])
+
+ppDICompositeType :: DICompositeType -> Doc
+ppDICompositeType ct = "!DICompositeType"
+  <> parens (mcommas
+       [ pure ("tag:"            <+> hex (dictTag ct))
+       ,     (("name:"           <+>) . quotes . text) <$> (dictName ct)
+       ,     (("file:"           <+>) . ppValMd) <$> (dictFile ct)
+       , pure ("line:"           <+> integral (dictLine ct))
+       ,     (("baseType:"       <+>) . ppValMd) <$> (dictBaseType ct)
+       , pure ("size:"           <+> integral (dictSize ct))
+       , pure ("align:"          <+> integral (dictAlign ct))
+       , pure ("offset:"         <+> integral (dictOffset ct))
+       , pure ("flags:"          <+> hex (dictFlags ct))
+       ,     (("elements:"       <+>) . ppValMd) <$> (dictElements ct)
+       , pure ("runtimeLang:"    <+> hex (dictRuntimeLang ct))
+       ,     (("vtableHolder:"   <+>) . ppValMd) <$> (dictVTableHolder ct)
+       ,     (("templateParams:" <+>) . ppValMd) <$> (dictTemplateParams ct)
+       ,     (("identifier:"     <+>) . quotes . text) <$> (dictIdentifier ct)
+       ])
+
+ppDILexicalBlock :: DILexicalBlock -> Doc
+ppDILexicalBlock ct = "!DILexicalBlock"
+  <> parens (mcommas
+       [     (("scope:"  <+>) . ppValMd) <$> (dilbScope ct)
+       ,     (("file:"   <+>) . ppValMd) <$> (dilbFile ct)
+       , pure ("line:"   <+> integral (dilbLine ct))
+       , pure ("column:" <+> integral (dilbColumn ct))
+       ])
+
+ppDICompileUnit :: DICompileUnit -> Doc
+ppDICompileUnit cu = "!DICompileUnit"
+  <> parens (mcommas
+       [ pure ("language:"           <+> hex (dicuLanguage cu))
+       ,     (("file:"               <+>) . ppValMd) <$> (dicuFile cu)
+       ,     (("producer:"           <+>) . quotes . text) <$> (dicuProducer cu)
+       , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
+       , pure ("flags:"              <+> hex (dicuFlags cu))
+       , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
+       ,     (("splitDebugFilename:" <+>) . quotes . text)
+             <$> (dicuSplitDebugFilename cu)
+       , pure ("emissionKind:"       <+> hex (dicuEmissionKind cu))
+       ,     (("enums:"              <+>) . ppValMd) <$> (dicuEnums cu)
+       ,     (("retainedTypes:"      <+>) . ppValMd) <$> (dicuRetainedTypes cu)
+       ,     (("subprograms:"        <+>) . ppValMd) <$> (dicuSubprograms cu)
+       ,     (("globals:"            <+>) . ppValMd) <$> (dicuGlobals cu)
+       ,     (("imports:"            <+>) . ppValMd) <$> (dicuImports cu)
+       ,     (("macros:"             <+>) . ppValMd) <$> (dicuMacros cu)
+       , pure ("dwoId:"              <+> integral (dicuDWOId cu))
+       ])
+
+ppDIExpression :: DIExpression -> Doc
+ppDIExpression e = "!DIExpression"
+  <> parens (commas (map integral (dieElements e)))
 
 ppTypedValMd :: ValMd -> Doc
 ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
@@ -584,11 +741,11 @@ ppMetadata body = char '!' <> body
 ppMetadataNode :: [Maybe ValMd] -> Doc
 ppMetadataNode vs = ppMetadata (braces (commas (map arg vs)))
   where
-  arg = maybe (text "null") ppValMd
+  arg = maybe ("null") ppValMd
 
 ppBool :: Bool -> Doc
-ppBool b | b         = text "true"
-         | otherwise = text "false"
+ppBool b | b         = "true"
+         | otherwise = "false"
 
 ppStringLiteral :: String -> Doc
 ppStringLiteral  = doubleQuotes . text . concatMap escape
@@ -601,26 +758,26 @@ ppStringLiteral  = doubleQuotes . text . concatMap escape
 
 ppAsm :: Bool -> Bool -> String -> String -> Doc
 ppAsm s a i c =
-  text "asm" <+> sideeffect <+> alignstack
-             <+> ppStringLiteral i <> comma <+> ppStringLiteral c
+  "asm" <+> sideeffect <+> alignstack
+        <+> ppStringLiteral i <> comma <+> ppStringLiteral c
   where
-  sideeffect | s         = text "sideeffect"
+  sideeffect | s         = "sideeffect"
              | otherwise = empty
 
-  alignstack | a         = text "alignstack"
+  alignstack | a         = "alignstack"
              | otherwise = empty
 
 
 ppConstExpr :: ConstExpr -> Doc
-ppConstExpr (ConstGEP inb ixs)  = text "getelementptr"
-                              <+> opt inb (text "inbounds")
+ppConstExpr (ConstGEP inb ixs)  = "getelementptr"
+                              <+> opt inb "inbounds"
                               <+> parens (commas (map (ppTyped ppValue) ixs))
 ppConstExpr (ConstConv op tv t) = ppConvOp op <+> parens
-                                 (ppTyped ppValue tv <+> text "to" <+> ppType t)
-ppConstExpr (ConstSelect c l r) = text "select" <+> parens
+                                 (ppTyped ppValue tv <+> "to" <+> ppType t)
+ppConstExpr (ConstSelect c l r) = "select" <+> parens
                                  (commas [ ppTyped ppValue c, ppTyped ppValue l
                                          , ppTyped ppValue r])
-ppConstExpr (ConstBlockAddr t l)= text "blockaddress" <+> parens
+ppConstExpr (ConstBlockAddr t l)= "blockaddress" <+> parens
                                  (ppSymbol t <> comma <+> ppLabel l)
 
 
@@ -628,11 +785,14 @@ ppConstExpr (ConstBlockAddr t l)= text "blockaddress" <+> parens
 
 -- | Build a variable-argument argument list.
 ppArgList :: Bool -> [Doc] -> Doc
-ppArgList True  ds = parens (commas (ds ++ [text "..."]))
+ppArgList True  ds = parens (commas (ds ++ ["..."]))
 ppArgList False ds = parens (commas ds)
 
-int32 :: Int32 -> Doc
-int32  = int . fromIntegral
+integral :: Integral i => i -> Doc
+integral  = integer . fromIntegral
+
+hex :: (Integral i, Show i) => i -> Doc
+hex i = text (showHex i "0x")
 
 opt :: Bool -> Doc -> Doc
 opt True  = id
