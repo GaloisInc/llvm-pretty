@@ -81,7 +81,7 @@ data NamedMd = NamedMd
 
 data UnnamedMd = UnnamedMd
   { umIndex  :: !Int
-  , umValues :: [Maybe ValMd]
+  , umValues :: ValMd
   , umDistinct :: Bool
   } deriving (Show)
 

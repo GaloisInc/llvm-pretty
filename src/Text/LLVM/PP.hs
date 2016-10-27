@@ -91,7 +91,7 @@ ppNamedMd nm =
 ppUnnamedMd :: UnnamedMd -> Doc
 ppUnnamedMd um =
   sep [ ppMetadata (int (umIndex um)) <+> char '='
-      , distinct <+> ppMetadataNode (umValues um) ]
+      , distinct <+> ppValMd (umValues um) ]
   where
   distinct | umDistinct um = "distinct"
            | otherwise     = empty
