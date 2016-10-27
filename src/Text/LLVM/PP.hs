@@ -126,7 +126,8 @@ ppLayoutSpec (VectorSize    sz abi pref) = char 'v'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (FloatSize     sz abi pref) = char 'f'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (AggregateSize sz abi pref) = char 'a'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (StackObjSize  sz abi pref) = char 's'  <> ppLayoutBody sz abi pref
-ppLayoutSpec (NativeIntSize szs)         = char 'n'  <> colons (map int szs)
+ppLayoutSpec (NativeIntSize szs)         =
+  char 'n' <> hcat (punctuate (char ':') (map int szs))
 ppLayoutSpec (StackAlign a)              = char 'S'  <> int a
 ppLayoutSpec (Mangling m)                = char 'm'  <> char ':' <> ppMangling m
 
@@ -833,6 +834,3 @@ structBraces body = char '{' <+> body <+> char '}'
 
 ppMaybe :: (a -> Doc) -> Maybe a -> Doc
 ppMaybe  = maybe empty
-
-colons :: [Doc] -> Doc
-colons  = fsep . punctuate (char ':')
