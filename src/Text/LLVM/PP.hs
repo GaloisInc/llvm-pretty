@@ -608,9 +608,9 @@ ppAsm s a i c =
 
 
 ppConstExpr :: ConstExpr -> Doc
-ppConstExpr (ConstGEP inb ixs)  = "getelementptr"
-                              <+> opt inb "inbounds"
-                              <+> parens (commas (map (ppTyped ppValue) ixs))
+ppConstExpr (ConstGEP inb mp ixs)  = "getelementptr"
+  <+> opt inb "inbounds"
+  <+> parens (mcommas ((ppType <$> mp) : (map (pure . ppTyped ppValue) ixs)))
 ppConstExpr (ConstConv op tv t) = ppConvOp op <+> parens
                                  (ppTyped ppValue tv <+> "to" <+> ppType t)
 ppConstExpr (ConstSelect c l r) = "select" <+> parens

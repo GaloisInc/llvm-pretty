@@ -915,7 +915,8 @@ extendMetadata md stmt = case stmt of
 -- Constant Expressions --------------------------------------------------------
 
 data ConstExpr' lab
-  = ConstGEP Bool [Typed (Value' lab)]
+  = ConstGEP Bool (Maybe Type) [Typed (Value' lab)]
+  -- ^ Element type introduced in LLVM 3.7
   | ConstConv ConvOp (Typed (Value' lab)) Type
   | ConstSelect (Typed (Value' lab)) (Typed (Value' lab)) (Typed (Value' lab))
   | ConstBlockAddr Symbol lab
