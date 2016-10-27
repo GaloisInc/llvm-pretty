@@ -647,7 +647,7 @@ ppDebugInfo di = case di of
 ppDIBasicType :: DIBasicType -> Doc
 ppDIBasicType bt = "!DIBasicType"
   <> parens (commas [ "tag:"      <+> integral (dibtTag bt)
-                    , "name:"     <+> quotes (text (dibtName bt))
+                    , "name:"     <+> doubleQuotes (text (dibtName bt))
                     , "size:"     <+> integral (dibtSize bt)
                     , "align:"    <+> integral (dibtAlign bt)
                     , "encoding:" <+> integral (dibtEncoding bt)
@@ -658,11 +658,12 @@ ppDICompileUnit cu = "!DICompileUnit"
   <> parens (mcommas
        [ pure ("language:"           <+> integral (dicuLanguage cu))
        ,     (("file:"               <+>) . ppValMd) <$> (dicuFile cu)
-       ,     (("producer:"           <+>) . quotes . text) <$> (dicuProducer cu)
+       ,     (("producer:"           <+>) . doubleQuotes . text)
+             <$> (dicuProducer cu)
        , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
        , pure ("flags:"              <+> integral (dicuFlags cu))
        , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
-       ,     (("splitDebugFilename:" <+>) . quotes . text)
+       ,     (("splitDebugFilename:" <+>) . doubleQuotes . text)
              <$> (dicuSplitDebugFilename cu)
        , pure ("emissionKind:"       <+> integral (dicuEmissionKind cu))
        ,     (("enums:"              <+>) . ppValMd) <$> (dicuEnums cu)
@@ -678,7 +679,7 @@ ppDICompositeType :: DICompositeType -> Doc
 ppDICompositeType ct = "!DICompositeType"
   <> parens (mcommas
        [ pure ("tag:"            <+> integral (dictTag ct))
-       ,     (("name:"           <+>) . quotes . text) <$> (dictName ct)
+       ,     (("name:"           <+>) . doubleQuotes . text) <$> (dictName ct)
        ,     (("file:"           <+>) . ppValMd) <$> (dictFile ct)
        , pure ("line:"           <+> integral (dictLine ct))
        ,     (("baseType:"       <+>) . ppValMd) <$> (dictBaseType ct)
@@ -690,14 +691,15 @@ ppDICompositeType ct = "!DICompositeType"
        , pure ("runtimeLang:"    <+> integral (dictRuntimeLang ct))
        ,     (("vtableHolder:"   <+>) . ppValMd) <$> (dictVTableHolder ct)
        ,     (("templateParams:" <+>) . ppValMd) <$> (dictTemplateParams ct)
-       ,     (("identifier:"     <+>) . quotes . text) <$> (dictIdentifier ct)
+       ,     (("identifier:"     <+>) . doubleQuotes . text)
+             <$> (dictIdentifier ct)
        ])
 
 ppDIDerivedType :: DIDerivedType -> Doc
 ppDIDerivedType dt = "!DIDerivedType"
   <> parens (mcommas
        [ pure ("tag:"       <+> integral (didtTag dt))
-       ,     (("name:"      <+>) . quotes . text) <$> (didtName dt)
+       ,     (("name:"      <+>) . doubleQuotes . text) <$> (didtName dt)
        ,     (("file:"      <+>) . ppValMd) <$> (didtFile dt)
        , pure ("line:"      <+> integral (didtLine dt))
        ,     (("baseType:"  <+>) . ppValMd) <$> (didtBaseType dt)
@@ -714,16 +716,17 @@ ppDIExpression e = "!DIExpression"
 
 ppDIFile :: DIFile -> Doc
 ppDIFile f = "!DIFile"
-  <> parens (commas [ "filename:"  <+> quotes (text (difFilename f))
-                    , "directory:" <+> quotes (text (difDirectory f))
+  <> parens (commas [ "filename:"  <+> doubleQuotes (text (difFilename f))
+                    , "directory:" <+> doubleQuotes (text (difDirectory f))
                     ])
 
 ppDIGlobalVariable :: DIGlobalVariable -> Doc
 ppDIGlobalVariable gv = "!DIGlobalVariable"
   <> parens (mcommas
        [      (("scope:"       <+>) . ppValMd) <$> (digvScope gv)
-       ,      (("name:"        <+>) . quotes . text) <$> (digvName gv)
-       ,      (("linkageName:" <+>) . quotes . text) <$> (digvLinkageName gv)
+       ,      (("name:"        <+>) . doubleQuotes . text) <$> (digvName gv)
+       ,      (("linkageName:" <+>) . doubleQuotes . text)
+              <$> (digvLinkageName gv)
        ,      (("file:"        <+>) . ppValMd) <$> (digvFile gv)
        , pure ("line:"         <+> integral (digvLine gv))
        ,      (("type:"        <+>) . ppValMd) <$> (digvType gv)
@@ -754,7 +757,7 @@ ppDILocalVariable :: DILocalVariable -> Doc
 ppDILocalVariable lv = "!DILocalVariable"
   <> parens (mcommas
        [      (("scope:" <+>) . ppValMd) <$> (dilvScope lv)
-       ,      (("name:"  <+>) . quotes . text) <$> (dilvName lv)
+       ,      (("name:"  <+>) . doubleQuotes . text) <$> (dilvName lv)
        ,      (("file:"  <+>) . ppValMd) <$> (dilvFile lv)
        , pure ("line:"   <+> integral (dilvLine lv))
        ,      (("type:"  <+>) . ppValMd) <$> (dilvType lv)
@@ -766,8 +769,9 @@ ppDISubprogram :: DISubprogram -> Doc
 ppDISubprogram sp = "!DISubprogram"
   <> parens (mcommas
        [      (("scope:"          <+>) . ppValMd) <$> (dispScope sp)
-       ,      (("name:"           <+>) . quotes . text) <$> (dispName sp)
-       ,      (("linkageName:"    <+>) . quotes . text) <$> (dispLinkageName sp)
+       ,      (("name:"           <+>) . doubleQuotes . text) <$> (dispName sp)
+       ,      (("linkageName:"    <+>) . doubleQuotes . text)
+              <$> (dispLinkageName sp)
        ,      (("file:"           <+>) . ppValMd) <$> (dispFile sp)
        , pure ("line:"            <+> integral (dispLine sp))
        ,      (("type:"           <+>) . ppValMd) <$> (dispType sp)
