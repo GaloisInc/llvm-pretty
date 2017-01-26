@@ -91,7 +91,7 @@ ppNamedMd nm =
 ppUnnamedMd :: UnnamedMd -> Doc
 ppUnnamedMd um =
   sep [ ppMetadata (int (umIndex um)) <+> char '='
-      , distinct <+> ppMetadataNode (umValues um) ]
+      , distinct <+> ppValMd (umValues um) ]
   where
   distinct | umDistinct um = "distinct"
            | otherwise     = empty
@@ -126,7 +126,8 @@ ppLayoutSpec (VectorSize    sz abi pref) = char 'v'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (FloatSize     sz abi pref) = char 'f'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (AggregateSize sz abi pref) = char 'a'  <> ppLayoutBody sz abi pref
 ppLayoutSpec (StackObjSize  sz abi pref) = char 's'  <> ppLayoutBody sz abi pref
-ppLayoutSpec (NativeIntSize szs)         = char 'n'  <> colons (map int szs)
+ppLayoutSpec (NativeIntSize szs)         =
+  char 'n' <> hcat (punctuate (char ':') (map int szs))
 ppLayoutSpec (StackAlign a)              = char 'S'  <> int a
 ppLayoutSpec (Mangling m)                = char 'm'  <> char ':' <> ppMangling m
 
@@ -608,9 +609,9 @@ ppAsm s a i c =
 
 
 ppConstExpr :: ConstExpr -> Doc
-ppConstExpr (ConstGEP inb ixs)  = "getelementptr"
-                              <+> opt inb "inbounds"
-                              <+> parens (commas (map (ppTyped ppValue) ixs))
+ppConstExpr (ConstGEP inb mp ixs)  = "getelementptr"
+  <+> opt inb "inbounds"
+  <+> parens (mcommas ((ppType <$> mp) : (map (pure . ppTyped ppValue) ixs)))
 ppConstExpr (ConstConv op tv t) = ppConvOp op <+> parens
                                  (ppTyped ppValue tv <+> "to" <+> ppType t)
 ppConstExpr (ConstSelect c l r) = "select" <+> parens
@@ -618,6 +619,12 @@ ppConstExpr (ConstSelect c l r) = "select" <+> parens
                                          , ppTyped ppValue r])
 ppConstExpr (ConstBlockAddr t l)= "blockaddress" <+> parens
                                  (ppSymbol t <> comma <+> ppLabel l)
+
+ppConstExpr (ConstFCmp op a b)  = "fcmp" <+> ppFCmpOp op <+> parens
+                                 (ppTyped ppValue a <> comma <+> ppTyped ppValue b)
+
+ppConstExpr (ConstICmp op a b)  = "icmp" <+> ppICmpOp op <+> parens
+                                 (ppTyped ppValue a <> comma <+> ppTyped ppValue b)
 
 -- DWARF Debug Info ------------------------------------------------------------
 
@@ -639,25 +646,26 @@ ppDebugInfo di = case di of
 
 ppDIBasicType :: DIBasicType -> Doc
 ppDIBasicType bt = "!DIBasicType"
-  <> parens (commas [ "tag:"      <+> hex (dibtTag bt)
-                    , "name:"     <+> quotes (text (dibtName bt))
+  <> parens (commas [ "tag:"      <+> integral (dibtTag bt)
+                    , "name:"     <+> doubleQuotes (text (dibtName bt))
                     , "size:"     <+> integral (dibtSize bt)
                     , "align:"    <+> integral (dibtAlign bt)
-                    , "encoding:" <+> hex (dibtEncoding bt)
+                    , "encoding:" <+> integral (dibtEncoding bt)
                     ])
 
 ppDICompileUnit :: DICompileUnit -> Doc
 ppDICompileUnit cu = "!DICompileUnit"
   <> parens (mcommas
-       [ pure ("language:"           <+> hex (dicuLanguage cu))
+       [ pure ("language:"           <+> integral (dicuLanguage cu))
        ,     (("file:"               <+>) . ppValMd) <$> (dicuFile cu)
-       ,     (("producer:"           <+>) . quotes . text) <$> (dicuProducer cu)
+       ,     (("producer:"           <+>) . doubleQuotes . text)
+             <$> (dicuProducer cu)
        , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
-       , pure ("flags:"              <+> hex (dicuFlags cu))
+       , pure ("flags:"              <+> integral (dicuFlags cu))
        , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
-       ,     (("splitDebugFilename:" <+>) . quotes . text)
+       ,     (("splitDebugFilename:" <+>) . doubleQuotes . text)
              <$> (dicuSplitDebugFilename cu)
-       , pure ("emissionKind:"       <+> hex (dicuEmissionKind cu))
+       , pure ("emissionKind:"       <+> integral (dicuEmissionKind cu))
        ,     (("enums:"              <+>) . ppValMd) <$> (dicuEnums cu)
        ,     (("retainedTypes:"      <+>) . ppValMd) <$> (dicuRetainedTypes cu)
        ,     (("subprograms:"        <+>) . ppValMd) <$> (dicuSubprograms cu)
@@ -670,34 +678,35 @@ ppDICompileUnit cu = "!DICompileUnit"
 ppDICompositeType :: DICompositeType -> Doc
 ppDICompositeType ct = "!DICompositeType"
   <> parens (mcommas
-       [ pure ("tag:"            <+> hex (dictTag ct))
-       ,     (("name:"           <+>) . quotes . text) <$> (dictName ct)
+       [ pure ("tag:"            <+> integral (dictTag ct))
+       ,     (("name:"           <+>) . doubleQuotes . text) <$> (dictName ct)
        ,     (("file:"           <+>) . ppValMd) <$> (dictFile ct)
        , pure ("line:"           <+> integral (dictLine ct))
        ,     (("baseType:"       <+>) . ppValMd) <$> (dictBaseType ct)
        , pure ("size:"           <+> integral (dictSize ct))
        , pure ("align:"          <+> integral (dictAlign ct))
        , pure ("offset:"         <+> integral (dictOffset ct))
-       , pure ("flags:"          <+> hex (dictFlags ct))
+       , pure ("flags:"          <+> integral (dictFlags ct))
        ,     (("elements:"       <+>) . ppValMd) <$> (dictElements ct)
-       , pure ("runtimeLang:"    <+> hex (dictRuntimeLang ct))
+       , pure ("runtimeLang:"    <+> integral (dictRuntimeLang ct))
        ,     (("vtableHolder:"   <+>) . ppValMd) <$> (dictVTableHolder ct)
        ,     (("templateParams:" <+>) . ppValMd) <$> (dictTemplateParams ct)
-       ,     (("identifier:"     <+>) . quotes . text) <$> (dictIdentifier ct)
+       ,     (("identifier:"     <+>) . doubleQuotes . text)
+             <$> (dictIdentifier ct)
        ])
 
 ppDIDerivedType :: DIDerivedType -> Doc
 ppDIDerivedType dt = "!DIDerivedType"
   <> parens (mcommas
-       [ pure ("tag:"       <+> hex (didtTag dt))
-       ,     (("name:"      <+>) . quotes . text) <$> (didtName dt)
+       [ pure ("tag:"       <+> integral (didtTag dt))
+       ,     (("name:"      <+>) . doubleQuotes . text) <$> (didtName dt)
        ,     (("file:"      <+>) . ppValMd) <$> (didtFile dt)
        , pure ("line:"      <+> integral (didtLine dt))
        ,     (("baseType:"  <+>) . ppValMd) <$> (didtBaseType dt)
        , pure ("size:"      <+> integral (didtSize dt))
        , pure ("align:"     <+> integral (didtAlign dt))
        , pure ("offset:"    <+> integral (didtOffset dt))
-       , pure ("flags:"     <+> hex (didtFlags dt))
+       , pure ("flags:"     <+> integral (didtFlags dt))
        ,     (("extraData:" <+>) . ppValMd) <$> (didtExtraData dt)
        ])
 
@@ -707,16 +716,17 @@ ppDIExpression e = "!DIExpression"
 
 ppDIFile :: DIFile -> Doc
 ppDIFile f = "!DIFile"
-  <> parens (commas [ "filename:"  <+> quotes (text (difFilename f))
-                    , "directory:" <+> quotes (text (difDirectory f))
+  <> parens (commas [ "filename:"  <+> doubleQuotes (text (difFilename f))
+                    , "directory:" <+> doubleQuotes (text (difDirectory f))
                     ])
 
 ppDIGlobalVariable :: DIGlobalVariable -> Doc
 ppDIGlobalVariable gv = "!DIGlobalVariable"
   <> parens (mcommas
        [      (("scope:"       <+>) . ppValMd) <$> (digvScope gv)
-       ,      (("name:"        <+>) . quotes . text) <$> (digvName gv)
-       ,      (("linkageName:" <+>) . quotes . text) <$> (digvLinkageName gv)
+       ,      (("name:"        <+>) . doubleQuotes . text) <$> (digvName gv)
+       ,      (("linkageName:" <+>) . doubleQuotes . text)
+              <$> (digvLinkageName gv)
        ,      (("file:"        <+>) . ppValMd) <$> (digvFile gv)
        , pure ("line:"         <+> integral (digvLine gv))
        ,      (("type:"        <+>) . ppValMd) <$> (digvType gv)
@@ -747,20 +757,21 @@ ppDILocalVariable :: DILocalVariable -> Doc
 ppDILocalVariable lv = "!DILocalVariable"
   <> parens (mcommas
        [      (("scope:" <+>) . ppValMd) <$> (dilvScope lv)
-       ,      (("name:"  <+>) . quotes . text) <$> (dilvName lv)
+       ,      (("name:"  <+>) . doubleQuotes . text) <$> (dilvName lv)
        ,      (("file:"  <+>) . ppValMd) <$> (dilvFile lv)
        , pure ("line:"   <+> integral (dilvLine lv))
        ,      (("type:"  <+>) . ppValMd) <$> (dilvType lv)
        , pure ("arg:"    <+> integral (dilvArg lv))
-       , pure ("flags:"  <+> hex (dilvFlags lv))
+       , pure ("flags:"  <+> integral (dilvFlags lv))
        ])
 
 ppDISubprogram :: DISubprogram -> Doc
 ppDISubprogram sp = "!DISubprogram"
   <> parens (mcommas
        [      (("scope:"          <+>) . ppValMd) <$> (dispScope sp)
-       ,      (("name:"           <+>) . quotes . text) <$> (dispName sp)
-       ,      (("linkageName:"    <+>) . quotes . text) <$> (dispLinkageName sp)
+       ,      (("name:"           <+>) . doubleQuotes . text) <$> (dispName sp)
+       ,      (("linkageName:"    <+>) . doubleQuotes . text)
+              <$> (dispLinkageName sp)
        ,      (("file:"           <+>) . ppValMd) <$> (dispFile sp)
        , pure ("line:"            <+> integral (dispLine sp))
        ,      (("type:"           <+>) . ppValMd) <$> (dispType sp)
@@ -768,9 +779,9 @@ ppDISubprogram sp = "!DISubprogram"
        , pure ("isDefinition:"    <+> ppBool (dispIsDefinition sp))
        , pure ("scopeLine:"       <+> integral (dispScopeLine sp))
        ,      (("containingType:" <+>) . ppValMd) <$> (dispContainingType sp)
-       , pure ("virtuality:"      <+> hex (dispVirtuality sp))
+       , pure ("virtuality:"      <+> integral (dispVirtuality sp))
        , pure ("virtualIndex:"    <+> integral (dispVirtualIndex sp))
-       , pure ("flags:"           <+> hex (dispFlags sp))
+       , pure ("flags:"           <+> integral (dispFlags sp))
        , pure ("isOptimized:"     <+> ppBool (dispIsOptimized sp))
        ,      (("templateParams:" <+>) . ppValMd) <$> (dispTemplateParams sp)
        ,      (("declaration:"    <+>) . ppValMd) <$> (dispDeclaration sp)
@@ -786,7 +797,7 @@ ppDISubrange sr = "!DISubrange"
 ppDISubroutineType :: DISubroutineType -> Doc
 ppDISubroutineType st = "!DISubroutineType"
   <> parens (commas
-       [ "flags:" <+> hex (distFlags st)
+       [ "flags:" <+> integral (distFlags st)
        , "types:" <+> fromMaybe "null" (ppValMd <$> (distTypeArray st))
        ])
 
@@ -827,6 +838,3 @@ structBraces body = char '{' <+> body <+> char '}'
 
 ppMaybe :: (a -> Doc) -> Maybe a -> Doc
 ppMaybe  = maybe empty
-
-colons :: [Doc] -> Doc
-colons  = fsep . punctuate (char ':')

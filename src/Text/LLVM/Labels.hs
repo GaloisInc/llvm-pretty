@@ -294,14 +294,21 @@ instance HasLabel DILexicalBlockFile' where
     <*> pure (dilbfDiscriminator dilbf)
 
 instance HasLabel ConstExpr' where
-  relabel f (ConstGEP inb is)   = ConstGEP inb
-                              <$> traverse (traverse (relabel f)) is
-  relabel f (ConstConv op a t)  = ConstConv op
-                              <$> traverse (relabel f) a
-                              <*> pure t
-  relabel f (ConstSelect c l r) = ConstSelect
-                              <$> traverse (relabel f) c
-                              <*> traverse (relabel f) l
-                              <*> traverse (relabel f) r
-  relabel f (ConstBlockAddr t l)= ConstBlockAddr t
-                              <$> f (Just t) l
+  relabel f (ConstGEP inb mp is) = ConstGEP inb
+                               <$> pure mp
+                               <*> traverse (traverse (relabel f)) is
+  relabel f (ConstConv op a t)   = ConstConv op
+                               <$> traverse (relabel f) a
+                               <*> pure t
+  relabel f (ConstSelect c l r)  = ConstSelect
+                               <$> traverse (relabel f) c
+                               <*> traverse (relabel f) l
+                               <*> traverse (relabel f) r
+  relabel f (ConstBlockAddr t l) = ConstBlockAddr t
+                               <$> f (Just t) l
+  relabel f (ConstFCmp op l r)   = ConstFCmp op
+                               <$> traverse (relabel f) l
+                               <*> traverse (relabel f) r
+  relabel f (ConstICmp op l r)   = ConstICmp op
+                               <$> traverse (relabel f) l
+                               <*> traverse (relabel f) r

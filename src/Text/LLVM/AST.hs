@@ -12,7 +12,7 @@ module Text.LLVM.AST where
 
 import Text.LLVM.Util (breaks,uncons)
 
-import Control.Monad (MonadPlus(mzero),(<=<),msum,guard,liftM,liftM3)
+import Control.Monad (MonadPlus(mzero,mplus),(<=<),msum,guard,liftM,liftM3)
 import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
@@ -30,7 +30,8 @@ import Data.Traversable (Traversable(sequenceA))
 -- Modules ---------------------------------------------------------------------
 
 data Module = Module
-  { modDataLayout :: DataLayout
+  { modSourceName :: Maybe String
+  , modDataLayout :: DataLayout
   , modTypes      :: [TypeDecl]
   , modNamedMd    :: [NamedMd]
   , modUnnamedMd  :: [UnnamedMd]
@@ -44,7 +45,8 @@ data Module = Module
 instance Monoid Module where
   mempty = emptyModule
   mappend m1 m2 = Module
-    { modDataLayout = modDataLayout m1 `mappend` modDataLayout m2
+    { modSourceName = modSourceName m1 `mplus`   modSourceName m2
+    , modDataLayout = modDataLayout m1 `mappend` modDataLayout m2
     , modTypes      = modTypes      m1 `mappend` modTypes      m2
     , modUnnamedMd  = modUnnamedMd  m1 `mappend` modUnnamedMd  m2
     , modNamedMd    = modNamedMd    m1 `mappend` modNamedMd    m2
@@ -57,7 +59,8 @@ instance Monoid Module where
 
 emptyModule :: Module
 emptyModule  = Module
-  { modDataLayout = mempty
+  { modSourceName = mempty
+  , modDataLayout = mempty
   , modTypes      = mempty
   , modNamedMd    = mempty
   , modUnnamedMd  = mempty
@@ -81,7 +84,7 @@ data NamedMd = NamedMd
 
 data UnnamedMd = UnnamedMd
   { umIndex  :: !Int
-  , umValues :: [Maybe ValMd]
+  , umValues :: ValMd
   , umDistinct :: Bool
   } deriving (Show)
 
@@ -667,11 +670,11 @@ data Instr' lab
          * Returns a value of type matching the pointer. -}
 
   | Store (Typed (Value' lab)) (Typed (Value' lab)) (Maybe Align)
-    {- ^ * Write a value ot memory:
+    {- ^ * Write a value to memory:
              value to store;
              pointer to location where to store;
              assumptions about the alignment of the given pointer.
-         * Middle olf basic block.
+         * Middle of basic block.
          * Effect. -}
 
   | ICmp ICmpOp (Typed (Value' lab)) (Value' lab)
@@ -912,10 +915,13 @@ extendMetadata md stmt = case stmt of
 -- Constant Expressions --------------------------------------------------------
 
 data ConstExpr' lab
-  = ConstGEP Bool [Typed (Value' lab)]
+  = ConstGEP Bool (Maybe Type) [Typed (Value' lab)]
+  -- ^ Element type introduced in LLVM 3.7
   | ConstConv ConvOp (Typed (Value' lab)) Type
   | ConstSelect (Typed (Value' lab)) (Typed (Value' lab)) (Typed (Value' lab))
   | ConstBlockAddr Symbol lab
+  | ConstFCmp FCmpOp (Typed (Value' lab)) (Typed (Value' lab))
+  | ConstICmp ICmpOp (Typed (Value' lab)) (Typed (Value' lab))
     deriving (Show,Functor)
 
 type ConstExpr = ConstExpr' BlockLabel
