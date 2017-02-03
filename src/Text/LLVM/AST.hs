@@ -922,6 +922,8 @@ data ConstExpr' lab
   | ConstBlockAddr Symbol lab
   | ConstFCmp FCmpOp (Typed (Value' lab)) (Typed (Value' lab))
   | ConstICmp ICmpOp (Typed (Value' lab)) (Typed (Value' lab))
+  | ConstArith ArithOp (Typed (Value' lab)) (Value' lab)
+  | ConstBit BitOp (Typed (Value' lab)) (Value' lab)
     deriving (Show,Functor)
 
 type ConstExpr = ConstExpr' BlockLabel
