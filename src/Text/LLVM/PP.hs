@@ -625,6 +625,10 @@ ppConstExpr (ConstFCmp op a b)  = "fcmp" <+> ppFCmpOp op <+> parens
 
 ppConstExpr (ConstICmp op a b)  = "icmp" <+> ppICmpOp op <+> parens
                                  (ppTyped ppValue a <> comma <+> ppTyped ppValue b)
+ppConstExpr (ConstArith op a b) = ppArithOp op <+> parens
+                                  (ppTyped ppValue a <> comma <+> ppValue b)
+ppConstExpr (ConstBit op a b)   = ppBitOp op <+> parens
+                                  (ppTyped ppValue a <> comma <+> ppValue b)
 
 -- DWARF Debug Info ------------------------------------------------------------
 

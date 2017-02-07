@@ -312,3 +312,9 @@ instance HasLabel ConstExpr' where
   relabel f (ConstICmp op l r)   = ConstICmp op
                                <$> traverse (relabel f) l
                                <*> traverse (relabel f) r
+  relabel f (ConstArith op l r)  = ConstArith op
+                               <$> traverse (relabel f) l
+                               <*> relabel f r
+  relabel f (ConstBit op l r)    = ConstBit op
+                               <$> traverse (relabel f) l
+                               <*> relabel f r
