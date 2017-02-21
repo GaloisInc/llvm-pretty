@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -18,6 +18,7 @@ import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
 import Data.String (IsString(fromString))
 import Data.Word (Word8,Word16,Word32,Word64)
+import GHC.Generics (Generic, Generic1)
 
 #if !(MIN_VERSION_base(4,8,0))
 import Control.Applicative ((<$))
@@ -687,7 +688,7 @@ data Instr' lab
          * Middle of basic block.
          * Returns a boolean value. -}
 
-  | Phi Type [((Value' lab),lab)]
+  | Phi Type [(Value' lab,lab)]
     {- ^ * Join point for an SSA value: we get one value per predecessor
            basic block.
          * Middle of basic block.
@@ -777,14 +778,14 @@ data Instr' lab
 
   | Resume (Typed (Value' lab))
 
-    deriving (Show,Functor)
+    deriving (Show,Functor,Generic)
 
 type Instr = Instr' BlockLabel
 
 data Clause' lab
   = Catch  (Typed (Value' lab))
   | Filter (Typed (Value' lab))
-    deriving (Show,Functor)
+    deriving (Show,Functor,Generic,Generic1)
 
 type Clause = Clause' BlockLabel
 
@@ -841,7 +842,7 @@ data Value' lab
   | ValZeroInit
   | ValAsm Bool Bool String String
   | ValMd (ValMd' lab)
-    deriving (Show,Functor)
+    deriving (Show,Functor,Generic,Generic1)
 
 type Value = Value' BlockLabel
 
@@ -852,7 +853,7 @@ data ValMd' lab
   | ValMdNode [Maybe (ValMd' lab)]
   | ValMdLoc (DebugLoc' lab)
   | ValMdDebugInfo (DebugInfo' lab)
-    deriving (Show,Functor)
+    deriving (Show,Functor,Generic,Generic1)
 
 type ValMd = ValMd' BlockLabel
 
@@ -864,7 +865,7 @@ data DebugLoc' lab = DebugLoc
   , dlCol   :: Word32
   , dlScope :: ValMd' lab
   , dlIA    :: Maybe (ValMd' lab)
-  } deriving (Show,Functor)
+  } deriving (Show,Functor,Generic,Generic1)
 
 type DebugLoc = DebugLoc' BlockLabel
 
@@ -893,7 +894,7 @@ elimValInteger _              = mzero
 data Stmt' lab
   = Result Ident (Instr' lab) [(String,ValMd' lab)]
   | Effect (Instr' lab) [(String,ValMd' lab)]
-    deriving (Show,Functor)
+    deriving (Show,Functor,Generic,Generic1)
 
 type Stmt = Stmt' BlockLabel
 
@@ -924,7 +925,7 @@ data ConstExpr' lab
   | ConstICmp ICmpOp (Typed (Value' lab)) (Typed (Value' lab))
   | ConstArith ArithOp (Typed (Value' lab)) (Value' lab)
   | ConstBit BitOp (Typed (Value' lab)) (Value' lab)
-    deriving (Show,Functor)
+    deriving (Show,Functor,Generic,Generic1)
 
 type ConstExpr = ConstExpr' BlockLabel
 
@@ -944,7 +945,7 @@ data DebugInfo' lab
   | DebugInfoSubprogram (DISubprogram' lab)
   | DebugInfoSubrange DISubrange
   | DebugInfoSubroutineType (DISubroutineType' lab)
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DebugInfo = DebugInfo' BlockLabel
 
@@ -986,7 +987,7 @@ data DICompileUnit' lab = DICompileUnit
   , dicuMacros             :: Maybe (ValMd' lab)
   , dicuDWOId              :: Word64
   }
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DICompileUnit = DICompileUnit' BlockLabel
 
@@ -1007,7 +1008,7 @@ data DICompositeType' lab = DICompositeType
   , dictTemplateParams :: Maybe (ValMd' lab)
   , dictIdentifier     :: Maybe String
   }
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DICompositeType = DICompositeType' BlockLabel
 
@@ -1024,7 +1025,7 @@ data DIDerivedType' lab = DIDerivedType
   , didtFlags :: DIFlags
   , didtExtraData :: Maybe (ValMd' lab)
   }
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DIDerivedType = DIDerivedType' BlockLabel
 
@@ -1050,7 +1051,7 @@ data DIGlobalVariable' lab = DIGlobalVariable
   , digvVariable             :: Maybe (ValMd' lab)
   , digvDeclaration          :: Maybe (ValMd' lab)
   }
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DIGlobalVariable = DIGlobalVariable' BlockLabel
 
@@ -1060,7 +1061,7 @@ data DILexicalBlock' lab = DILexicalBlock
   , dilbLine   :: Word32
   , dilbColumn :: Word16
   }
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DILexicalBlock = DILexicalBlock' BlockLabel
 
@@ -1069,7 +1070,7 @@ data DILexicalBlockFile' lab = DILexicalBlockFile
   , dilbfFile          :: Maybe (ValMd' lab)
   , dilbfDiscriminator :: Word32
   }
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DILexicalBlockFile = DILexicalBlockFile' BlockLabel
 
@@ -1082,7 +1083,7 @@ data DILocalVariable' lab = DILocalVariable
   , dilvArg :: Word16
   , dilvFlags :: DIFlags
   }
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DILocalVariable = DILocalVariable' BlockLabel
 
@@ -1105,7 +1106,7 @@ data DISubprogram' lab = DISubprogram
   , dispDeclaration    :: Maybe (ValMd' lab)
   , dispVariables      :: Maybe (ValMd' lab)
   }
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DISubprogram = DISubprogram' BlockLabel
 
@@ -1119,7 +1120,7 @@ data DISubroutineType' lab = DISubroutineType
   { distFlags :: DIFlags
   , distTypeArray :: Maybe (ValMd' lab)
   }
-  deriving (Show,Functor)
+  deriving (Show,Functor,Generic,Generic1)
 
 type DISubroutineType = DISubroutineType' BlockLabel
 
