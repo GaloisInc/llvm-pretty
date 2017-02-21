@@ -24,6 +24,7 @@ import qualified Data.Map as Map
 import Data.Maybe (catMaybes,fromMaybe)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
+import Data.Int
 
 
 -- Pretty-printer Config -------------------------------------------------------
@@ -638,6 +639,7 @@ ppDebugInfo di = case di of
   DebugInfoCompileUnit cu       -> ppDICompileUnit cu
   DebugInfoCompositeType ct     -> ppDICompositeType ct
   DebugInfoDerivedType dt       -> ppDIDerivedType dt
+  DebugInfoEnumerator nm v      -> ppDIEnumerator nm v
   DebugInfoExpression e         -> ppDIExpression e
   DebugInfoFile f               -> ppDIFile f
   DebugInfoGlobalVariable gv    -> ppDIGlobalVariable gv
@@ -713,6 +715,12 @@ ppDIDerivedType dt = "!DIDerivedType"
        , pure ("flags:"     <+> integral (didtFlags dt))
        ,     (("extraData:" <+>) . ppValMd) <$> (didtExtraData dt)
        ])
+
+ppDIEnumerator :: String -> Int64 -> Doc
+ppDIEnumerator n v = "!DIEnumerator"
+  <> parens (commas [ "name:"  <+> doubleQuotes (text n)
+                    , "value:" <+> integral v
+                    ])
 
 ppDIExpression :: DIExpression -> Doc
 ppDIExpression e = "!DIExpression"

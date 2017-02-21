@@ -936,6 +936,7 @@ data DebugInfo' lab
   | DebugInfoCompileUnit (DICompileUnit' lab)
   | DebugInfoCompositeType (DICompositeType' lab)
   | DebugInfoDerivedType (DIDerivedType' lab)
+  | DebugInfoEnumerator String !Int64
   | DebugInfoExpression DIExpression
   | DebugInfoFile DIFile
   | DebugInfoGlobalVariable (DIGlobalVariable' lab)
@@ -1100,6 +1101,7 @@ data DISubprogram' lab = DISubprogram
   , dispContainingType :: Maybe (ValMd' lab)
   , dispVirtuality     :: DwarfVirtuality
   , dispVirtualIndex   :: Word32
+  , dispThisAdjustment :: Int64
   , dispFlags          :: DIFlags
   , dispIsOptimized    :: Bool
   , dispTemplateParams :: Maybe (ValMd' lab)
