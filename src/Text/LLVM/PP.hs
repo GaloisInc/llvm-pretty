@@ -643,6 +643,7 @@ ppDebugInfo di = case di of
   DebugInfoExpression e         -> ppDIExpression e
   DebugInfoFile f               -> ppDIFile f
   DebugInfoGlobalVariable gv    -> ppDIGlobalVariable gv
+  DebugInfoGlobalVariableExpression gv -> ppDIGlobalVariableExpression gv
   DebugInfoLexicalBlock lb      -> ppDILexicalBlock lb
   DebugInfoLexicalBlockFile lbf -> ppDILexicalBlockFile lbf
   DebugInfoLocalVariable lv     -> ppDILocalVariable lv
@@ -746,6 +747,14 @@ ppDIGlobalVariable gv = "!DIGlobalVariable"
        , pure ("isDefinition:" <+> ppBool (digvIsDefinition gv))
        ,      (("variable:"    <+>) . ppValMd) <$> (digvType gv)
        ,      (("declaration:" <+>) . ppValMd) <$> (digvDeclaration gv)
+       ,      (("align:"       <+>) . integral) <$> digvAlignment gv
+       ])
+
+ppDIGlobalVariableExpression :: DIGlobalVariableExpression -> Doc
+ppDIGlobalVariableExpression gve = "!DIGlobalVariableExpression"
+  <> parens (mcommas
+       [      (("var:"  <+>) . ppValMd) <$> (digveVariable gve)
+       ,      (("expr:" <+>) . ppValMd) <$> (digveExpression gve)
        ])
 
 ppDILexicalBlock :: DILexicalBlock -> Doc

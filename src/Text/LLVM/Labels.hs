@@ -148,20 +148,21 @@ instance HasLabel Instr' where
 
   relabel f (Resume tv)           = Resume <$> traverse (relabel f) tv
 
-instance HasLabel Clause'             where relabel = genericRelabel
-instance HasLabel Value'              where relabel = genericRelabel
-instance HasLabel ValMd'              where relabel = genericRelabel
-instance HasLabel DebugLoc'           where relabel = genericRelabel
-instance HasLabel DebugInfo'          where relabel = genericRelabel
-instance HasLabel DIDerivedType'      where relabel = genericRelabel
-instance HasLabel DISubroutineType'   where relabel = genericRelabel
-instance HasLabel DIGlobalVariable'   where relabel = genericRelabel
-instance HasLabel DILocalVariable'    where relabel = genericRelabel
-instance HasLabel DISubprogram'       where relabel = genericRelabel
-instance HasLabel DICompositeType'    where relabel = genericRelabel
-instance HasLabel DILexicalBlock'     where relabel = genericRelabel
-instance HasLabel DICompileUnit'      where relabel = genericRelabel
-instance HasLabel DILexicalBlockFile' where relabel = genericRelabel
+instance HasLabel Clause'                     where relabel = genericRelabel
+instance HasLabel Value'                      where relabel = genericRelabel
+instance HasLabel ValMd'                      where relabel = genericRelabel
+instance HasLabel DebugLoc'                   where relabel = genericRelabel
+instance HasLabel DebugInfo'                  where relabel = genericRelabel
+instance HasLabel DIDerivedType'              where relabel = genericRelabel
+instance HasLabel DISubroutineType'           where relabel = genericRelabel
+instance HasLabel DIGlobalVariable'           where relabel = genericRelabel
+instance HasLabel DIGlobalVariableExpression' where relabel = genericRelabel
+instance HasLabel DILocalVariable'            where relabel = genericRelabel
+instance HasLabel DISubprogram'               where relabel = genericRelabel
+instance HasLabel DICompositeType'            where relabel = genericRelabel
+instance HasLabel DILexicalBlock'             where relabel = genericRelabel
+instance HasLabel DICompileUnit'              where relabel = genericRelabel
+instance HasLabel DILexicalBlockFile'         where relabel = genericRelabel
 
 -- | Clever instance that actually uses the block name
 instance HasLabel ConstExpr' where

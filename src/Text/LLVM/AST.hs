@@ -940,6 +940,7 @@ data DebugInfo' lab
   | DebugInfoExpression DIExpression
   | DebugInfoFile DIFile
   | DebugInfoGlobalVariable (DIGlobalVariable' lab)
+  | DebugInfoGlobalVariableExpression (DIGlobalVariableExpression' lab)
   | DebugInfoLexicalBlock (DILexicalBlock' lab)
   | DebugInfoLexicalBlockFile (DILexicalBlockFile' lab)
   | DebugInfoLocalVariable (DILocalVariable' lab)
@@ -987,6 +988,7 @@ data DICompileUnit' lab = DICompileUnit
   , dicuImports            :: Maybe (ValMd' lab)
   , dicuMacros             :: Maybe (ValMd' lab)
   , dicuDWOId              :: Word64
+  , dicuSplitDebugInlining :: Bool
   }
   deriving (Show,Functor,Generic,Generic1)
 
@@ -1051,10 +1053,19 @@ data DIGlobalVariable' lab = DIGlobalVariable
   , digvIsDefinition         :: Bool
   , digvVariable             :: Maybe (ValMd' lab)
   , digvDeclaration          :: Maybe (ValMd' lab)
+  , digvAlignment            :: Maybe Word32
   }
   deriving (Show,Functor,Generic,Generic1)
 
 type DIGlobalVariable = DIGlobalVariable' BlockLabel
+
+data DIGlobalVariableExpression' lab = DIGlobalVariableExpression
+  { digveVariable   :: Maybe (ValMd' lab)
+  , digveExpression :: Maybe (ValMd' lab)
+  }
+  deriving (Show,Functor,Generic,Generic1)
+
+type DIGlobalVariableExpression = DIGlobalVariableExpression' BlockLabel
 
 data DILexicalBlock' lab = DILexicalBlock
   { dilbScope  :: Maybe (ValMd' lab)
