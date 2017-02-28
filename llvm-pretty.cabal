@@ -12,7 +12,7 @@ Description:
   A pretty printing library that was inspired by the LLVM binding by Lennart
   Augustsson.  The library provides a monadic interface to a pretty printer,
   that allows functions to be defined and called, generating the corresponding
-  LLVM assemblly when run.
+  LLVM assembly when run.
 
 source-repository head
   type:                 git
@@ -25,12 +25,14 @@ Library
   Exposed-modules:     Text.LLVM
                        Text.LLVM.AST
                        Text.LLVM.Labels
+                       Text.LLVM.Parser
                        Text.LLVM.PP
                        Text.LLVM.DebugUtils
   Other-modules:       Text.LLVM.Util
 
   Build-depends:       base       >= 4 && < 5,
                        containers >= 0.4,
+                       parsec     >= 3,
                        pretty     >= 1.0.1,
                        monadLib   >= 3.6.1
 
