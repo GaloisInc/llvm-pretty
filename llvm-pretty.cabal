@@ -26,6 +26,7 @@ Library
                        Text.LLVM.AST
                        Text.LLVM.Labels
                        Text.LLVM.PP
+                       Text.LLVM.DebugUtils
   Other-modules:       Text.LLVM.Util
 
   Build-depends:       base       >= 4 && < 5,
