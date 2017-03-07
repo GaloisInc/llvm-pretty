@@ -222,16 +222,19 @@ ppDeclare d = "declare"
           <+> ppType (decRetType d)
           <+> ppSymbol (decName d)
            <> ppArgList (decVarArgs d) (map ppType (decArgs d))
+          <+> hsep (ppFunAttr <$> decAttrs d)
+
 
 
 ppDefine :: LLVM => Define -> Doc
 ppDefine d = "define"
-         <+> ppMaybe ppLinkage (funLinkage (defAttrs d))
+         <+> ppMaybe ppLinkage (defLinkage d)
          <+> ppType (defRetType d)
          <+> ppSymbol (defName d)
           <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
+         <+> hsep (ppFunAttr <$> defAttrs d)
          <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
-         <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (funGC (defAttrs d))
+         <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (defGC d)
          <+> ppMds (defMetadata d)
          <+> char '{'
          $+$ vcat (map ppBasicBlock (defBody d))
@@ -241,6 +244,40 @@ ppDefine d = "define"
     case Map.toList mdm of
       [] -> empty
       mds -> hsep [ "!" <> text k <+> ppValMd md | (k, md) <- mds ]
+
+-- FunAttr ---------------------------------------------------------------------
+
+ppFunAttr :: FunAttr -> Doc
+ppFunAttr a =
+  case a of
+    AlignStack w    -> text "alignstack" <> parens (int w)
+    Alwaysinline    -> text "alwaysinline"
+    Builtin         -> text "builtin"
+    Cold            -> text "cold"
+    Inlinehint      -> text "inlinehint"
+    Jumptable       -> text "jumptable"
+    Minsize         -> text "minsize"
+    Naked           -> text "naked"
+    Nobuiltin       -> text "nobuiltin"
+    Noduplicate     -> text "noduplicate"
+    Noimplicitfloat -> text "noimplicitfloat"
+    Noinline        -> text "noinline"
+    Nonlazybind     -> text "nonlazybind"
+    Noredzone       -> text "noredzone"
+    Noreturn        -> text "noreturn"
+    Nounwind        -> text "nounwind"
+    Optnone         -> text "optnone"
+    Optsize         -> text "optsize"
+    Readnone        -> text "readnone"
+    Readonly        -> text "readonly"
+    ReturnsTwice    -> text "returns_twice"
+    SanitizeAddress -> text "sanitize_address"
+    SanitizeMemory  -> text "sanitize_memory"
+    SanitizeThread  -> text "sanitize_thread"
+    SSP             -> text "ssp"
+    SSPreq          -> text "sspreq"
+    SSPstrong       -> text "sspstrong"
+    UWTable         -> text "uwtable"
 
 -- Basic Blocks ----------------------------------------------------------------
 
