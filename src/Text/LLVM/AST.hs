@@ -389,6 +389,7 @@ data Declare = Declare
   , decName    :: Symbol
   , decArgs    :: [Type]
   , decVarArgs :: Bool
+  , decAttrs   :: [FunAttr]
   } deriving (Show)
 
 -- | The function type of this declaration
@@ -399,12 +400,14 @@ decFunType Declare { .. } = PtrTo (FunTy decRetType decArgs decVarArgs)
 -- Function Definitions --------------------------------------------------------
 
 data Define = Define
-  { defAttrs    :: FunAttrs
+  { defLinkage  :: Maybe Linkage
   , defRetType  :: Type
   , defName     :: Symbol
   , defArgs     :: [Typed Ident]
   , defVarArgs  :: Bool
+  , defAttrs    :: [FunAttr]
   , defSection  :: Maybe String
+  , defGC       :: Maybe GC
   , defBody     :: [BasicBlock]
   , defMetadata :: FnMdAttachments
   } deriving (Show)
@@ -416,16 +419,39 @@ defFunType Define { .. } =
 addDefine :: Define -> Module -> Module
 addDefine d m = m { modDefines = d : modDefines m }
 
-data FunAttrs = FunAttrs
-  { funLinkage :: Maybe Linkage
-  , funGC      :: Maybe GC
-  } deriving (Show)
+-- Function Attributes and attribute groups ------------------------------------
 
-emptyFunAttrs :: FunAttrs
-emptyFunAttrs  = FunAttrs
-  { funLinkage = Nothing
-  , funGC      = Nothing
-  }
+
+data FunAttr
+   = AlignStack Int
+   | Alwaysinline
+   | Builtin
+   | Cold
+   | Inlinehint
+   | Jumptable
+   | Minsize
+   | Naked
+   | Nobuiltin
+   | Noduplicate
+   | Noimplicitfloat
+   | Noinline
+   | Nonlazybind
+   | Noredzone
+   | Noreturn
+   | Nounwind
+   | Optnone
+   | Optsize
+   | Readnone
+   | Readonly
+   | ReturnsTwice
+   | SanitizeAddress
+   | SanitizeMemory
+   | SanitizeThread
+   | SSP
+   | SSPreq
+   | SSPstrong
+   | UWTable
+  deriving (Show)
 
 -- Basic Block Labels ----------------------------------------------------------
 
@@ -718,7 +744,7 @@ data Instr' lab
   | ExtractValue (Typed (Value' lab)) [Int32]
     {- ^ * Get the value of a member of an aggregate value:
            the first argument is an aggregate value (not a pointer!),
-           the second is a path of indexes, similar to the one in 'GEP'. 
+           the second is a path of indexes, similar to the one in 'GEP'.
          * Middle of basic block.
          * Returns the given member of the aggregate value. -}
 
@@ -768,7 +794,7 @@ data Instr' lab
   | IndirectBr (Typed (Value' lab)) [lab]
 
   | Switch (Typed (Value' lab)) lab [(Integer,lab)]
-    {- ^ * Multi-way branch: the first value determines the direction 
+    {- ^ * Multi-way branch: the first value determines the direction
            of the branch, the label is a default direction, if the value
            does not appear in the jump table, the last argument is the
            jump table.
