@@ -31,7 +31,7 @@ module Text.LLVM (
   , define'
   , declare
   , global
-  , FunAttrs(..), emptyFunAttrs
+
     -- * Types
   , iT, ptrT, voidT, arrayT
   , (=:), (-:)
@@ -192,7 +192,6 @@ declare rty sym tys va = emitDeclare Declare
   , decName    = sym
   , decArgs    = tys
   , decVarArgs = va
-  , decAttrs   = []
   }
 
 -- | Emit a global declaration.
@@ -217,18 +216,6 @@ string sym str =
 
 
 -- Function Definition ---------------------------------------------------------
-
-data FunAttrs = FunAttrs
-  { funLinkage :: Maybe Linkage
-  , funGC      :: Maybe GC
-  } deriving (Show)
-
-emptyFunAttrs :: FunAttrs
-emptyFunAttrs  = FunAttrs
-  { funLinkage = Nothing
-  , funGC      = Nothing
-  }
-
 
 -- XXX Do not export
 freshArg :: Type -> LLVM (Typed Ident)
@@ -270,15 +257,13 @@ define :: DefineArgs sig k => FunAttrs -> Type -> Symbol -> sig -> k
 define attrs rty fun sig k = do
   (args,body) <- defineBody [] sig k
   emitDefine Define
-    { defLinkage  = funLinkage attrs
+    { defAttrs    = attrs
     , defName     = fun
     , defRetType  = rty
     , defArgs     = args
     , defVarArgs  = False
-    , defAttrs    = []
-    , defSection  = Nothing
-    , defGC       = funGC attrs
     , defBody     = body
+    , defSection  = Nothing
     , defMetadata = Map.empty
     }
 
@@ -297,15 +282,13 @@ define' :: FunAttrs -> Type -> Symbol -> [Type] -> Bool
 define' attrs rty sym sig va k = do
   args <- mapM freshArg sig
   emitDefine Define
-    { defLinkage  = funLinkage attrs
+    { defAttrs    = attrs
     , defName     = sym
     , defRetType  = rty
     , defArgs     = args
     , defVarArgs  = va
-    , defAttrs    = []
-    , defSection  = Nothing
-    , defGC       = funGC attrs
     , defBody     = snd (runBB (k (map (fmap toValue) args)))
+    , defSection  = Nothing
     , defMetadata = Map.empty
     }
 
