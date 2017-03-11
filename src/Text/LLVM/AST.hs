@@ -365,6 +365,7 @@ data Global = Global
   , globalType  :: Type
   , globalValue :: Maybe Value
   , globalAlign :: Maybe Align
+  , globalMetadata :: GlobalMdAttachments
   } deriving Show
 
 addGlobal :: Global -> Module -> Module
@@ -885,6 +886,7 @@ type ValMd = ValMd' BlockLabel
 
 type KindMd = String
 type FnMdAttachments = Map.Map KindMd ValMd
+type GlobalMdAttachments = Map.Map KindMd ValMd
 
 data DebugLoc' lab = DebugLoc
   { dlLine  :: Word32

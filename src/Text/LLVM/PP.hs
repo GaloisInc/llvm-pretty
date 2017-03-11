@@ -209,6 +209,7 @@ ppGlobal g = ppSymbol (globalSym g) <+> char '='
          <+> ppGlobalAttrs (globalAttrs g)
          <+> ppType (globalType g) <+> ppMaybe ppValue (globalValue g)
           <> ppAlign (globalAlign g)
+          <> ppAttachedMetadata (Map.toList (globalMetadata g))
 
 ppGlobalAttrs :: GlobalAttrs -> Doc
 ppGlobalAttrs ga = ppMaybe ppLinkage (gaLinkage ga) <+> constant
