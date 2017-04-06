@@ -119,22 +119,26 @@ ppDataLayout ls = "target" <+> "datalayout" <+> char '='
 
 -- | Pretty print a single layout specification.
 ppLayoutSpec :: LayoutSpec -> Doc
-ppLayoutSpec  BigEndian                  = char 'E'
-ppLayoutSpec  LittleEndian               = char 'e'
-ppLayoutSpec (PointerSize   sz abi pref) =      "p:" <> ppLayoutBody sz abi pref
-ppLayoutSpec (IntegerSize   sz abi pref) = char 'i'  <> ppLayoutBody sz abi pref
-ppLayoutSpec (VectorSize    sz abi pref) = char 'v'  <> ppLayoutBody sz abi pref
-ppLayoutSpec (FloatSize     sz abi pref) = char 'f'  <> ppLayoutBody sz abi pref
-ppLayoutSpec (AggregateSize sz abi pref) = char 'a'  <> ppLayoutBody sz abi pref
-ppLayoutSpec (StackObjSize  sz abi pref) = char 's'  <> ppLayoutBody sz abi pref
-ppLayoutSpec (NativeIntSize szs)         =
-  char 'n' <> hcat (punctuate (char ':') (map int szs))
-ppLayoutSpec (StackAlign a)              = char 'S'  <> int a
-ppLayoutSpec (Mangling m)                = char 'm'  <> char ':' <> ppMangling m
+ppLayoutSpec ls =
+  case ls of
+    BigEndian                 -> char 'E'
+    LittleEndian              -> char 'e'
+    PointerSize 0 sz abi pref -> char 'p' <> int sz <> ppAlignments abi pref
+    PointerSize n sz abi pref -> char 'p' <> int n <> char ':'
+                                          <> int sz <> ppAlignments abi pref
+    IntegerSize   sz abi pref -> char 'i' <> int sz <> ppAlignments abi pref
+    VectorSize    sz abi pref -> char 'v' <> int sz <> ppAlignments abi pref
+    FloatSize     sz abi pref -> char 'f' <> int sz <> ppAlignments abi pref
+    StackObjSize  sz abi pref -> char 's' <> int sz <> ppAlignments abi pref
+    AggregateSize    abi pref -> char 'a' <> ppAlignments abi pref
+    NativeIntSize szs         ->
+      char 'n' <> hcat (punctuate (char ':') (map int szs))
+    StackAlign a              -> char 'S' <> int a
+    Mangling m                -> char 'm' <> char ':' <> ppMangling m
 
--- | Pretty-print the common case for data layout specifications.
-ppLayoutBody :: Int -> Int -> Maybe Int -> Doc
-ppLayoutBody size abi mb = int size <> char ':' <> int abi <> pref
+-- | Pretty-print the ABI and preferred alignments for a data layout spec.
+ppAlignments :: Int -> Maybe Int -> Doc
+ppAlignments abi mb = char ':' <> int abi <> pref
   where
   pref = case mb of
     Nothing -> empty

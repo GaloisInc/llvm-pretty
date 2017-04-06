@@ -10,15 +10,16 @@
 
 module Text.LLVM.AST where
 
-import Text.LLVM.Util (breaks,uncons)
-
-import Control.Monad (MonadPlus(mzero,mplus),(<=<),msum,guard,liftM,liftM3)
+import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
 import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
 import Data.String (IsString(fromString))
 import Data.Word (Word8,Word16,Word32,Word64)
 import GHC.Generics (Generic, Generic1)
+
+import Text.Parsec
+import Text.Parsec.String
 
 #if !(MIN_VERSION_base(4,8,0))
 import Control.Applicative ((<$))
@@ -106,14 +107,15 @@ type DataLayout = [LayoutSpec]
 data LayoutSpec
   = BigEndian
   | LittleEndian
-  | PointerSize   !Int !Int (Maybe Int)
-  | IntegerSize   !Int !Int (Maybe Int)
-  | VectorSize    !Int !Int (Maybe Int)
-  | FloatSize     !Int !Int (Maybe Int)
-  | AggregateSize !Int !Int (Maybe Int)
-  | StackObjSize  !Int !Int (Maybe Int)
+  | PointerSize   !Int {- ^ address space -}
+                  !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
+  | IntegerSize   !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
+  | VectorSize    !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
+  | FloatSize     !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
+  | StackObjSize  !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
+  | AggregateSize                   !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
   | NativeIntSize [Int]
-  | StackAlign    !Int
+  | StackAlign    !Int {- ^ size -}
   | Mangling Mangling
     deriving (Show)
 
@@ -125,53 +127,52 @@ data Mangling = ElfMangling
 
 -- | Parse the data layout string.
 parseDataLayout :: MonadPlus m => String -> m DataLayout
-parseDataLayout  = mapM parseLayoutSpec . breaks (== '-')
-
--- | Parse a single layout specification from a string.
-parseLayoutSpec :: MonadPlus m => String -> m LayoutSpec
-parseLayoutSpec str = msum
-  [ guard (str == "E") >> return BigEndian
-  , guard (str == "e") >> return LittleEndian
-  , do (i,rest) <- uncons str
-       let body = breaks (== ':') rest
-       case i of
-
-         'S' -> do align <- parseInt rest
-                   return (StackAlign align)
-
-         'p' -> build PointerSize (tail body)
-         'i' -> build IntegerSize       body
-         'v' -> build VectorSize        body
-         'f' -> build FloatSize         body
-         'a' -> build AggregateSize     body
-         's' -> build StackObjSize      body
-
-         'n' -> do ints <- mapM parseInt body
-                   return (NativeIntSize ints)
-
-         'm' -> case tail body of
-                  ["e"] -> return (Mangling ElfMangling)
-                  ["m"] -> return (Mangling MipsMangling)
-                  ["o"] -> return (Mangling MachOMangling)
-                  ["w"] -> return (Mangling WindowsCoffMangling)
-                  _     -> mzero
-
-         _   -> mzero
-  ]
-
+parseDataLayout str =
+  case parse (pDataLayout <* eof) "<internal>" str of
+    Left _err -> mzero
+    Right specs -> return specs
   where
+    pDataLayout :: Parser DataLayout
+    pDataLayout = sepBy pLayoutSpec (char '-')
 
-  build f lst = case lst of
-    [sz,abi,pref] -> liftM3 f (parseInt sz) (parseInt abi) (parsePref pref)
-    [sz,abi]      -> liftM3 f (parseInt sz) (parseInt abi) (return Nothing)
-    _             -> mzero
+    pLayoutSpec :: Parser LayoutSpec
+    pLayoutSpec =
+      do c <- letter
+         case c of
+           'E' -> return BigEndian
+           'e' -> return LittleEndian
+           'S' -> StackAlign    <$> pInt
+           'p' -> PointerSize   <$> pInt0 <*> pCInt <*> pCInt <*> pPref
+           'i' -> IntegerSize   <$> pInt <*> pCInt <*> pPref
+           'v' -> VectorSize    <$> pInt <*> pCInt <*> pPref
+           'f' -> FloatSize     <$> pInt <*> pCInt <*> pPref
+           's' -> StackObjSize  <$> pInt <*> pCInt <*> pPref
+           'a' -> AggregateSize <$> pCInt <*> pPref
+           'n' -> NativeIntSize <$> sepBy pInt (char ':')
+           'm' -> Mangling      <$> (char ':' >> pMangling)
+           _   -> mzero
 
-  parsePref = liftM Just . parseInt
+    pMangling :: Parser Mangling
+    pMangling =
+      do c <- letter
+         case c of
+           'e' -> return ElfMangling
+           'm' -> return MipsMangling
+           'o' -> return MachOMangling
+           'w' -> return WindowsCoffMangling
+           _   -> mzero
 
-  parseInt s = case reads s of
-    [(i,[])] -> return i
-    _        -> mzero
+    pInt :: Parser Int
+    pInt = read <$> many1 digit
 
+    pInt0 :: Parser Int
+    pInt0 = pInt <|> return 0
+
+    pCInt :: Parser Int
+    pCInt = char ':' >> pInt
+
+    pPref :: Parser (Maybe Int)
+    pPref = optionMaybe pCInt
 
 -- Inline Assembly -------------------------------------------------------------
 
