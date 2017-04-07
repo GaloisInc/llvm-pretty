@@ -112,7 +112,7 @@ data LayoutSpec
   | VectorSize    !Int !Int (Maybe Int) -- ^ size, abi, pref
   | FloatSize     !Int !Int (Maybe Int) -- ^ size, abi, pref
   | StackObjSize  !Int !Int (Maybe Int) -- ^ size, abi, pref
-  | AggregateSize      !Int (Maybe Int) -- ^ abi, pref
+  | AggregateSize !Int !Int (Maybe Int) -- ^ size, abi, pref
   | NativeIntSize [Int]
   | StackAlign    !Int -- ^ size
   | Mangling Mangling
@@ -146,7 +146,7 @@ parseDataLayout str =
            'v' -> VectorSize    <$> pInt <*> pCInt <*> pPref
            'f' -> FloatSize     <$> pInt <*> pCInt <*> pPref
            's' -> StackObjSize  <$> pInt <*> pCInt <*> pPref
-           'a' -> AggregateSize <$> pCInt <*> pPref
+           'a' -> AggregateSize <$> pInt <*> pCInt <*> pPref
            'n' -> NativeIntSize <$> sepBy pInt (char ':')
            'm' -> Mangling      <$> (char ':' >> pMangling)
            _   -> mzero

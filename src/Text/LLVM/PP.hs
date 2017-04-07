@@ -123,22 +123,22 @@ ppLayoutSpec ls =
   case ls of
     BigEndian                 -> char 'E'
     LittleEndian              -> char 'e'
-    PointerSize 0 sz abi pref -> char 'p' <> int sz <> ppAlignments abi pref
+    PointerSize 0 sz abi pref -> char 'p' <> char ':' <> ppLayoutBody sz abi pref
     PointerSize n sz abi pref -> char 'p' <> int n <> char ':'
-                                          <> int sz <> ppAlignments abi pref
-    IntegerSize   sz abi pref -> char 'i' <> int sz <> ppAlignments abi pref
-    VectorSize    sz abi pref -> char 'v' <> int sz <> ppAlignments abi pref
-    FloatSize     sz abi pref -> char 'f' <> int sz <> ppAlignments abi pref
-    StackObjSize  sz abi pref -> char 's' <> int sz <> ppAlignments abi pref
-    AggregateSize    abi pref -> char 'a' <> ppAlignments abi pref
+                                          <> ppLayoutBody sz abi pref
+    IntegerSize   sz abi pref -> char 'i' <> ppLayoutBody sz abi pref
+    VectorSize    sz abi pref -> char 'v' <> ppLayoutBody sz abi pref
+    FloatSize     sz abi pref -> char 'f' <> ppLayoutBody sz abi pref
+    StackObjSize  sz abi pref -> char 's' <> ppLayoutBody sz abi pref
+    AggregateSize sz abi pref -> char 'a' <> ppLayoutBody sz abi pref
     NativeIntSize szs         ->
       char 'n' <> hcat (punctuate (char ':') (map int szs))
     StackAlign a              -> char 'S' <> int a
     Mangling m                -> char 'm' <> char ':' <> ppMangling m
 
--- | Pretty-print the ABI and preferred alignments for a data layout spec.
-ppAlignments :: Int -> Maybe Int -> Doc
-ppAlignments abi mb = char ':' <> int abi <> pref
+-- | Pretty-print the common case for data layout specifications.
+ppLayoutBody :: Int -> Int -> Maybe Int -> Doc
+ppLayoutBody size abi mb = int size <> char ':' <> int abi <> pref
   where
   pref = case mb of
     Nothing -> empty
