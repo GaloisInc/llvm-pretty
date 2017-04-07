@@ -107,15 +107,14 @@ type DataLayout = [LayoutSpec]
 data LayoutSpec
   = BigEndian
   | LittleEndian
-  | PointerSize   !Int {- ^ address space -}
-                  !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
-  | IntegerSize   !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
-  | VectorSize    !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
-  | FloatSize     !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
-  | StackObjSize  !Int {- ^ size -} !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
-  | AggregateSize                   !Int {- ^ abi -} (Maybe Int) {- ^ pref -}
+  | PointerSize   !Int !Int !Int (Maybe Int) -- ^ address space, size, abi, pref
+  | IntegerSize   !Int !Int (Maybe Int) -- ^ size, abi, pref
+  | VectorSize    !Int !Int (Maybe Int) -- ^ size, abi, pref
+  | FloatSize     !Int !Int (Maybe Int) -- ^ size, abi, pref
+  | StackObjSize  !Int !Int (Maybe Int) -- ^ size, abi, pref
+  | AggregateSize      !Int (Maybe Int) -- ^ abi, pref
   | NativeIntSize [Int]
-  | StackAlign    !Int {- ^ size -}
+  | StackAlign    !Int -- ^ size
   | Mangling Mangling
     deriving (Show)
 
