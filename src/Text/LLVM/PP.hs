@@ -515,8 +515,8 @@ ppCall tc ty f args
       <> parens (commas (map (ppTyped ppValue) args))
 
 ppCallSym :: Type -> Value -> Doc
-ppCallSym (PtrTo (FunTy res _ _)) (ValSymbol sym) = ppType res <+> ppSymbol sym
-ppCallSym ty              val                     = ppType ty  <+> ppValue val
+ppCallSym (PtrTo (FunTy res args va))   val        = ppType res <+> ppArgList va (map ppType args) <+> ppValue val
+ppCallSym ty              val                      = ppType ty  <+> ppValue val
 
 ppGEP :: LLVM => Bool -> Typed Value -> [Typed Value] -> Doc
 ppGEP ib ptr ixs = "getelementptr" <+> inbounds
