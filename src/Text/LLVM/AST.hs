@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveFunctor, DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 #ifndef MIN_VERSION_base
 #define MIN_VERSION_base(x,y,z) 1
@@ -42,7 +43,7 @@ data Module = Module
   , modDefines    :: [Define]
   , modInlineAsm  :: InlineAsm
   , modAliases    :: [GlobalAlias]
-  } deriving (Show)
+  } deriving (Show,Generic)
 
 instance Monoid Module where
   mempty = emptyModule
@@ -79,7 +80,7 @@ emptyModule  = Module
 data NamedMd = NamedMd
   { nmName   :: String
   , nmValues :: [Int]
-  } deriving (Show)
+  } deriving (Show,Generic)
 
 
 -- Unnamed Metadata ------------------------------------------------------------
@@ -88,7 +89,7 @@ data UnnamedMd = UnnamedMd
   { umIndex  :: !Int
   , umValues :: ValMd
   , umDistinct :: Bool
-  } deriving (Show)
+  } deriving (Show,Generic)
 
 
 -- Aliases ---------------------------------------------------------------------
@@ -97,7 +98,7 @@ data GlobalAlias = GlobalAlias
   { aliasName   :: Symbol
   , aliasType   :: Type
   , aliasTarget :: Value
-  } deriving (Show)
+  } deriving (Show,Generic)
 
 
 -- Data Layout -----------------------------------------------------------------
@@ -116,13 +117,13 @@ data LayoutSpec
   | NativeIntSize [Int]
   | StackAlign    !Int -- ^ size
   | Mangling Mangling
-    deriving (Show)
+    deriving (Show,Generic)
 
 data Mangling = ElfMangling
               | MipsMangling
               | MachOMangling
               | WindowsCoffMangling
-                deriving (Show,Eq)
+                deriving (Show,Generic,Eq)
 
 -- | Parse the data layout string.
 parseDataLayout :: MonadPlus m => String -> m DataLayout
@@ -180,7 +181,7 @@ type InlineAsm = [String]
 -- Identifiers -----------------------------------------------------------------
 
 newtype Ident = Ident String
-    deriving (Show,Eq,Ord)
+    deriving (Show,Generic,Eq,Ord)
 
 instance IsString Ident where
   fromString = Ident
@@ -188,7 +189,7 @@ instance IsString Ident where
 -- Symbols ---------------------------------------------------------------------
 
 newtype Symbol = Symbol String
-    deriving (Show,Eq,Ord)
+    deriving (Show,Generic,Eq,Ord)
 
 instance Monoid Symbol where
   mappend (Symbol a) (Symbol b) = Symbol (mappend a b)
@@ -206,7 +207,7 @@ data PrimType
   | FloatType FloatType
   | X86mmx
   | Metadata
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Generic, Ord, Show)
 
 data FloatType
   = Half
@@ -215,7 +216,7 @@ data FloatType
   | Fp128
   | X86_fp80
   | PPC_fp128
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Generic, Ord, Show)
 
 type Type = Type' Ident
 
@@ -229,7 +230,7 @@ data Type' ident
   | PackedStruct [Type' ident]
   | Vector Int32 (Type' ident)
   | Opaque
-    deriving (Eq, Ord, Show, Functor)
+    deriving (Eq, Generic, Ord, Show, Functor)
 
 -- | Traverse a type, updating or removing aliases.
 updateAliases :: (a -> Type' b) -> (Type' a -> Type' b)
@@ -354,7 +355,7 @@ elimSequentialType ty = case ty of
 data TypeDecl = TypeDecl
   { typeName  :: Ident
   , typeValue :: Type
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 
 -- Globals ---------------------------------------------------------------------
@@ -366,7 +367,7 @@ data Global = Global
   , globalValue :: Maybe Value
   , globalAlign :: Maybe Align
   , globalMetadata :: GlobalMdAttachments
-  } deriving Show
+  } deriving (Show, Generic)
 
 addGlobal :: Global -> Module -> Module
 addGlobal g m = m { modGlobals = g : modGlobals m }
@@ -374,7 +375,7 @@ addGlobal g m = m { modGlobals = g : modGlobals m }
 data GlobalAttrs = GlobalAttrs
   { gaLinkage    :: Maybe Linkage
   , gaConstant   :: Bool
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 emptyGlobalAttrs :: GlobalAttrs
 emptyGlobalAttrs  = GlobalAttrs
@@ -391,7 +392,7 @@ data Declare = Declare
   , decArgs    :: [Type]
   , decVarArgs :: Bool
   , decAttrs   :: [FunAttr]
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 -- | The function type of this declaration
 decFunType :: Declare -> Type
@@ -411,7 +412,7 @@ data Define = Define
   , defGC       :: Maybe GC
   , defBody     :: [BasicBlock]
   , defMetadata :: FnMdAttachments
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 defFunType :: Define -> Type
 defFunType Define { .. } =
@@ -452,14 +453,14 @@ data FunAttr
    | SSPreq
    | SSPstrong
    | UWTable
-  deriving (Show)
+  deriving (Show, Generic)
 
 -- Basic Block Labels ----------------------------------------------------------
 
 data BlockLabel
   = Named Ident
   | Anon Int
-    deriving (Eq,Ord,Show)
+    deriving (Eq,Ord,Show, Generic)
 
 instance IsString BlockLabel where
   fromString str = Named (fromString str)
@@ -469,7 +470,7 @@ instance IsString BlockLabel where
 data BasicBlock' lab = BasicBlock
   { bbLabel :: Maybe lab
   , bbStmts :: [Stmt' lab]
-  } deriving (Show)
+  } deriving (Show, Generic)
 
 type BasicBlock = BasicBlock' BlockLabel
 
@@ -503,18 +504,18 @@ data Linkage
   | External
   | DLLImport
   | DLLExport
-    deriving (Eq,Show)
+    deriving (Eq,Show,Generic)
 
 newtype GC = GC
   { getGC :: String
-  } deriving (Show)
+  } deriving (Show,Generic)
 
 -- Typed Things ----------------------------------------------------------------
 
 data Typed a = Typed
   { typedType  :: Type
   , typedValue :: a
-  } deriving (Show,Functor)
+  } deriving (Show,Generic,Functor)
 
 instance Foldable Typed where
   foldMap f t = f (typedValue t)
@@ -584,7 +585,7 @@ data ArithOp
     -- ^ * Floating point reminder resulting from floating point division.
     --   * The reminder has the same sign as the divident (first parameter).
 
-    deriving (Eq,Show)
+    deriving (Eq,Generic,Show)
 
 isIArith :: ArithOp -> Bool
 isIArith Add{}  = True
@@ -633,7 +634,7 @@ data BitOp
   | And
   | Or
   | Xor
-    deriving Show
+    deriving (Show,Generic)
 
 data ConvOp
   = Trunc
@@ -648,7 +649,7 @@ data ConvOp
   | PtrToInt
   | IntToPtr
   | BitCast
-    deriving Show
+    deriving (Show,Generic)
 
 type Align = Int
 
@@ -840,12 +841,12 @@ isPhi Phi{} = True
 isPhi _     = False
 
 data ICmpOp = Ieq | Ine | Iugt | Iuge | Iult | Iule | Isgt | Isge | Islt | Isle
-  deriving (Show)
+    deriving (Show, Generic)
 
 data FCmpOp = Ffalse  | Foeq | Fogt | Foge | Folt | Fole | Fone
             | Ford    | Fueq | Fugt | Fuge | Fult | Fule | Fune
             | Funo    | Ftrue
-    deriving (Show)
+    deriving (Show, Generic)
 
 
 -- Values ----------------------------------------------------------------------
@@ -998,7 +999,7 @@ data DIBasicType = DIBasicType
   , dibtSize :: Word64
   , dibtAlign :: Word64
   , dibtEncoding :: DwarfAttrEncoding
-  } deriving (Show)
+  } deriving (Show,Generic)
 
 data DICompileUnit' lab = DICompileUnit
   { dicuLanguage           :: DwarfLang
@@ -1063,12 +1064,12 @@ type DIDerivedType = DIDerivedType' BlockLabel
 data DIExpression = DIExpression
   { dieElements :: [Word64]
   }
-  deriving (Show)
+  deriving (Show,Generic)
 
 data DIFile = DIFile
   { difFilename  :: FilePath
   , difDirectory :: FilePath
-  } deriving (Show)
+  } deriving (Show,Generic)
 
 data DIGlobalVariable' lab = DIGlobalVariable
   { digvScope                :: Maybe (ValMd' lab)
@@ -1155,7 +1156,7 @@ data DISubrange = DISubrange
   { disrCount :: Int64
   , disrLowerBound :: Int64
   }
-  deriving (Show)
+  deriving (Show,Generic)
 
 data DISubroutineType' lab = DISubroutineType
   { distFlags :: DIFlags
