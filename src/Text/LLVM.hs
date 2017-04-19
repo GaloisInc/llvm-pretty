@@ -198,11 +198,12 @@ declare rty sym tys va = emitDeclare Declare
 -- | Emit a global declaration.
 global :: GlobalAttrs -> Symbol -> Type -> Maybe Value -> LLVM (Typed Value)
 global attrs sym ty mbVal = emitGlobal Global
-  { globalSym   = sym
-  , globalType  = ty
-  , globalValue = toValue `fmap` mbVal
-  , globalAttrs = attrs
-  , globalAlign = Nothing
+  { globalSym      = sym
+  , globalType     = ty
+  , globalValue    = toValue `fmap` mbVal
+  , globalAttrs    = attrs
+  , globalAlign    = Nothing
+  , globalMetadata = Map.empty
   }
 
 -- | Output a somewhat clunky representation for a string global, that deals
