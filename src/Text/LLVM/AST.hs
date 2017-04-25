@@ -610,25 +610,25 @@ data BitOp
          If a check fails, then the result is poisoned.
 
          The value of the second parameter must be strictly less than the
-           nubmer of bits in the first parameter,
+           number of bits in the first parameter,
            otherwise the result is undefined.  -}
 
   | Lshr Bool
     {- ^ * Logical shift right.
-         * The boolean is for exact check: posion the result,
+         * The boolean is for exact check: poison the result,
               if we shift out a 1 bit (i.e., had to round).
 
     The value of the second parameter must be strictly less than the
-    nubmer of bits in the first parameter, otherwise the result is undefined.
+    number of bits in the first parameter, otherwise the result is undefined.
     -}
 
   | Ashr Bool
     {- ^ * Arithmetic shift right.
-         * The boolean is for exact check: posion the result,
+         * The boolean is for exact check: poison the result,
                 if we shift out a 1 bit (i.e., had to round).
 
     The value of the second parameter must be strictly less than the
-    nubmer of bits in the first parameter, otherwise the result is undefined.
+    number of bits in the first parameter, otherwise the result is undefined.
     -}
 
   | And
@@ -761,7 +761,7 @@ data Instr' lab
     {- ^ * Get an element from a vector: the first argument is a vector,
            the second an index.
          * Middle of basic block.
-         * Returns the element at the given positoin. -}
+         * Returns the element at the given position. -}
 
   | InsertElt (Typed (Value' lab)) (Typed (Value' lab)) (Value' lab)
     {- ^ * Modify an element of a vector: the first argument is the vector,
