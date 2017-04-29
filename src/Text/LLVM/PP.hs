@@ -730,8 +730,8 @@ ppDICompileUnit cu = "!DICompileUnit"
        , pure ("dwoId:"              <+> integral (dicuDWOId cu))
        ])
 
-ppFlags :: Maybe String -> DOc
-ppFlags mb = doubleQuotes (fromMaybe empty mb)
+ppFlags :: Maybe String -> Doc
+ppFlags mb = doubleQuotes (maybe empty text mb)
 
 ppDICompositeType :: LLVM => DICompositeType -> Doc
 ppDICompositeType ct = "!DICompositeType"
