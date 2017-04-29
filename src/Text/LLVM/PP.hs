@@ -710,7 +710,7 @@ ppDICompileUnit cu = "!DICompileUnit"
        ,     (("producer:"           <+>) . doubleQuotes . text)
              <$> (dicuProducer cu)
        , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
-       , pure ("flags:"              <+> integral (dicuFlags cu))
+       , pure ("flags:"              <+> doubleQuotes (text (dicuFlags cu)))
        , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
        ,     (("splitDebugFilename:" <+>) . doubleQuotes . text)
              <$> (dicuSplitDebugFilename cu)
