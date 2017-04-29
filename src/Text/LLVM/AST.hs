@@ -1006,7 +1006,7 @@ data DICompileUnit' lab = DICompileUnit
   , dicuFile               :: Maybe (ValMd' lab)
   , dicuProducer           :: Maybe String
   , dicuIsOptimized        :: Bool
-  , dicuFlags              :: DIFlags
+  , dicuFlags              :: Maybe String
   , dicuRuntimeVersion     :: Word16
   , dicuSplitDebugFilename :: Maybe FilePath
   , dicuEmissionKind       :: DIEmissionKind
