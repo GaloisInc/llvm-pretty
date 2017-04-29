@@ -716,7 +716,7 @@ ppDICompileUnit cu = "!DICompileUnit"
        ,     (("producer:"           <+>) . doubleQuotes . text)
              <$> (dicuProducer cu)
        , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
-       , pure ("flags:"              <+> doubleQuotes (text (dicuFlags cu)))
+       , pure ("flags:"              <+> ppFlags (dicuFlags cu))
        , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
        ,     (("splitDebugFilename:" <+>) . doubleQuotes . text)
              <$> (dicuSplitDebugFilename cu)
@@ -729,6 +729,9 @@ ppDICompileUnit cu = "!DICompileUnit"
        ,     (("macros:"             <+>) . ppValMd) <$> (dicuMacros cu)
        , pure ("dwoId:"              <+> integral (dicuDWOId cu))
        ])
+
+ppFlags :: Maybe String -> DOc
+ppFlags mb = doubleQuotes (fromMaybe empty mb)
 
 ppDICompositeType :: LLVM => DICompositeType -> Doc
 ppDICompositeType ct = "!DICompositeType"
