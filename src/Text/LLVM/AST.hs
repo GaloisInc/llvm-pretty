@@ -34,13 +34,13 @@ import Data.Traversable (Traversable(sequenceA))
 
 data Module = Module
   { modSourceName :: Maybe String
-  , modDataLayout :: DataLayout
-  , modTypes      :: [TypeDecl]
+  , modDataLayout :: DataLayout    -- ^ type size and alignment information
+  , modTypes      :: [TypeDecl]    -- ^ top-level type aliases
   , modNamedMd    :: [NamedMd]
   , modUnnamedMd  :: [UnnamedMd]
-  , modGlobals    :: [Global]
-  , modDeclares   :: [Declare]
-  , modDefines    :: [Define]
+  , modGlobals    :: [Global]      -- ^ global value declarations
+  , modDeclares   :: [Declare]     -- ^ external function declarations (without definitions)
+  , modDefines    :: [Define]      -- ^ internal function declarations (with definitions)
   , modInlineAsm  :: InlineAsm
   , modAliases    :: [GlobalAlias]
   } deriving (Show,Generic)
@@ -600,6 +600,7 @@ isIArith _      = False
 isFArith :: ArithOp -> Bool
 isFArith  = not . isIArith
 
+-- | Binary bitwise operators.
 data BitOp
   = Shl Bool Bool
     {- ^ * Shift left.
@@ -636,6 +637,7 @@ data BitOp
   | Xor
     deriving (Show,Generic)
 
+-- | Conversions from one type to another.
 data ConvOp
   = Trunc
   | ZExt
@@ -689,7 +691,7 @@ data Instr' lab
            how many elements (1 if 'Nothing');
            required alignment.
          * Middle of basic block.
-         * Returns a pointer to hold the given number of elemets. -}
+         * Returns a pointer to hold the given number of elements. -}
 
   | Load (Typed (Value' lab)) (Maybe Align)
     {- ^ * Read a value from the given address:
@@ -840,9 +842,11 @@ isPhi :: Instr' lab -> Bool
 isPhi Phi{} = True
 isPhi _     = False
 
+-- | Integer comparison operators.
 data ICmpOp = Ieq | Ine | Iugt | Iuge | Iult | Iule | Isgt | Isge | Islt | Isle
     deriving (Show, Generic)
 
+-- | Floating-point comparison operators.
 data FCmpOp = Ffalse  | Foeq | Fogt | Foge | Folt | Fole | Fone
             | Ford    | Fueq | Fugt | Fuge | Fult | Fule | Fune
             | Funo    | Ftrue
