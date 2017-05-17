@@ -639,7 +639,8 @@ ppMetadataNode vs = ppMetadata (braces (commas (map arg vs)))
 ppStringLiteral :: String -> Doc
 ppStringLiteral  = doubleQuotes . text . concatMap escape
   where
-  escape c | isAscii c && isPrint c = [c]
+  escape c | c == '"' = '\\' : showHex (fromEnum c) ""
+           | isAscii c && isPrint c = [c]
            | otherwise              = '\\' : pad (ord c)
 
   pad n | n < 0x10  = '0' : map toUpper (showHex n "")
