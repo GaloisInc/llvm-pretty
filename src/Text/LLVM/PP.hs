@@ -798,7 +798,7 @@ ppDIGlobalVariable gv = "!DIGlobalVariable"
        ,      (("type:"        <+>) . ppValMd) <$> (digvType gv)
        , pure ("isLocal:"      <+> ppBool (digvIsLocal gv))
        , pure ("isDefinition:" <+> ppBool (digvIsDefinition gv))
-       ,      (("variable:"    <+>) . ppValMd) <$> (digvType gv)
+       ,      (("variable:"    <+>) . ppValMd) <$> (digvVariable gv)
        ,      (("declaration:" <+>) . ppValMd) <$> (digvDeclaration gv)
        ,      (("align:"       <+>) . integral) <$> digvAlignment gv
        ])
