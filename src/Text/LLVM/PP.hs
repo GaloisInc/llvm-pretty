@@ -18,6 +18,7 @@ module Text.LLVM.PP where
 
 import Text.LLVM.AST
 
+import Control.Applicative ((<|>))
 import Data.Char (isAscii,isPrint,ord,toUpper)
 import Data.List (intersperse)
 import qualified Data.Map as Map
@@ -761,7 +762,7 @@ ppDIDerivedType dt = "!DIDerivedType"
        ,     (("name:"      <+>) . doubleQuotes . text) <$> (didtName dt)
        ,     (("file:"      <+>) . ppValMd) <$> (didtFile dt)
        , pure ("line:"      <+> integral (didtLine dt))
-       ,     (("baseType:"  <+>) . ppValMd) <$> (didtBaseType dt)
+       ,      ("baseType:"  <+>) <$> (ppValMd <$> didtBaseType dt <|> Just "null")
        , pure ("size:"      <+> integral (didtSize dt))
        , pure ("align:"     <+> integral (didtAlign dt))
        , pure ("offset:"    <+> integral (didtOffset dt))
