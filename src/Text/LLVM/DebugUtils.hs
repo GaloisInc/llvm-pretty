@@ -43,10 +43,11 @@ llvmDbgCuKey :: String
 llvmDbgCuKey = "llvm.dbg.cu"
 
 dwarfPointer, dwarfStruct, dwarfTypedef, dwarfUnion, dwarfBasetype,
-  dwarfConst :: Word16
+  dwarfConst, dwarfArray :: Word16
 dwarfPointer  = 0x0f
 dwarfStruct   = 0x13
 dwarfTypedef  = 0x16
+dwarfArray    = 0x01
 dwarfUnion    = 0x17
 dwarfBasetype = 0x24
 dwarfConst    = 0x26
@@ -57,6 +58,7 @@ data Info
   = Pointer Info
   | Structure [(String,Info)]
   | Union     [(String,Info)]
+  | ArrInfo Info
   | BaseType String
   | Unknown
   deriving Show
@@ -114,6 +116,7 @@ debugInfoToInfo _     (DebugInfoBasicType bt)
 debugInfoToInfo mdMap (DebugInfoCompositeType ct)
   | dictTag ct == dwarfStruct   = maybe Unknown Structure (getFields mdMap ct)
   | dictTag ct == dwarfUnion    = maybe Unknown Union     (getFields mdMap ct)
+  | dictTag ct == dwarfArray    = ArrInfo (valMdToInfo' mdMap (dictBaseType ct))
 debugInfoToInfo _ _             = Unknown
 
 
@@ -185,11 +188,13 @@ findSubprogramViaCu mdMap m (Symbol sym) = listToMaybe
 ------------------------------------------------------------------------
 
 -- | If the argument describes a pointer, return the information for the
--- type that it points do.
+-- type that it points do. If the argument describes an array, return
+-- information about the element type.
 derefInfo ::
   Info {- ^ pointer type information                -} ->
   Info {- ^ type information of pointer's base type -}
 derefInfo (Pointer x) = x
+derefInfo (ArrInfo x) = x
 derefInfo _           = Unknown
 
 -- | If the argument describes a composite type, returns the type of the
