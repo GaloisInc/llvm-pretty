@@ -20,16 +20,19 @@ module Text.LLVM.DebugUtils
   , derefInfo
   , fieldIndexByPosition
   , fieldIndexByName
+
+  -- * Info hueristics
+  , guessAliasInfo
   ) where
 
 import           Control.Applicative    ((<|>))
 import           Control.Monad          ((<=<))
 import           Data.IntMap            (IntMap)
 import qualified Data.IntMap as IntMap
-import           Data.List              (elemIndex, tails)
+import           Data.List              (elemIndex, tails, stripPrefix)
 import           Data.Map               (Map)
 import qualified Data.Map    as Map
-import           Data.Maybe             (fromMaybe, listToMaybe, maybeToList)
+import           Data.Maybe             (fromMaybe, listToMaybe, maybeToList, mapMaybe)
 import           Data.Word              (Word16)
 import           Text.LLVM.AST
 
@@ -261,3 +264,40 @@ localVariableNameDeclarations mdMap def =
       do ValMd md                    <- Just (typedValue mdArg)
          DebugInfoLocalVariable dilv <- getDebugInfo mdMap md
          Ident <$> dilvName dilv
+
+------------------------------------------------------------------------
+
+-- | Search the metadata for debug info corresponding
+-- to a given type alias. This is considered a heuristic
+-- because there's no direct mapping between type aliases
+-- and debug info. The debug information must be search
+-- for a textual match.
+guessAliasInfo ::
+  IntMap ValMd    {- ^ unnamed metadata      -} ->
+  Ident           {- ^ alias                 -} ->
+  Info
+guessAliasInfo mdMap (Ident name) =
+     -- TODO: Support more categories than struct
+  case stripPrefix "struct." name of
+    Nothing  -> Unknown
+    Just pfx -> guessStructInfo mdMap pfx
+
+guessStructInfo ::
+  IntMap ValMd    {- ^ unnamed metadata      -} ->
+  String          {- ^ struct alias          -} ->
+  Info
+guessStructInfo mdMap name =
+  case mapMaybe (go <=< getDebugInfo mdMap) (IntMap.elems mdMap) of
+    []  -> Unknown
+    x:_ -> x
+
+  where
+    go di | DebugInfoDerivedType didt <- di
+          , Just name == didtName didt
+          = Just (debugInfoToInfo mdMap di)
+
+    go di | DebugInfoCompositeType dict <- di
+          , Just name == dictName dict
+          = Just (debugInfoToInfo mdMap di)
+
+    go _ = Nothing
