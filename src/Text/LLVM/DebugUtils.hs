@@ -33,7 +33,7 @@ import           Data.List              (elemIndex, tails, stripPrefix)
 import           Data.Map               (Map)
 import qualified Data.Map    as Map
 import           Data.Maybe             (fromMaybe, listToMaybe, maybeToList, mapMaybe)
-import           Data.Word              (Word16)
+import           Data.Word              (Word16, Word64)
 import           Text.LLVM.AST
 
 dbgKind :: String
@@ -56,7 +56,7 @@ type MdMap = IntMap ValMd
 
 data Info
   = Pointer Info
-  | Structure [(String,Info)]
+  | Structure [(String,Word64,Info)] -- ^ Fields: name, bit-offset, info
   | Union     [(String,Info)]
   | ArrInfo Info
   | BaseType String
@@ -114,23 +114,37 @@ debugInfoToInfo mdMap (DebugInfoDerivedType dt)
 debugInfoToInfo _     (DebugInfoBasicType bt)
   | dibtTag bt == dwarfBasetype = BaseType (dibtName bt)
 debugInfoToInfo mdMap (DebugInfoCompositeType ct)
-  | dictTag ct == dwarfStruct   = maybe Unknown Structure (getFields mdMap ct)
-  | dictTag ct == dwarfUnion    = maybe Unknown Union     (getFields mdMap ct)
+  | dictTag ct == dwarfStruct   = maybe Unknown Structure (getStructFields mdMap ct)
+  | dictTag ct == dwarfUnion    = maybe Unknown Union     (getUnionFields mdMap ct)
   | dictTag ct == dwarfArray    = ArrInfo (valMdToInfo' mdMap (dictBaseType ct))
 debugInfoToInfo _ _             = Unknown
 
 
-getFields :: MdMap -> DICompositeType -> Maybe [(String, Info)]
-getFields mdMap ct =
-  traverse (debugInfoToField mdMap <=< getDebugInfo mdMap)
-       =<< sequence =<< getList mdMap =<< dictElements ct
+getFieldDIs :: MdMap -> DICompositeType -> Maybe [DebugInfo]
+getFieldDIs mdMap =
+  traverse (getDebugInfo mdMap) <=< sequence <=< getList mdMap <=< dictElements
 
 
-debugInfoToField :: MdMap -> DebugInfo -> Maybe (String, Info)
-debugInfoToField mdMap di =
+getStructFields :: MdMap -> DICompositeType -> Maybe [(String, Word64, Info)]
+getStructFields mdMap = traverse (debugInfoToStructField mdMap) <=< getFieldDIs mdMap
+
+debugInfoToStructField :: MdMap -> DebugInfo -> Maybe (String, Word64, Info)
+debugInfoToStructField mdMap di =
+  do DebugInfoDerivedType dt <- Just di
+     fieldName               <- didtName dt
+     Just (fieldName, didtOffset dt, valMdToInfo' mdMap (didtBaseType dt))
+
+
+getUnionFields :: MdMap -> DICompositeType -> Maybe [(String, Info)]
+getUnionFields mdMap = traverse (debugInfoToUnionField mdMap) <=< getFieldDIs mdMap
+
+
+debugInfoToUnionField :: MdMap -> DebugInfo -> Maybe (String, Info)
+debugInfoToUnionField mdMap di =
   do DebugInfoDerivedType dt <- Just di
      fieldName               <- didtName dt
      Just (fieldName, valMdToInfo' mdMap (didtBaseType dt))
+
 
 
 -- | Compute the structures of a function's return and argument types
@@ -205,13 +219,13 @@ fieldIndexByPosition ::
   Info {- ^ type information for specified field -}
 fieldIndexByPosition i info =
   case info of
-    Structure xs -> go xs
-    Union     xs -> go xs
+    Structure xs -> go [ x | (_,_,x) <- xs ]
+    Union     xs -> go [ x | (_,x)   <- xs ]
     _            -> Unknown
   where
     go xs = case drop i xs of
               []  -> Unknown
-              x:_ -> snd x
+              x:_ -> x
 
 -- | If the argument describes a composite type, return the first, zero-based
 -- index of the field in that type that matches the given name.
@@ -221,11 +235,11 @@ fieldIndexByName ::
   Maybe Int {- ^ zero-based index of field matching the name -}
 fieldIndexByName n info =
   case info of
-    Structure xs -> go xs
-    Union     xs -> go xs
+    Structure xs -> go [ x | (x,_,_) <- xs ]
+    Union     xs -> go [ x | (x,_)   <- xs ]
     _            -> Nothing
   where
-    go = elemIndex n . map fst
+    go = elemIndex n
 
 ------------------------------------------------------------------------
 
