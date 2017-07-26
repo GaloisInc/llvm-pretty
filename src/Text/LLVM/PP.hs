@@ -84,6 +84,7 @@ ppModule m = foldr ($+$) empty
            , map ppDefine      (modDefines m)
            , map ppNamedMd     (modNamedMd m)
            , map ppUnnamedMd   (modUnnamedMd m)
+           , map ppComdat      (Map.toList (modComdat m))
            ]
 
 
@@ -233,8 +234,22 @@ ppDeclare d = "declare"
           <+> ppSymbol (decName d)
            <> ppArgList (decVarArgs d) (map ppType (decArgs d))
           <+> hsep (ppFunAttr <$> decAttrs d)
+          <> maybe empty ((char ' ' <>) . ppComdatName) (decComdat d)
 
+ppComdatName :: String -> Doc
+ppComdatName s = "comdat" <> parens (char '$' <> text s)
 
+ppComdat :: (String,SelectionKind) -> Doc
+ppComdat (n,k) = ppComdatName n <+> char '=' <+> text "comdat" <+> ppSelectionKind k
+
+ppSelectionKind :: SelectionKind -> Doc
+ppSelectionKind k =
+    case k of
+      ComdatAny             -> "any"
+      ComdatExactMatch      -> "exactmatch"
+      ComdatLargest         -> "largest"
+      ComdatNoDuplicates    -> "noduplicates"
+      ComdatSameSize        -> "samesize"
 
 ppDefine :: LLVM => Define -> Doc
 ppDefine d = "define"
@@ -699,6 +714,37 @@ ppDebugInfo di = case di of
   DebugInfoSubprogram sp        -> ppDISubprogram sp
   DebugInfoSubrange sr          -> ppDISubrange sr
   DebugInfoSubroutineType st    -> ppDISubroutineType st
+  DebugInfoNameSpace ns         -> ppDINameSpace ns
+
+ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc
+ppDIImportedEntity ie = "!DIImportedEntity"
+  <> parens (mcommas [ pure ("tag:"    <+> integral (diieTag ie))
+                     , pure ("name:"   <+> text     (diieName ie))
+                     , (("scope:"  <+>) . ppValMd) <$> diieScope ie
+                     , (("entity:" <+>) . ppValMd) <$> diieEntity ie
+                     , pure ("line:"   <+> integral (diieLine ie))
+                     ])
+
+ppDINameSpace :: LLVM => DINameSpace -> Doc
+ppDINameSpace ns = "!DINameSpace"
+  <> parens (commas [ "name:"   <+> text (dinsName ns)
+                    , "scope:"  <+> ppValMd (dinsScope ns)
+                    , "file:"   <+> ppValMd (dinsFile ns)
+                    , "line:"   <+> integral (dinsLine ns)
+                    ])
+
+ppDITemplateTypeParameter :: LLVM => DITemplateTypeParameter -> Doc
+ppDITemplateTypeParameter tp = "!DITemplateTypeParameter"
+  <> parens (commas [ "name:" <+> text (dittpName tp)
+                    , "type:" <+> ppValMd (dittpType tp)
+                    ])
+
+ppDITemplateValueParameter :: LLVM => DITemplateValueParameter -> Doc
+ppDITemplateValueParameter vp = "!DITemplateValueParameter"
+  <> parens (commas [ "name:"  <+> text (ditvpName vp)
+                    , "type:"  <+> ppValMd (ditvpType vp)
+                    , "value:" <+> ppValMd (ditvpValue vp)
+                    ])
 
 ppDIBasicType :: DIBasicType -> Doc
 ppDIBasicType bt = "!DIBasicType"

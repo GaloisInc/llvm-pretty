@@ -38,6 +38,7 @@ data Module = Module
   , modTypes      :: [TypeDecl]
   , modNamedMd    :: [NamedMd]
   , modUnnamedMd  :: [UnnamedMd]
+  , modComdat     :: Map.Map String SelectionKind
   , modGlobals    :: [Global]
   , modDeclares   :: [Declare]
   , modDefines    :: [Define]
@@ -177,6 +178,15 @@ parseDataLayout str =
 -- Inline Assembly -------------------------------------------------------------
 
 type InlineAsm = [String]
+
+-- Comdat ----------------------------------------------------------------------
+
+data SelectionKind = ComdatAny
+                   | ComdatExactMatch
+                   | ComdatLargest
+                   | ComdatNoDuplicates
+                   | ComdatSameSize
+    deriving(Show,Generic,Eq,Ord)
 
 -- Identifiers -----------------------------------------------------------------
 
@@ -392,6 +402,7 @@ data Declare = Declare
   , decArgs    :: [Type]
   , decVarArgs :: Bool
   , decAttrs   :: [FunAttr]
+  , decComdat  :: Maybe String
   } deriving (Show, Generic)
 
 -- | The function type of this declaration
@@ -412,6 +423,7 @@ data Define = Define
   , defGC       :: Maybe GC
   , defBody     :: [BasicBlock]
   , defMetadata :: FnMdAttachments
+  , defComdat   :: Maybe String
   } deriving (Show, Generic)
 
 defFunType :: Define -> Type
@@ -976,9 +988,43 @@ data DebugInfo' lab
   | DebugInfoSubprogram (DISubprogram' lab)
   | DebugInfoSubrange DISubrange
   | DebugInfoSubroutineType (DISubroutineType' lab)
+  | DebugInfoNameSpace (DINameSpace' lab)
+  | DebugInfoTemplateTypeParameter (DITemplateTypeParameter' lab)
+  | DebugInfoTemplateValueParameter (DITemplateValueParameter' lab)
+  | DebugInfoImportedEntity (DIImportedEntity' lab)
   deriving (Show,Functor,Generic,Generic1)
 
 type DebugInfo = DebugInfo' BlockLabel
+
+type DIImportedEntity = DIImportedEntity' BlockLabel
+data DIImportedEntity' lab = DIImportedEntity
+    { diieTag      :: DwarfTag
+    , diieName     :: String
+    , diieScope    :: Maybe (ValMd' lab)
+    , diieEntity   :: Maybe (ValMd' lab)
+    , diieLine     :: Word32
+    } deriving (Show,Functor,Generic,Generic1)
+
+type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
+data DITemplateTypeParameter' lab = DITemplateTypeParameter
+    { dittpName :: String
+    , dittpType :: ValMd' lab
+    } deriving (Show,Functor,Generic,Generic1)
+
+type DITemplateValueParameter = DITemplateValueParameter' BlockLabel
+data DITemplateValueParameter' lab = DITemplateValueParameter
+    { ditvpName  :: String
+    , ditvpType  :: ValMd' lab
+    , ditvpValue :: ValMd' lab
+    } deriving (Show,Functor,Generic,Generic1)
+
+type DINameSpace = DINameSpace' BlockLabel
+data DINameSpace' lab = DINameSpace
+    { dinsName  :: String
+    , dinsScope :: ValMd' lab
+    , dinsFile  :: ValMd' lab
+    , dinsLine  :: Word32
+    } deriving (Show,Functor,Generic,Generic1)
 
 -- TODO: Turn these into sum types
 -- See https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/Support/Dwarf.def

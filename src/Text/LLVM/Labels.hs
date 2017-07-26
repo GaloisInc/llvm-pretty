@@ -163,6 +163,10 @@ instance HasLabel DICompositeType'            where relabel = genericRelabel
 instance HasLabel DILexicalBlock'             where relabel = genericRelabel
 instance HasLabel DICompileUnit'              where relabel = genericRelabel
 instance HasLabel DILexicalBlockFile'         where relabel = genericRelabel
+instance HasLabel DINameSpace'                where relabel = genericRelabel
+instance HasLabel DITemplateTypeParameter'    where relabel = genericRelabel
+instance HasLabel DITemplateValueParameter'   where relabel = genericRelabel
+instance HasLabel DIImportedEntity'           where relabel = genericRelabel
 
 -- | Clever instance that actually uses the block name
 instance HasLabel ConstExpr' where
