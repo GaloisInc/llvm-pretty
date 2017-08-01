@@ -21,7 +21,7 @@ import Text.LLVM.AST
 import Data.Char (isAscii,isPrint,ord,toUpper)
 import Data.List (intersperse)
 import qualified Data.Map as Map
-import Data.Maybe (catMaybes,fromMaybe)
+import Data.Maybe (catMaybes,fromMaybe,isJust)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
 import Data.Int
@@ -407,6 +407,14 @@ ppConvOp PtrToInt = "ptrtoint"
 ppConvOp IntToPtr = "inttoptr"
 ppConvOp BitCast  = "bitcast"
 
+ppAtomicOrdering :: AtomicOrdering -> Doc
+ppAtomicOrdering Unordered = text "unordered"
+ppAtomicOrdering Monotonic = text "monotonic"
+ppAtomicOrdering Acquire   = text "acquire"
+ppAtomicOrdering Release   = text "release"
+ppAtomicOrdering AcqRel    = text "acq_rel"
+ppAtomicOrdering SeqCst    = text "seq_cst"
+
 ppInstr :: LLVM => Instr -> Doc
 ppInstr instr = case instr of
   Ret tv                 -> "ret" <+> ppTyped ppValue tv
@@ -419,7 +427,7 @@ ppInstr instr = case instr of
                         <+> "to" <+> ppType ty
   Call tc ty f args      -> ppCall tc ty f args
   Alloca ty len align    -> ppAlloca ty len align
-  Load ptr ma            -> ppLoad ptr ma
+  Load ptr mo ma         -> ppLoad ptr mo ma
   Store a ptr ma         -> "store" <+> ppTyped ppValue a
                          <> comma <+> ppTyped ppValue ptr
                          <> ppAlign ma
@@ -482,14 +490,23 @@ ppInstr instr = case instr of
                         $$ nest 2 (ppClauses c cs)
   Resume tv           -> "resume" <+> ppTyped ppValue tv
 
-ppLoad :: LLVM => Typed (Value' BlockLabel) -> Maybe Align -> Doc
-ppLoad ptr ma =
-  "load" <+> (if isImplicit then empty else explicit)
+ppLoad :: LLVM => Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Maybe Align -> Doc
+ppLoad ptr mo ma =
+  "load" <+> (if isAtomic   then "atomic" else empty)
+         <+> (if isImplicit then empty    else explicit)
          <+> ppTyped ppValue ptr
+         <+> ordering
           <> ppAlign ma
 
   where
+  isAtomic = isJust mo
+
   isImplicit = checkConfig cfgLoadImplicitType
+
+  ordering =
+    case mo of
+      Just ao -> ppAtomicOrdering ao
+      _       -> empty
 
   explicit =
     case typedType ptr of

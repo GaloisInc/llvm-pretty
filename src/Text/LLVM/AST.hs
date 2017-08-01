@@ -665,6 +665,15 @@ data ConvOp
   | BitCast
     deriving (Show,Generic)
 
+data AtomicOrdering
+  = Unordered
+  | Monotonic
+  | Acquire
+  | Release
+  | AcqRel
+  | SeqCst
+    deriving (Eq,Show,Generic)
+
 type Align = Int
 
 data Instr' lab
@@ -705,7 +714,7 @@ data Instr' lab
          * Middle of basic block.
          * Returns a pointer to hold the given number of elemets. -}
 
-  | Load (Typed (Value' lab)) (Maybe Align)
+  | Load (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Read a value from the given address:
            address to read from;
            assumptions about alignment of the given pointer.
