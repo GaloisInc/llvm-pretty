@@ -59,6 +59,7 @@ instance Monoid Module where
     , modDefines    = modDefines    m1 `mappend` modDefines    m2
     , modInlineAsm  = modInlineAsm  m1 `mappend` modInlineAsm  m2
     , modAliases    = modAliases    m1 `mappend` modAliases    m2
+    , modComdat     = modComdat     m1 `mappend` modComdat     m2
     }
 
 emptyModule :: Module
@@ -73,6 +74,7 @@ emptyModule  = Module
   , modDefines    = mempty
   , modInlineAsm  = mempty
   , modAliases    = mempty
+  , modComdat     = mempty
   }
 
 
