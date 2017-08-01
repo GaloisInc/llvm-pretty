@@ -816,7 +816,7 @@ data Instr' lab
            jump table.
          * Ends basic block. -}
 
-  | LandingPad Type (Typed (Value' lab)) Bool [Clause' lab]
+  | LandingPad Type (Maybe (Typed (Value' lab))) Bool [Clause' lab]
 
   | Resume (Typed (Value' lab))
 

@@ -142,7 +142,7 @@ instance HasLabel Instr' where
      in Phi t <$> traverse step ls
 
   relabel f (LandingPad ty fn c cs) = LandingPad ty
-                                  <$> traverse (relabel f) fn
+                                  <$> traverse (traverse (relabel f)) fn
                                   <*> pure c
                                   <*> traverse (relabel f) cs
 

@@ -470,12 +470,17 @@ ppInstr instr = case instr of
                         <+> char '['
                          $$ nest 2 (vcat (map (ppSwitchEntry (typedType c)) ls))
                          $$ char ']'
-  LandingPad ty fn c cs  -> "landingpad"
+  LandingPad ty mfn c cs  ->
+        case mfn of
+            Just fn -> "landingpad"
                         <+> ppType ty
                         <+> "personality"
                         <+> ppTyped ppValue fn
-                         $$ nest 2 (ppClauses c cs)
-  Resume tv              -> "resume" <+> ppTyped ppValue tv
+                        $$ nest 2 (ppClauses c cs)
+            Nothing -> "landingpad"
+                        <+> ppType ty
+                        $$ nest 2 (ppClauses c cs)
+  Resume tv           -> "resume" <+> ppTyped ppValue tv
 
 ppLoad :: LLVM => Typed (Value' BlockLabel) -> Maybe Align -> Doc
 ppLoad ptr ma =
