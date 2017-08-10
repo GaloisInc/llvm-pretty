@@ -18,10 +18,11 @@ module Text.LLVM.PP where
 
 import Text.LLVM.AST
 
+import Control.Applicative ((<|>))
 import Data.Char (isAscii,isPrint,ord,toUpper)
 import Data.List (intersperse)
 import qualified Data.Map as Map
-import Data.Maybe (catMaybes,fromMaybe)
+import Data.Maybe (catMaybes,fromMaybe,isJust)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
 import Data.Int
@@ -84,6 +85,7 @@ ppModule m = foldr ($+$) empty
            , map ppDefine      (modDefines m)
            , map ppNamedMd     (modNamedMd m)
            , map ppUnnamedMd   (modUnnamedMd m)
+           , map ppComdat      (Map.toList (modComdat m))
            ]
 
 
@@ -233,8 +235,22 @@ ppDeclare d = "declare"
           <+> ppSymbol (decName d)
            <> ppArgList (decVarArgs d) (map ppType (decArgs d))
           <+> hsep (ppFunAttr <$> decAttrs d)
+          <> maybe empty ((char ' ' <>) . ppComdatName) (decComdat d)
 
+ppComdatName :: String -> Doc
+ppComdatName s = "comdat" <> parens (char '$' <> text s)
 
+ppComdat :: (String,SelectionKind) -> Doc
+ppComdat (n,k) = ppComdatName n <+> char '=' <+> text "comdat" <+> ppSelectionKind k
+
+ppSelectionKind :: SelectionKind -> Doc
+ppSelectionKind k =
+    case k of
+      ComdatAny             -> "any"
+      ComdatExactMatch      -> "exactmatch"
+      ComdatLargest         -> "largest"
+      ComdatNoDuplicates    -> "noduplicates"
+      ComdatSameSize        -> "samesize"
 
 ppDefine :: LLVM => Define -> Doc
 ppDefine d = "define"
@@ -392,6 +408,14 @@ ppConvOp PtrToInt = "ptrtoint"
 ppConvOp IntToPtr = "inttoptr"
 ppConvOp BitCast  = "bitcast"
 
+ppAtomicOrdering :: AtomicOrdering -> Doc
+ppAtomicOrdering Unordered = text "unordered"
+ppAtomicOrdering Monotonic = text "monotonic"
+ppAtomicOrdering Acquire   = text "acquire"
+ppAtomicOrdering Release   = text "release"
+ppAtomicOrdering AcqRel    = text "acq_rel"
+ppAtomicOrdering SeqCst    = text "seq_cst"
+
 ppInstr :: LLVM => Instr -> Doc
 ppInstr instr = case instr of
   Ret tv                 -> "ret" <+> ppTyped ppValue tv
@@ -404,7 +428,7 @@ ppInstr instr = case instr of
                         <+> "to" <+> ppType ty
   Call tc ty f args      -> ppCall tc ty f args
   Alloca ty len align    -> ppAlloca ty len align
-  Load ptr ma            -> ppLoad ptr ma
+  Load ptr mo ma         -> ppLoad ptr mo ma
   Store a ptr ma         -> "store" <+> ppTyped ppValue a
                          <> comma <+> ppTyped ppValue ptr
                          <> ppAlign ma
@@ -455,21 +479,35 @@ ppInstr instr = case instr of
                         <+> char '['
                          $$ nest 2 (vcat (map (ppSwitchEntry (typedType c)) ls))
                          $$ char ']'
-  LandingPad ty fn c cs  -> "landingpad"
+  LandingPad ty mfn c cs  ->
+        case mfn of
+            Just fn -> "landingpad"
                         <+> ppType ty
                         <+> "personality"
                         <+> ppTyped ppValue fn
-                         $$ nest 2 (ppClauses c cs)
-  Resume tv              -> "resume" <+> ppTyped ppValue tv
+                        $$ nest 2 (ppClauses c cs)
+            Nothing -> "landingpad"
+                        <+> ppType ty
+                        $$ nest 2 (ppClauses c cs)
+  Resume tv           -> "resume" <+> ppTyped ppValue tv
 
-ppLoad :: LLVM => Typed (Value' BlockLabel) -> Maybe Align -> Doc
-ppLoad ptr ma =
-  "load" <+> (if isImplicit then empty else explicit)
+ppLoad :: LLVM => Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Maybe Align -> Doc
+ppLoad ptr mo ma =
+  "load" <+> (if isAtomic   then "atomic" else empty)
+         <+> (if isImplicit then empty    else explicit)
          <+> ppTyped ppValue ptr
+         <+> ordering
           <> ppAlign ma
 
   where
+  isAtomic = isJust mo
+
   isImplicit = checkConfig cfgLoadImplicitType
+
+  ordering =
+    case mo of
+      Just ao -> ppAtomicOrdering ao
+      _       -> empty
 
   explicit =
     case typedType ptr of
@@ -639,7 +677,8 @@ ppMetadataNode vs = ppMetadata (braces (commas (map arg vs)))
 ppStringLiteral :: String -> Doc
 ppStringLiteral  = doubleQuotes . text . concatMap escape
   where
-  escape c | isAscii c && isPrint c = [c]
+  escape c | c == '"' || c == '\\'  = '\\' : showHex (fromEnum c) ""
+           | isAscii c && isPrint c = [c]
            | otherwise              = '\\' : pad (ord c)
 
   pad n | n < 0x10  = '0' : map toUpper (showHex n "")
@@ -698,6 +737,37 @@ ppDebugInfo di = case di of
   DebugInfoSubprogram sp        -> ppDISubprogram sp
   DebugInfoSubrange sr          -> ppDISubrange sr
   DebugInfoSubroutineType st    -> ppDISubroutineType st
+  DebugInfoNameSpace ns         -> ppDINameSpace ns
+
+ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc
+ppDIImportedEntity ie = "!DIImportedEntity"
+  <> parens (mcommas [ pure ("tag:"    <+> integral (diieTag ie))
+                     , pure ("name:"   <+> text     (diieName ie))
+                     , (("scope:"  <+>) . ppValMd) <$> diieScope ie
+                     , (("entity:" <+>) . ppValMd) <$> diieEntity ie
+                     , pure ("line:"   <+> integral (diieLine ie))
+                     ])
+
+ppDINameSpace :: LLVM => DINameSpace -> Doc
+ppDINameSpace ns = "!DINameSpace"
+  <> parens (commas [ "name:"   <+> text (dinsName ns)
+                    , "scope:"  <+> ppValMd (dinsScope ns)
+                    , "file:"   <+> ppValMd (dinsFile ns)
+                    , "line:"   <+> integral (dinsLine ns)
+                    ])
+
+ppDITemplateTypeParameter :: LLVM => DITemplateTypeParameter -> Doc
+ppDITemplateTypeParameter tp = "!DITemplateTypeParameter"
+  <> parens (commas [ "name:" <+> text (dittpName tp)
+                    , "type:" <+> ppValMd (dittpType tp)
+                    ])
+
+ppDITemplateValueParameter :: LLVM => DITemplateValueParameter -> Doc
+ppDITemplateValueParameter vp = "!DITemplateValueParameter"
+  <> parens (commas [ "name:"  <+> text (ditvpName vp)
+                    , "type:"  <+> ppValMd (ditvpType vp)
+                    , "value:" <+> ppValMd (ditvpValue vp)
+                    ])
 
 ppDIBasicType :: DIBasicType -> Doc
 ppDIBasicType bt = "!DIBasicType"
@@ -760,7 +830,7 @@ ppDIDerivedType dt = "!DIDerivedType"
        ,     (("name:"      <+>) . doubleQuotes . text) <$> (didtName dt)
        ,     (("file:"      <+>) . ppValMd) <$> (didtFile dt)
        , pure ("line:"      <+> integral (didtLine dt))
-       ,     (("baseType:"  <+>) . ppValMd) <$> (didtBaseType dt)
+       ,      ("baseType:"  <+>) <$> (ppValMd <$> didtBaseType dt <|> Just "null")
        , pure ("size:"      <+> integral (didtSize dt))
        , pure ("align:"     <+> integral (didtAlign dt))
        , pure ("offset:"    <+> integral (didtOffset dt))
@@ -796,7 +866,7 @@ ppDIGlobalVariable gv = "!DIGlobalVariable"
        ,      (("type:"        <+>) . ppValMd) <$> (digvType gv)
        , pure ("isLocal:"      <+> ppBool (digvIsLocal gv))
        , pure ("isDefinition:" <+> ppBool (digvIsDefinition gv))
-       ,      (("variable:"    <+>) . ppValMd) <$> (digvType gv)
+       ,      (("variable:"    <+>) . ppValMd) <$> (digvVariable gv)
        ,      (("declaration:" <+>) . ppValMd) <$> (digvDeclaration gv)
        ,      (("align:"       <+>) . integral) <$> digvAlignment gv
        ])

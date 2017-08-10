@@ -83,7 +83,7 @@ instance HasLabel Instr' where
   relabel f (Alloca t n a)        = Alloca t
                                 <$> traverse (traverse (relabel f)) n
                                 <*> pure a
-  relabel f (Load a ma)           = Load <$> traverse (relabel f) a <*> pure ma
+  relabel f (Load a mo ma)        = Load <$> traverse (relabel f) a <*> pure mo <*> pure ma
   relabel f (Store d v ma)        = Store
                                 <$> traverse (relabel f) d
                                 <*> traverse (relabel f) v
@@ -142,7 +142,7 @@ instance HasLabel Instr' where
      in Phi t <$> traverse step ls
 
   relabel f (LandingPad ty fn c cs) = LandingPad ty
-                                  <$> traverse (relabel f) fn
+                                  <$> traverse (traverse (relabel f)) fn
                                   <*> pure c
                                   <*> traverse (relabel f) cs
 
@@ -163,6 +163,10 @@ instance HasLabel DICompositeType'            where relabel = genericRelabel
 instance HasLabel DILexicalBlock'             where relabel = genericRelabel
 instance HasLabel DICompileUnit'              where relabel = genericRelabel
 instance HasLabel DILexicalBlockFile'         where relabel = genericRelabel
+instance HasLabel DINameSpace'                where relabel = genericRelabel
+instance HasLabel DITemplateTypeParameter'    where relabel = genericRelabel
+instance HasLabel DITemplateValueParameter'   where relabel = genericRelabel
+instance HasLabel DIImportedEntity'           where relabel = genericRelabel
 
 -- | Clever instance that actually uses the block name
 instance HasLabel ConstExpr' where
