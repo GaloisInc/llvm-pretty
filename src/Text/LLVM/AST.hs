@@ -34,14 +34,14 @@ import Data.Traversable (Traversable(sequenceA))
 
 data Module = Module
   { modSourceName :: Maybe String
-  , modDataLayout :: DataLayout
-  , modTypes      :: [TypeDecl]
+  , modDataLayout :: DataLayout    -- ^ type size and alignment information
+  , modTypes      :: [TypeDecl]    -- ^ top-level type aliases
   , modNamedMd    :: [NamedMd]
   , modUnnamedMd  :: [UnnamedMd]
   , modComdat     :: Map.Map String SelectionKind
-  , modGlobals    :: [Global]
-  , modDeclares   :: [Declare]
-  , modDefines    :: [Define]
+  , modGlobals    :: [Global]      -- ^ global value declarations
+  , modDeclares   :: [Declare]     -- ^ external function declarations (without definitions)
+  , modDefines    :: [Define]      -- ^ internal function declarations (with definitions)
   , modInlineAsm  :: InlineAsm
   , modAliases    :: [GlobalAlias]
   } deriving (Show,Generic)
@@ -614,6 +614,7 @@ isIArith _      = False
 isFArith :: ArithOp -> Bool
 isFArith  = not . isIArith
 
+-- | Binary bitwise operators.
 data BitOp
   = Shl Bool Bool
     {- ^ * Shift left.
@@ -624,25 +625,25 @@ data BitOp
          If a check fails, then the result is poisoned.
 
          The value of the second parameter must be strictly less than the
-           nubmer of bits in the first parameter,
+           number of bits in the first parameter,
            otherwise the result is undefined.  -}
 
   | Lshr Bool
     {- ^ * Logical shift right.
-         * The boolean is for exact check: posion the result,
+         * The boolean is for exact check: poison the result,
               if we shift out a 1 bit (i.e., had to round).
 
     The value of the second parameter must be strictly less than the
-    nubmer of bits in the first parameter, otherwise the result is undefined.
+    number of bits in the first parameter, otherwise the result is undefined.
     -}
 
   | Ashr Bool
     {- ^ * Arithmetic shift right.
-         * The boolean is for exact check: posion the result,
+         * The boolean is for exact check: poison the result,
                 if we shift out a 1 bit (i.e., had to round).
 
     The value of the second parameter must be strictly less than the
-    nubmer of bits in the first parameter, otherwise the result is undefined.
+    number of bits in the first parameter, otherwise the result is undefined.
     -}
 
   | And
@@ -650,6 +651,7 @@ data BitOp
   | Xor
     deriving (Show,Generic)
 
+-- | Conversions from one type to another.
 data ConvOp
   = Trunc
   | ZExt
@@ -712,7 +714,7 @@ data Instr' lab
            how many elements (1 if 'Nothing');
            required alignment.
          * Middle of basic block.
-         * Returns a pointer to hold the given number of elemets. -}
+         * Returns a pointer to hold the given number of elements. -}
 
   | Load (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Read a value from the given address:
@@ -784,7 +786,7 @@ data Instr' lab
     {- ^ * Get an element from a vector: the first argument is a vector,
            the second an index.
          * Middle of basic block.
-         * Returns the element at the given positoin. -}
+         * Returns the element at the given position. -}
 
   | InsertElt (Typed (Value' lab)) (Typed (Value' lab)) (Value' lab)
     {- ^ * Modify an element of a vector: the first argument is the vector,
@@ -863,9 +865,11 @@ isPhi :: Instr' lab -> Bool
 isPhi Phi{} = True
 isPhi _     = False
 
+-- | Integer comparison operators.
 data ICmpOp = Ieq | Ine | Iugt | Iuge | Iult | Iule | Isgt | Isge | Islt | Isle
     deriving (Show, Generic)
 
+-- | Floating-point comparison operators.
 data FCmpOp = Ffalse  | Foeq | Fogt | Foge | Folt | Fole | Fone
             | Ford    | Fueq | Fugt | Fuge | Fult | Fule | Fune
             | Funo    | Ftrue
