@@ -38,6 +38,7 @@ data Module = Module
   , modTypes      :: [TypeDecl]    -- ^ top-level type aliases
   , modNamedMd    :: [NamedMd]
   , modUnnamedMd  :: [UnnamedMd]
+  , modComdat     :: Map.Map String SelectionKind
   , modGlobals    :: [Global]      -- ^ global value declarations
   , modDeclares   :: [Declare]     -- ^ external function declarations (without definitions)
   , modDefines    :: [Define]      -- ^ internal function declarations (with definitions)
@@ -58,6 +59,7 @@ instance Monoid Module where
     , modDefines    = modDefines    m1 `mappend` modDefines    m2
     , modInlineAsm  = modInlineAsm  m1 `mappend` modInlineAsm  m2
     , modAliases    = modAliases    m1 `mappend` modAliases    m2
+    , modComdat     = modComdat     m1 `mappend` modComdat     m2
     }
 
 emptyModule :: Module
@@ -72,6 +74,7 @@ emptyModule  = Module
   , modDefines    = mempty
   , modInlineAsm  = mempty
   , modAliases    = mempty
+  , modComdat     = mempty
   }
 
 
@@ -177,6 +180,15 @@ parseDataLayout str =
 -- Inline Assembly -------------------------------------------------------------
 
 type InlineAsm = [String]
+
+-- Comdat ----------------------------------------------------------------------
+
+data SelectionKind = ComdatAny
+                   | ComdatExactMatch
+                   | ComdatLargest
+                   | ComdatNoDuplicates
+                   | ComdatSameSize
+    deriving(Show,Generic,Eq,Ord)
 
 -- Identifiers -----------------------------------------------------------------
 
@@ -392,6 +404,7 @@ data Declare = Declare
   , decArgs    :: [Type]
   , decVarArgs :: Bool
   , decAttrs   :: [FunAttr]
+  , decComdat  :: Maybe String
   } deriving (Show, Generic)
 
 -- | The function type of this declaration
@@ -412,6 +425,7 @@ data Define = Define
   , defGC       :: Maybe GC
   , defBody     :: [BasicBlock]
   , defMetadata :: FnMdAttachments
+  , defComdat   :: Maybe String
   } deriving (Show, Generic)
 
 defFunType :: Define -> Type
@@ -653,6 +667,15 @@ data ConvOp
   | BitCast
     deriving (Show,Generic)
 
+data AtomicOrdering
+  = Unordered
+  | Monotonic
+  | Acquire
+  | Release
+  | AcqRel
+  | SeqCst
+    deriving (Eq,Show,Generic)
+
 type Align = Int
 
 data Instr' lab
@@ -693,7 +716,7 @@ data Instr' lab
          * Middle of basic block.
          * Returns a pointer to hold the given number of elements. -}
 
-  | Load (Typed (Value' lab)) (Maybe Align)
+  | Load (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Read a value from the given address:
            address to read from;
            assumptions about alignment of the given pointer.
@@ -804,7 +827,7 @@ data Instr' lab
            jump table.
          * Ends basic block. -}
 
-  | LandingPad Type (Typed (Value' lab)) Bool [Clause' lab]
+  | LandingPad Type (Maybe (Typed (Value' lab))) Bool [Clause' lab]
 
   | Resume (Typed (Value' lab))
 
@@ -980,9 +1003,43 @@ data DebugInfo' lab
   | DebugInfoSubprogram (DISubprogram' lab)
   | DebugInfoSubrange DISubrange
   | DebugInfoSubroutineType (DISubroutineType' lab)
+  | DebugInfoNameSpace (DINameSpace' lab)
+  | DebugInfoTemplateTypeParameter (DITemplateTypeParameter' lab)
+  | DebugInfoTemplateValueParameter (DITemplateValueParameter' lab)
+  | DebugInfoImportedEntity (DIImportedEntity' lab)
   deriving (Show,Functor,Generic,Generic1)
 
 type DebugInfo = DebugInfo' BlockLabel
+
+type DIImportedEntity = DIImportedEntity' BlockLabel
+data DIImportedEntity' lab = DIImportedEntity
+    { diieTag      :: DwarfTag
+    , diieName     :: String
+    , diieScope    :: Maybe (ValMd' lab)
+    , diieEntity   :: Maybe (ValMd' lab)
+    , diieLine     :: Word32
+    } deriving (Show,Functor,Generic,Generic1)
+
+type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
+data DITemplateTypeParameter' lab = DITemplateTypeParameter
+    { dittpName :: String
+    , dittpType :: ValMd' lab
+    } deriving (Show,Functor,Generic,Generic1)
+
+type DITemplateValueParameter = DITemplateValueParameter' BlockLabel
+data DITemplateValueParameter' lab = DITemplateValueParameter
+    { ditvpName  :: String
+    , ditvpType  :: ValMd' lab
+    , ditvpValue :: ValMd' lab
+    } deriving (Show,Functor,Generic,Generic1)
+
+type DINameSpace = DINameSpace' BlockLabel
+data DINameSpace' lab = DINameSpace
+    { dinsName  :: String
+    , dinsScope :: ValMd' lab
+    , dinsFile  :: ValMd' lab
+    , dinsLine  :: Word32
+    } deriving (Show,Functor,Generic,Generic1)
 
 -- TODO: Turn these into sum types
 -- See https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/Support/Dwarf.def
