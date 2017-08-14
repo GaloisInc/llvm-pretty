@@ -738,6 +738,9 @@ ppDebugInfo di = case di of
   DebugInfoSubrange sr          -> ppDISubrange sr
   DebugInfoSubroutineType st    -> ppDISubroutineType st
   DebugInfoNameSpace ns         -> ppDINameSpace ns
+  DebugInfoTemplateTypeParameter dttp  -> ppDITemplateTypeParameter dttp
+  DebugInfoTemplateValueParameter dtvp -> ppDITemplateValueParameter dtvp
+  DebugInfoImportedEntity diip         -> ppDIImportedEntity diip
 
 ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc
 ppDIImportedEntity ie = "!DIImportedEntity"
