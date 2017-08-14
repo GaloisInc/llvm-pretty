@@ -193,6 +193,7 @@ declare rty sym tys va = emitDeclare Declare
   , decArgs    = tys
   , decVarArgs = va
   , decAttrs   = []
+  , decComdat  = Nothing
   }
 
 -- | Emit a global declaration.
@@ -281,6 +282,7 @@ define attrs rty fun sig k = do
     , defGC       = funGC attrs
     , defBody     = body
     , defMetadata = Map.empty
+    , defComdat  = Nothing
     }
 
 -- | A combination of define and @freshSymbol@.
@@ -308,6 +310,7 @@ define' attrs rty sym sig va k = do
     , defGC       = funGC attrs
     , defBody     = snd (runBB (k (map (fmap toValue) args)))
     , defMetadata = Map.empty
+    , defComdat   = Nothing
     }
 
 -- Basic Block Monad -----------------------------------------------------------
