@@ -731,7 +731,7 @@ ppAsm s a i c =
 
 
 ppConstExpr :: LLVM => ConstExpr -> Doc
-ppConstExpr (ConstGEP inb mp ixs)  = "getelementptr"
+ppConstExpr (ConstGEP inb _mix mp ixs)  = "getelementptr"
   <+> opt inb "inbounds"
   <+> parens (mcommas ((ppType <$> mp) : (map (pure . ppTyped ppValue) ixs)))
 ppConstExpr (ConstConv op tv t) = ppConvOp op <+> parens
