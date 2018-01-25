@@ -1250,6 +1250,7 @@ data DISubprogram' lab = DISubprogram
   , dispVirtuality     :: DwarfVirtuality
   , dispVirtualIndex   :: Word32
   , dispThisAdjustment :: Int64
+  , dispThrownTypes    :: Maybe (ValMd' lab)
   , dispFlags          :: DIFlags
   , dispIsOptimized    :: Bool
   , dispTemplateParams :: Maybe (ValMd' lab)
