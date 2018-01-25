@@ -667,6 +667,20 @@ data ConvOp
   | BitCast
     deriving (Show,Generic)
 
+data AtomicRWOp
+  = AtomicXchg
+  | AtomicAdd
+  | AtomicSub
+  | AtomicAnd
+  | AtomicNand
+  | AtomicOr
+  | AtomicXor
+  | AtomicMax
+  | AtomicMin
+  | AtomicUMax
+  | AcomicUMin
+    deriving (Eq,Generic,Show)
+
 data AtomicOrdering
   = Unordered
   | Monotonic
@@ -728,6 +742,39 @@ data Instr' lab
              value to store;
              pointer to location where to store;
              assumptions about the alignment of the given pointer.
+         * Middle of basic block.
+         * Effect. -}
+
+
+  | Fence (Maybe String) AtomicOrdering
+    {- ^ * Introduce a happens-before relationship between operations:
+             synchronization scope;
+             type of ordering.
+         * Middle of basic block. -}
+
+  | CmpXchg Bool Bool (Typed (Value' lab)) (Typed (Value' lab)) (Typed (Value' lab)) (Maybe String) AtomicOrdering AtomicOrdering
+    {- ^ * Atomically compare and maybe exchange values in memory:
+             whether the exchange is weak;
+             whether the exchange is volatile;
+             pointer to read;
+             value to compare it with;
+             new value to write if the two prior values are equal;
+             synchronization scope;
+             synchronization ordering on success;
+             synchronization ordering on failure.
+         * Returns a pair of the original value and whether an exchange occurred.
+         * Middle of basic block.
+         * Effect. -}
+
+  | AtomicRW Bool AtomicRWOp (Typed (Value' lab)) (Typed (Value' lab)) (Maybe String) AtomicOrdering
+    {- ^ * Perform an atomic load, operation, and store:
+             whether the operation is volatile;
+             operation to apply to the read value and the provided value;
+             pointer to read;
+             value to combine it with, using the given operation;
+             synchronization scope;
+             synchronization ordering.
+         * Returns the original value at the given location.
          * Middle of basic block.
          * Effect. -}
 

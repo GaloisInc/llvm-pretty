@@ -416,6 +416,23 @@ ppAtomicOrdering Release   = text "release"
 ppAtomicOrdering AcqRel    = text "acq_rel"
 ppAtomicOrdering SeqCst    = text "seq_cst"
 
+ppAtomicOp :: AtomicRWOp -> Doc
+ppAtomicOp AtomicXchg = "xchg"
+ppAtomicOp AtomicAdd  = "add"
+ppAtomicOp AtomicSub  = "sub"
+ppAtomicOp AtomicAnd  = "and"
+ppAtomicOp AtomicNand = "nand"
+ppAtomicOp AtomicOr   = "or"
+ppAtomicOp AtomicXor  = "xor"
+ppAtomicOp AtomicMax  = "max"
+ppAtomicOp AtomicMin  = "min"
+ppAtomicOp AtomicUMax = "umax"
+ppAtomicOp AcomicUMin = "umin"
+
+ppScope ::  Maybe String -> Doc
+ppScope Nothing = empty
+ppScope (Just s) = "syncscope" <> parens (doubleQuotes (text s))
+
 ppInstr :: LLVM => Instr -> Doc
 ppInstr instr = case instr of
   Ret tv                 -> "ret" <+> ppTyped ppValue tv
@@ -432,6 +449,23 @@ ppInstr instr = case instr of
   Store a ptr ma         -> "store" <+> ppTyped ppValue a
                          <> comma <+> ppTyped ppValue ptr
                          <> ppAlign ma
+  Fence scope order      -> "fence" <+> ppScope scope <+> ppAtomicOrdering order
+  CmpXchg w v p a n s o o' -> "cmpxchg" <+> opt w "weak"
+                         <+> opt v "volatile"
+                         <+> ppTyped ppValue p
+                         <> comma <+> ppTyped ppValue a
+                         <> comma <+> ppTyped ppValue n
+                         <+> ppScope s
+                         <+> ppAtomicOrdering o
+                         <+> ppAtomicOrdering o'
+  AtomicRW v op p a s o  -> "atomicrw"
+                         <+> opt v "volatile"
+                         <+> ppAtomicOp op
+                         <+> ppTyped ppValue p
+                         <> comma <+> ppTyped ppValue p
+                         <> comma <+> ppTyped ppValue a
+                         <+> ppScope s
+                         <+> ppAtomicOrdering o
   ICmp op l r            -> "icmp" <+> ppICmpOp op
                         <+> ppTyped ppValue l <> comma <+> ppValue r
   FCmp op l r            -> "fcmp" <+> ppFCmpOp op
