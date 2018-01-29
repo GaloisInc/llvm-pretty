@@ -88,6 +88,21 @@ instance HasLabel Instr' where
                                 <$> traverse (relabel f) d
                                 <*> traverse (relabel f) v
                                 <*> pure ma
+  relabel _ (Fence s o)           = pure (Fence s o)
+  relabel f (CmpXchg w v p a n s o o')
+                                  = CmpXchg w v
+                                <$> traverse (relabel f) p
+                                <*> traverse (relabel f) a
+                                <*> traverse (relabel f) n
+                                <*> pure s
+                                <*> pure o
+                                <*> pure o'
+  relabel f (AtomicRW v op p a s o)
+                                  = AtomicRW v op
+                                <$> traverse (relabel f) p
+                                <*> traverse (relabel f) a
+                                <*> pure s
+                                <*> pure o
   relabel f (ICmp op l r)         = ICmp op
                                 <$> traverse (relabel f) l
                                 <*> relabel f r
