@@ -386,13 +386,15 @@ addGlobal g m = m { modGlobals = g : modGlobals m }
 
 data GlobalAttrs = GlobalAttrs
   { gaLinkage    :: Maybe Linkage
+  , gaVisibility :: Maybe Visibility
   , gaConstant   :: Bool
   } deriving (Show, Generic)
 
 emptyGlobalAttrs :: GlobalAttrs
 emptyGlobalAttrs  = GlobalAttrs
-  { gaLinkage  = Nothing
-  , gaConstant = False
+  { gaLinkage    = Nothing
+  , gaVisibility = Nothing
+  , gaConstant   = False
   }
 
 
@@ -518,6 +520,11 @@ data Linkage
   | External
   | DLLImport
   | DLLExport
+    deriving (Eq,Show,Generic)
+
+data Visibility = DefaultVisibility
+                | HiddenVisibility
+                | ProtectedVisibility
     deriving (Eq,Show,Generic)
 
 newtype GC = GC

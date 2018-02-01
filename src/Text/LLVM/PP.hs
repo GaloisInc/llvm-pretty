@@ -217,17 +217,37 @@ ppTypeDecl td = ppIdent (typeName td) <+> char '='
 
 ppGlobal :: LLVM => Global -> Doc
 ppGlobal g = ppSymbol (globalSym g) <+> char '='
-         <+> ppGlobalAttrs (globalAttrs g)
+         <+> ppTheGlobalAttrs (globalAttrs g)
          <+> ppType (globalType g) <+> ppMaybe ppValue (globalValue g)
           <> ppAlign (globalAlign g)
           <> ppAttachedMetadata (Map.toList (globalMetadata g))
+  where
+  isStruct | Just (ValStruct {}) <- globalValue g = True
+           | otherwise = False
+  ppTheGlobalAttrs | isStruct = ppStructGlobalAttrs
+                    | otherwise = ppGlobalAttrs
 
 ppGlobalAttrs :: GlobalAttrs -> Doc
-ppGlobalAttrs ga = ppMaybe ppLinkage (gaLinkage ga) <+> constant
+ppGlobalAttrs ga
+    -- LLVM 3.8 does not emit or parse linkage information w/ hidden visibility
+    | Just HiddenVisibility <- gaVisibility ga =
+            ppVisibility HiddenVisibility <+> constant
+    | otherwise = ppMaybe ppLinkage (gaLinkage ga) <+> ppMaybe ppVisibility (gaVisibility ga) <+> constant
   where
   constant | gaConstant ga = "constant"
            | otherwise     = "global"
 
+ppStructGlobalAttrs :: GlobalAttrs -> Doc
+ppStructGlobalAttrs ga
+    -- LLVM 3.8 does not emit or parse external linkage for
+    -- global structs
+    | Just External <- gaLinkage ga,
+      Just DefaultVisibility <- gaVisibility ga
+        = constant
+    | otherwise = ppGlobalAttrs ga
+  where
+  constant | gaConstant ga = "constant"
+           | otherwise     = "global"
 
 ppDeclare :: Declare -> Doc
 ppDeclare d = "declare"
@@ -356,6 +376,12 @@ ppLinkage linkage = case linkage of
   External                 -> "external"
   DLLImport                -> "dllimport"
   DLLExport                -> "dllexport"
+
+ppVisibility :: Visibility -> Doc
+ppVisibility v = case v of
+    DefaultVisibility   -> "default"
+    HiddenVisibility    -> "hidden"
+    ProtectedVisibility -> "protected"
 
 ppGC :: GC -> Doc
 ppGC  = doubleQuotes . text . getGC
