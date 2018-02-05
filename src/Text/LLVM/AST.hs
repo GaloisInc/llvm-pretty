@@ -1349,7 +1349,9 @@ resolveGepBody _ _ =
     Invalid
 
 isGepIndex :: Typed (Value' lab) -> Bool
-isGepIndex tv = isPrimTypeOf isInteger (typedType tv)
+isGepIndex tv =
+  isPrimTypeOf isInteger (typedType tv) ||
+  isVectorOf (isPrimTypeOf isInteger) (typedType tv)
 
 isGepStructIndex :: Typed (Value' lab) -> Maybe Integer
 isGepStructIndex tv = do
