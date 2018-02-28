@@ -19,7 +19,7 @@ module Text.LLVM.PP where
 import Text.LLVM.AST
 
 import Control.Applicative ((<|>))
-import Data.Char (isAscii,isPrint,ord,toUpper)
+import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
 import Data.List (intersperse)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes,fromMaybe,isJust)
@@ -170,13 +170,29 @@ ppInlineAsm  = foldr ($+$) empty . map ppLine
 -- Identifiers -----------------------------------------------------------------
 
 ppIdent :: Ident -> Doc
-ppIdent (Ident n) = char '%' <> text n
+ppIdent (Ident n)
+  | validIdentifier n = char '%' <> text n
+  | otherwise         = char '%' <> ppStringLiteral n
+
+-- | According to the LLVM Language Reference Manual, the regular
+-- expression for LLVM identifiers is "[-a-zA-Z$._][-a-zA-Z$._0-9]".
+-- Identifiers may also be strings of one or more decimal digits.
+validIdentifier :: String -> Bool
+validIdentifier [] = False
+validIdentifier s@(c0 : cs)
+  | isDigit c0 = all isDigit cs
+  | otherwise  = all isIdentChar s
+  where
+  isIdentChar :: Char -> Bool
+  isIdentChar c = isAlphaNum c || c `elem` ("-$._" :: [Char])
 
 
 -- Symbols ---------------------------------------------------------------------
 
 ppSymbol :: Symbol -> Doc
-ppSymbol (Symbol n) = char '@' <> text n
+ppSymbol (Symbol n)
+  | validIdentifier n = char '@' <> text n
+  | otherwise         = char '@' <> ppStringLiteral n
 
 
 -- Types -----------------------------------------------------------------------
