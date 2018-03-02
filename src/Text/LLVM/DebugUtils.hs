@@ -1,4 +1,4 @@
-{-# Language TransformListComp, MonadComprehensions #-}
+{-# Language TransformListComp, MonadComprehensions, OverloadedStrings #-}
 {- |
 Module           : $Header$
 Description      : This module interprets the DWARF information associated
@@ -27,6 +27,8 @@ module Text.LLVM.DebugUtils
 
 import           Control.Applicative    ((<|>))
 import           Control.Monad          ((<=<))
+import           Data.ByteString        (ByteString)
+import qualified Data.ByteString as B
 import           Data.IntMap            (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.List              (elemIndex, tails, stripPrefix)
@@ -36,10 +38,10 @@ import           Data.Maybe             (fromMaybe, listToMaybe, maybeToList, ma
 import           Data.Word              (Word16, Word64)
 import           Text.LLVM.AST
 
-dbgKind :: String
+dbgKind :: ByteString
 dbgKind = "dbg"
 
-llvmDbgCuKey :: String
+llvmDbgCuKey :: ByteString
 llvmDbgCuKey = "llvm.dbg.cu"
 
 dwarfPointer, dwarfStruct, dwarfTypedef, dwarfUnion, dwarfBasetype,
@@ -56,10 +58,10 @@ type MdMap = IntMap ValMd
 
 data Info
   = Pointer Info
-  | Structure [(String,Word64,Info)] -- ^ Fields: name, bit-offset, info
-  | Union     [(String,Info)]
+  | Structure [(ByteString, Word64, Info)] -- ^ Fields: name, bit-offset, info
+  | Union     [(ByteString, Info)]
   | ArrInfo Info
-  | BaseType String
+  | BaseType ByteString
   | Unknown
   deriving Show
 
@@ -125,21 +127,21 @@ getFieldDIs mdMap =
   traverse (getDebugInfo mdMap) <=< sequence <=< getList mdMap <=< dictElements
 
 
-getStructFields :: MdMap -> DICompositeType -> Maybe [(String, Word64, Info)]
+getStructFields :: MdMap -> DICompositeType -> Maybe [(ByteString, Word64, Info)]
 getStructFields mdMap = traverse (debugInfoToStructField mdMap) <=< getFieldDIs mdMap
 
-debugInfoToStructField :: MdMap -> DebugInfo -> Maybe (String, Word64, Info)
+debugInfoToStructField :: MdMap -> DebugInfo -> Maybe (ByteString, Word64, Info)
 debugInfoToStructField mdMap di =
   do DebugInfoDerivedType dt <- Just di
      fieldName               <- didtName dt
      Just (fieldName, didtOffset dt, valMdToInfo' mdMap (didtBaseType dt))
 
 
-getUnionFields :: MdMap -> DICompositeType -> Maybe [(String, Info)]
+getUnionFields :: MdMap -> DICompositeType -> Maybe [(ByteString, Info)]
 getUnionFields mdMap = traverse (debugInfoToUnionField mdMap) <=< getFieldDIs mdMap
 
 
-debugInfoToUnionField :: MdMap -> DebugInfo -> Maybe (String, Info)
+debugInfoToUnionField :: MdMap -> DebugInfo -> Maybe (ByteString, Info)
 debugInfoToUnionField mdMap di =
   do DebugInfoDerivedType dt <- Just di
      fieldName               <- didtName dt
@@ -230,9 +232,9 @@ fieldIndexByPosition i info =
 -- | If the argument describes a composite type, return the first, zero-based
 -- index of the field in that type that matches the given name.
 fieldIndexByName ::
-  String    {- ^ field name                                  -} ->
-  Info      {- ^ composite type info                         -} ->
-  Maybe Int {- ^ zero-based index of field matching the name -}
+  ByteString {- ^ field name                                  -} ->
+  Info       {- ^ composite type info                         -} ->
+  Maybe Int  {- ^ zero-based index of field matching the name -}
 fieldIndexByName n info =
   case info of
     Structure xs -> go [ x | (x,_,_) <- xs ]
@@ -297,13 +299,13 @@ guessAliasInfo ::
   Info
 guessAliasInfo mdMap (Ident name) =
      -- TODO: Support more categories than struct
-  case stripPrefix "struct." name of
+  case B.stripPrefix "struct." name of
     Nothing  -> Unknown
     Just pfx -> guessStructInfo mdMap pfx
 
 guessStructInfo ::
   IntMap ValMd    {- ^ unnamed metadata      -} ->
-  String          {- ^ struct alias          -} ->
+  ByteString      {- ^ struct alias          -} ->
   Info
 guessStructInfo mdMap name =
   case mapMaybe (go <=< getDebugInfo mdMap) (IntMap.elems mdMap) of

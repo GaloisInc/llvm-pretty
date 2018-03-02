@@ -32,6 +32,7 @@ Library
   Other-modules:       Text.LLVM.Util
 
   Build-depends:       base         >= 4 && < 5,
+                       bytestring   >= 0.10,
                        containers   >= 0.4,
                        parsec       >= 3,
                        pretty       >= 1.0.1,
