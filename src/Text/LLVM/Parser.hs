@@ -2,21 +2,29 @@ module Text.LLVM.Parser where
 
 import Text.LLVM.AST
 
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
+import Data.Char (isAscii, isAlphaNum)
 import Data.Int (Int32)
+import Data.Word (Word8)
 import Text.Parsec
 import Text.Parsec.String
 
 
 -- Identifiers and Symbols -----------------------------------------------------
 
-pNameChar :: Parser Char
-pNameChar = letter <|> digit <|> oneOf "-$._"
+pNameChar :: Parser Word8
+pNameChar = fromIntegral . fromEnum <$> (satisfy isAsciiAlphaNum <|> oneOf "-$._")
+  where isAsciiAlphaNum c = isAscii c && isAlphaNum c
+
+pName :: Parser ByteString
+pName = B.pack <$> many1 pNameChar
 
 pIdent :: Parser Ident
-pIdent = Ident <$> (char '%' >> many1 pNameChar)
+pIdent = Ident <$> (char '%' >> pName)
 
 pSymbol :: Parser Symbol
-pSymbol = Symbol <$> (char '@' >> many1 pNameChar)
+pSymbol = Symbol <$> (char '@' >> pName)
 
 
 -- Types -----------------------------------------------------------------------

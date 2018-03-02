@@ -12,6 +12,7 @@
 module Text.LLVM.AST where
 
 import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
+import Data.ByteString (ByteString)
 import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
@@ -38,7 +39,7 @@ data Module = Module
   , modTypes      :: [TypeDecl]    -- ^ top-level type aliases
   , modNamedMd    :: [NamedMd]
   , modUnnamedMd  :: [UnnamedMd]
-  , modComdat     :: Map.Map String SelectionKind
+  , modComdat     :: Map.Map ByteString SelectionKind
   , modGlobals    :: [Global]      -- ^ global value declarations
   , modDeclares   :: [Declare]     -- ^ external function declarations (without definitions)
   , modDefines    :: [Define]      -- ^ internal function declarations (with definitions)
@@ -81,7 +82,7 @@ emptyModule  = Module
 -- Named Metadata --------------------------------------------------------------
 
 data NamedMd = NamedMd
-  { nmName   :: String
+  { nmName   :: ByteString
   , nmValues :: [Int]
   } deriving (Show,Generic)
 
@@ -179,7 +180,7 @@ parseDataLayout str =
 
 -- Inline Assembly -------------------------------------------------------------
 
-type InlineAsm = [String]
+type InlineAsm = [ByteString]
 
 -- Comdat ----------------------------------------------------------------------
 
@@ -192,15 +193,15 @@ data SelectionKind = ComdatAny
 
 -- Identifiers -----------------------------------------------------------------
 
-newtype Ident = Ident String
+newtype Ident = Ident ByteString
     deriving (Show,Generic,Eq,Ord)
 
 instance IsString Ident where
-  fromString = Ident
+  fromString = Ident . fromString
 
 -- Symbols ---------------------------------------------------------------------
 
-newtype Symbol = Symbol String
+newtype Symbol = Symbol ByteString
     deriving (Show,Generic,Eq,Ord)
 
 instance Monoid Symbol where
@@ -208,7 +209,7 @@ instance Monoid Symbol where
   mempty                        = Symbol mempty
 
 instance IsString Symbol where
-  fromString = Symbol
+  fromString = Symbol . fromString
 
 -- Types -----------------------------------------------------------------------
 
@@ -406,7 +407,7 @@ data Declare = Declare
   , decArgs    :: [Type]
   , decVarArgs :: Bool
   , decAttrs   :: [FunAttr]
-  , decComdat  :: Maybe String
+  , decComdat  :: Maybe ByteString
   } deriving (Show, Generic)
 
 -- | The function type of this declaration
@@ -423,11 +424,11 @@ data Define = Define
   , defArgs     :: [Typed Ident]
   , defVarArgs  :: Bool
   , defAttrs    :: [FunAttr]
-  , defSection  :: Maybe String
+  , defSection  :: Maybe ByteString
   , defGC       :: Maybe GC
   , defBody     :: [BasicBlock]
   , defMetadata :: FnMdAttachments
-  , defComdat   :: Maybe String
+  , defComdat   :: Maybe ByteString
   } deriving (Show, Generic)
 
 defFunType :: Define -> Type
@@ -944,19 +945,19 @@ data Value' lab
   | ValVector Type [Value' lab]
   | ValStruct [Typed (Value' lab)]
   | ValPackedStruct [Typed (Value' lab)]
-  | ValString String
+  | ValString ByteString
   | ValConstExpr (ConstExpr' lab)
   | ValUndef
   | ValLabel lab
   | ValZeroInit
-  | ValAsm Bool Bool String String
+  | ValAsm Bool Bool ByteString ByteString
   | ValMd (ValMd' lab)
     deriving (Show,Functor,Generic,Generic1)
 
 type Value = Value' BlockLabel
 
 data ValMd' lab
-  = ValMdString String
+  = ValMdString ByteString
   | ValMdValue (Typed (Value' lab))
   | ValMdRef Int
   | ValMdNode [Maybe (ValMd' lab)]
@@ -966,7 +967,7 @@ data ValMd' lab
 
 type ValMd = ValMd' BlockLabel
 
-type KindMd = String
+type KindMd = ByteString
 type FnMdAttachments = Map.Map KindMd ValMd
 type GlobalMdAttachments = Map.Map KindMd ValMd
 
@@ -1002,8 +1003,8 @@ elimValInteger _              = mzero
 -- Statements ------------------------------------------------------------------
 
 data Stmt' lab
-  = Result Ident (Instr' lab) [(String,ValMd' lab)]
-  | Effect (Instr' lab) [(String,ValMd' lab)]
+  = Result Ident (Instr' lab) [(ByteString, ValMd' lab)]
+  | Effect (Instr' lab) [(ByteString, ValMd' lab)]
     deriving (Show,Functor,Generic,Generic1)
 
 type Stmt = Stmt' BlockLabel
@@ -1012,12 +1013,12 @@ stmtInstr :: Stmt' lab -> Instr' lab
 stmtInstr (Result _ i _) = i
 stmtInstr (Effect i _)   = i
 
-stmtMetadata :: Stmt' lab -> [(String,ValMd' lab)]
+stmtMetadata :: Stmt' lab -> [(ByteString, ValMd' lab)]
 stmtMetadata stmt = case stmt of
   Result _ _ mds -> mds
   Effect _ mds   -> mds
 
-extendMetadata :: (String,ValMd' lab) -> Stmt' lab -> Stmt' lab
+extendMetadata :: (ByteString, ValMd' lab) -> Stmt' lab -> Stmt' lab
 extendMetadata md stmt = case stmt of
   Result r i mds -> Result r i (md:mds)
   Effect i mds   -> Effect i (md:mds)
@@ -1046,7 +1047,7 @@ data DebugInfo' lab
   | DebugInfoCompileUnit (DICompileUnit' lab)
   | DebugInfoCompositeType (DICompositeType' lab)
   | DebugInfoDerivedType (DIDerivedType' lab)
-  | DebugInfoEnumerator String !Int64
+  | DebugInfoEnumerator ByteString !Int64
   | DebugInfoExpression DIExpression
   | DebugInfoFile DIFile
   | DebugInfoGlobalVariable (DIGlobalVariable' lab)
@@ -1068,7 +1069,7 @@ type DebugInfo = DebugInfo' BlockLabel
 type DIImportedEntity = DIImportedEntity' BlockLabel
 data DIImportedEntity' lab = DIImportedEntity
     { diieTag      :: DwarfTag
-    , diieName     :: String
+    , diieName     :: ByteString
     , diieScope    :: Maybe (ValMd' lab)
     , diieEntity   :: Maybe (ValMd' lab)
     , diieLine     :: Word32
@@ -1076,20 +1077,20 @@ data DIImportedEntity' lab = DIImportedEntity
 
 type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
 data DITemplateTypeParameter' lab = DITemplateTypeParameter
-    { dittpName :: String
+    { dittpName :: ByteString
     , dittpType :: ValMd' lab
     } deriving (Show,Functor,Generic,Generic1)
 
 type DITemplateValueParameter = DITemplateValueParameter' BlockLabel
 data DITemplateValueParameter' lab = DITemplateValueParameter
-    { ditvpName  :: String
+    { ditvpName  :: ByteString
     , ditvpType  :: ValMd' lab
     , ditvpValue :: ValMd' lab
     } deriving (Show,Functor,Generic,Generic1)
 
 type DINameSpace = DINameSpace' BlockLabel
 data DINameSpace' lab = DINameSpace
-    { dinsName  :: String
+    { dinsName  :: ByteString
     , dinsScope :: ValMd' lab
     , dinsFile  :: ValMd' lab
     , dinsLine  :: Word32
@@ -1110,7 +1111,7 @@ type DIEmissionKind = Word8
 
 data DIBasicType = DIBasicType
   { dibtTag :: DwarfTag
-  , dibtName :: String
+  , dibtName :: ByteString
   , dibtSize :: Word64
   , dibtAlign :: Word64
   , dibtEncoding :: DwarfAttrEncoding
@@ -1119,11 +1120,11 @@ data DIBasicType = DIBasicType
 data DICompileUnit' lab = DICompileUnit
   { dicuLanguage           :: DwarfLang
   , dicuFile               :: Maybe (ValMd' lab)
-  , dicuProducer           :: Maybe String
+  , dicuProducer           :: Maybe ByteString
   , dicuIsOptimized        :: Bool
-  , dicuFlags              :: Maybe String
+  , dicuFlags              :: Maybe ByteString
   , dicuRuntimeVersion     :: Word16
-  , dicuSplitDebugFilename :: Maybe FilePath
+  , dicuSplitDebugFilename :: Maybe ByteString
   , dicuEmissionKind       :: DIEmissionKind
   , dicuEnums              :: Maybe (ValMd' lab)
   , dicuRetainedTypes      :: Maybe (ValMd' lab)
@@ -1140,7 +1141,7 @@ type DICompileUnit = DICompileUnit' BlockLabel
 
 data DICompositeType' lab = DICompositeType
   { dictTag            :: DwarfTag
-  , dictName           :: Maybe String
+  , dictName           :: Maybe ByteString
   , dictFile           :: Maybe (ValMd' lab)
   , dictLine           :: Word32
   , dictScope          :: Maybe (ValMd' lab)
@@ -1153,7 +1154,7 @@ data DICompositeType' lab = DICompositeType
   , dictRuntimeLang    :: DwarfLang
   , dictVTableHolder   :: Maybe (ValMd' lab)
   , dictTemplateParams :: Maybe (ValMd' lab)
-  , dictIdentifier     :: Maybe String
+  , dictIdentifier     :: Maybe ByteString
   }
   deriving (Show,Functor,Generic,Generic1)
 
@@ -1161,7 +1162,7 @@ type DICompositeType = DICompositeType' BlockLabel
 
 data DIDerivedType' lab = DIDerivedType
   { didtTag :: DwarfTag
-  , didtName :: Maybe String
+  , didtName :: Maybe ByteString
   , didtFile :: Maybe (ValMd' lab)
   , didtLine :: Word32
   , didtScope :: Maybe (ValMd' lab)
@@ -1182,14 +1183,14 @@ data DIExpression = DIExpression
   deriving (Show,Generic)
 
 data DIFile = DIFile
-  { difFilename  :: FilePath
-  , difDirectory :: FilePath
+  { difFilename  :: ByteString
+  , difDirectory :: ByteString
   } deriving (Show,Generic)
 
 data DIGlobalVariable' lab = DIGlobalVariable
   { digvScope                :: Maybe (ValMd' lab)
-  , digvName                 :: Maybe String
-  , digvLinkageName          :: Maybe String
+  , digvName                 :: Maybe ByteString
+  , digvLinkageName          :: Maybe ByteString
   , digvFile                 :: Maybe (ValMd' lab)
   , digvLine                 :: Word32
   , digvType                 :: Maybe (ValMd' lab)
@@ -1232,7 +1233,7 @@ type DILexicalBlockFile = DILexicalBlockFile' BlockLabel
 
 data DILocalVariable' lab = DILocalVariable
   { dilvScope :: Maybe (ValMd' lab)
-  , dilvName :: Maybe String
+  , dilvName :: Maybe ByteString
   , dilvFile :: Maybe (ValMd' lab)
   , dilvLine :: Word32
   , dilvType :: Maybe (ValMd' lab)
@@ -1245,8 +1246,8 @@ type DILocalVariable = DILocalVariable' BlockLabel
 
 data DISubprogram' lab = DISubprogram
   { dispScope          :: Maybe (ValMd' lab)
-  , dispName           :: Maybe String
-  , dispLinkageName    :: Maybe String
+  , dispName           :: Maybe ByteString
+  , dispLinkageName    :: Maybe ByteString
   , dispFile           :: Maybe (ValMd' lab)
   , dispLine           :: Word32
   , dispType           :: Maybe (ValMd' lab)

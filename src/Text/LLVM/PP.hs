@@ -19,7 +19,10 @@ module Text.LLVM.PP where
 import Text.LLVM.AST
 
 import Control.Applicative ((<|>))
-import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC (unpack)
+import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,toUpper)
 import Data.List (intersperse)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes,fromMaybe,isJust)
@@ -93,7 +96,7 @@ ppModule m = foldr ($+$) empty
 
 ppNamedMd :: NamedMd -> Doc
 ppNamedMd nm =
-  sep [ ppMetadata (text (nmName nm)) <+> char '='
+  sep [ ppMetadata (ppByteString (nmName nm)) <+> char '='
       , ppMetadata (braces (commas (map (ppMetadata . int) (nmValues nm)))) ]
 
 ppUnnamedMd :: LLVM => UnnamedMd -> Doc
@@ -164,15 +167,16 @@ ppMangling WindowsCoffMangling = char 'w'
 ppInlineAsm :: InlineAsm -> Doc
 ppInlineAsm  = foldr ($+$) empty . map ppLine
   where
-  ppLine l = "module asm" <+> doubleQuotes (text l)
+  ppLine l = "module asm" <+> ppStringLiteral l
 
 
--- Identifiers -----------------------------------------------------------------
+-- ByteStrings -----------------------------------------------------------------
 
-ppIdent :: Ident -> Doc
-ppIdent (Ident n)
-  | validIdentifier n = char '%' <> text n
-  | otherwise         = char '%' <> ppStringLiteral n
+ppByteString :: ByteString -> Doc
+ppByteString n
+  | validIdentifier s = text s
+  | otherwise         = ppStringLiteral n
+  where s = BC.unpack n
 
 -- | According to the LLVM Language Reference Manual, the regular
 -- expression for LLVM identifiers is "[-a-zA-Z$._][-a-zA-Z$._0-9]".
@@ -187,12 +191,16 @@ validIdentifier s@(c0 : cs)
   isIdentChar c = isAlphaNum c || c `elem` ("-$._" :: [Char])
 
 
+-- Identifiers -----------------------------------------------------------------
+
+ppIdent :: Ident -> Doc
+ppIdent (Ident n) = char '%' <> ppByteString n
+
+
 -- Symbols ---------------------------------------------------------------------
 
 ppSymbol :: Symbol -> Doc
-ppSymbol (Symbol n)
-  | validIdentifier n = char '@' <> text n
-  | otherwise         = char '@' <> ppStringLiteral n
+ppSymbol (Symbol n) = char '@' <> ppByteString n
 
 
 -- Types -----------------------------------------------------------------------
@@ -273,10 +281,10 @@ ppDeclare d = "declare"
           <+> hsep (ppFunAttr <$> decAttrs d)
           <> maybe empty ((char ' ' <>) . ppComdatName) (decComdat d)
 
-ppComdatName :: String -> Doc
-ppComdatName s = "comdat" <> parens (char '$' <> text s)
+ppComdatName :: ByteString -> Doc
+ppComdatName s = "comdat" <> parens (char '$' <> ppByteString s)
 
-ppComdat :: (String,SelectionKind) -> Doc
+ppComdat :: (ByteString, SelectionKind) -> Doc
 ppComdat (n,k) = ppComdatName n <+> char '=' <+> text "comdat" <+> ppSelectionKind k
 
 ppSelectionKind :: SelectionKind -> Doc
@@ -295,7 +303,7 @@ ppDefine d = "define"
          <+> ppSymbol (defName d)
           <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
          <+> hsep (ppFunAttr <$> defAttrs d)
-         <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
+         <+> ppMaybe (\s  -> "section" <+> ppStringLiteral s) (defSection d)
          <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (defGC d)
          <+> ppMds (defMetadata d)
          <+> char '{'
@@ -305,7 +313,7 @@ ppDefine d = "define"
   ppMds mdm =
     case Map.toList mdm of
       [] -> empty
-      mds -> hsep [ "!" <> text k <+> ppValMd md | (k, md) <- mds ]
+      mds -> hsep [ "!" <> ppByteString k <+> ppValMd md | (k, md) <- mds ]
 
 -- FunAttr ---------------------------------------------------------------------
 
@@ -344,7 +352,7 @@ ppFunAttr a =
 -- Basic Blocks ----------------------------------------------------------------
 
 ppLabelDef :: BlockLabel -> Doc
-ppLabelDef (Named (Ident l)) = text l <> char ':'
+ppLabelDef (Named (Ident l)) = ppByteString l <> char ':'
 ppLabelDef (Anon i)          = char ';' <+> "<label>:" <+> int i
 
 ppLabel :: BlockLabel -> Doc
@@ -364,12 +372,12 @@ ppStmt stmt = case stmt of
                    <> ppAttachedMetadata mds
   Effect i mds     -> ppInstr i <> ppAttachedMetadata mds
 
-ppAttachedMetadata :: LLVM => [(String,ValMd)] -> Doc
+ppAttachedMetadata :: LLVM => [(ByteString, ValMd)] -> Doc
 ppAttachedMetadata mds
   | null mds  = empty
   | otherwise = comma <+> commas (map step mds)
   where
-  step (l,md) = ppMetadata (text l) <+> ppValMd md
+  step (l,md) = ppMetadata (ppByteString l) <+> ppValMd md
 
 
 -- Linkage ---------------------------------------------------------------------
@@ -750,17 +758,18 @@ ppMetadataNode vs = ppMetadata (braces (commas (map arg vs)))
   where
   arg = maybe ("null") ppValMd
 
-ppStringLiteral :: String -> Doc
-ppStringLiteral  = doubleQuotes . text . concatMap escape
+ppStringLiteral :: ByteString -> Doc
+ppStringLiteral  = doubleQuotes . text . concatMap escape . B.unpack
   where
-  escape c | c == '"' || c == '\\'  = '\\' : showHex (fromEnum c) ""
+  escape b | c == '"' || c == '\\'  = '\\' : pad b
            | isAscii c && isPrint c = [c]
-           | otherwise              = '\\' : pad (ord c)
+           | otherwise              = '\\' : pad b
+    where c = toEnum (fromIntegral b)
 
   pad n | n < 0x10  = '0' : map toUpper (showHex n "")
         | otherwise =       map toUpper (showHex n "")
 
-ppAsm :: Bool -> Bool -> String -> String -> Doc
+ppAsm :: Bool -> Bool -> ByteString -> ByteString -> Doc
 ppAsm s a i c =
   "asm" <+> sideeffect <+> alignstack
         <+> ppStringLiteral i <> comma <+> ppStringLiteral c
@@ -821,7 +830,7 @@ ppDebugInfo di = case di of
 ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc
 ppDIImportedEntity ie = "!DIImportedEntity"
   <> parens (mcommas [ pure ("tag:"    <+> integral (diieTag ie))
-                     , pure ("name:"   <+> text     (diieName ie))
+                     , pure ("name:"   <+> ppByteString (diieName ie))
                      , (("scope:"  <+>) . ppValMd) <$> diieScope ie
                      , (("entity:" <+>) . ppValMd) <$> diieEntity ie
                      , pure ("line:"   <+> integral (diieLine ie))
@@ -829,7 +838,7 @@ ppDIImportedEntity ie = "!DIImportedEntity"
 
 ppDINameSpace :: LLVM => DINameSpace -> Doc
 ppDINameSpace ns = "!DINameSpace"
-  <> parens (commas [ "name:"   <+> text (dinsName ns)
+  <> parens (commas [ "name:"   <+> ppByteString (dinsName ns)
                     , "scope:"  <+> ppValMd (dinsScope ns)
                     , "file:"   <+> ppValMd (dinsFile ns)
                     , "line:"   <+> integral (dinsLine ns)
@@ -837,13 +846,13 @@ ppDINameSpace ns = "!DINameSpace"
 
 ppDITemplateTypeParameter :: LLVM => DITemplateTypeParameter -> Doc
 ppDITemplateTypeParameter tp = "!DITemplateTypeParameter"
-  <> parens (commas [ "name:" <+> text (dittpName tp)
+  <> parens (commas [ "name:" <+> ppByteString (dittpName tp)
                     , "type:" <+> ppValMd (dittpType tp)
                     ])
 
 ppDITemplateValueParameter :: LLVM => DITemplateValueParameter -> Doc
 ppDITemplateValueParameter vp = "!DITemplateValueParameter"
-  <> parens (commas [ "name:"  <+> text (ditvpName vp)
+  <> parens (commas [ "name:"  <+> ppByteString (ditvpName vp)
                     , "type:"  <+> ppValMd (ditvpType vp)
                     , "value:" <+> ppValMd (ditvpValue vp)
                     ])
@@ -851,7 +860,7 @@ ppDITemplateValueParameter vp = "!DITemplateValueParameter"
 ppDIBasicType :: DIBasicType -> Doc
 ppDIBasicType bt = "!DIBasicType"
   <> parens (commas [ "tag:"      <+> integral (dibtTag bt)
-                    , "name:"     <+> doubleQuotes (text (dibtName bt))
+                    , "name:"     <+> ppStringLiteral (dibtName bt)
                     , "size:"     <+> integral (dibtSize bt)
                     , "align:"    <+> integral (dibtAlign bt)
                     , "encoding:" <+> integral (dibtEncoding bt)
@@ -862,12 +871,12 @@ ppDICompileUnit cu = "!DICompileUnit"
   <> parens (mcommas
        [ pure ("language:"           <+> integral (dicuLanguage cu))
        ,     (("file:"               <+>) . ppValMd) <$> (dicuFile cu)
-       ,     (("producer:"           <+>) . doubleQuotes . text)
+       ,     (("producer:"           <+>) . ppStringLiteral)
              <$> (dicuProducer cu)
        , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
        , pure ("flags:"              <+> ppFlags (dicuFlags cu))
        , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
-       ,     (("splitDebugFilename:" <+>) . doubleQuotes . text)
+       ,     (("splitDebugFilename:" <+>) . ppStringLiteral)
              <$> (dicuSplitDebugFilename cu)
        , pure ("emissionKind:"       <+> integral (dicuEmissionKind cu))
        ,     (("enums:"              <+>) . ppValMd) <$> (dicuEnums cu)
@@ -879,14 +888,14 @@ ppDICompileUnit cu = "!DICompileUnit"
        , pure ("dwoId:"              <+> integral (dicuDWOId cu))
        ])
 
-ppFlags :: Maybe String -> Doc
-ppFlags mb = doubleQuotes (maybe empty text mb)
+ppFlags :: Maybe ByteString -> Doc
+ppFlags mb = maybe (doubleQuotes empty) ppStringLiteral mb
 
 ppDICompositeType :: LLVM => DICompositeType -> Doc
 ppDICompositeType ct = "!DICompositeType"
   <> parens (mcommas
        [ pure ("tag:"            <+> integral (dictTag ct))
-       ,     (("name:"           <+>) . doubleQuotes . text) <$> (dictName ct)
+       ,     (("name:"           <+>) . ppStringLiteral) <$> (dictName ct)
        ,     (("file:"           <+>) . ppValMd) <$> (dictFile ct)
        , pure ("line:"           <+> integral (dictLine ct))
        ,     (("baseType:"       <+>) . ppValMd) <$> (dictBaseType ct)
@@ -898,7 +907,7 @@ ppDICompositeType ct = "!DICompositeType"
        , pure ("runtimeLang:"    <+> integral (dictRuntimeLang ct))
        ,     (("vtableHolder:"   <+>) . ppValMd) <$> (dictVTableHolder ct)
        ,     (("templateParams:" <+>) . ppValMd) <$> (dictTemplateParams ct)
-       ,     (("identifier:"     <+>) . doubleQuotes . text)
+       ,     (("identifier:"     <+>) . ppStringLiteral)
              <$> (dictIdentifier ct)
        ])
 
@@ -906,7 +915,7 @@ ppDIDerivedType :: LLVM => DIDerivedType -> Doc
 ppDIDerivedType dt = "!DIDerivedType"
   <> parens (mcommas
        [ pure ("tag:"       <+> integral (didtTag dt))
-       ,     (("name:"      <+>) . doubleQuotes . text) <$> (didtName dt)
+       ,     (("name:"      <+>) . ppStringLiteral) <$> (didtName dt)
        ,     (("file:"      <+>) . ppValMd) <$> (didtFile dt)
        , pure ("line:"      <+> integral (didtLine dt))
        ,      ("baseType:"  <+>) <$> (ppValMd <$> didtBaseType dt <|> Just "null")
@@ -917,9 +926,9 @@ ppDIDerivedType dt = "!DIDerivedType"
        ,     (("extraData:" <+>) . ppValMd) <$> (didtExtraData dt)
        ])
 
-ppDIEnumerator :: String -> Int64 -> Doc
+ppDIEnumerator :: ByteString -> Int64 -> Doc
 ppDIEnumerator n v = "!DIEnumerator"
-  <> parens (commas [ "name:"  <+> doubleQuotes (text n)
+  <> parens (commas [ "name:"  <+> ppStringLiteral n
                     , "value:" <+> integral v
                     ])
 
@@ -929,16 +938,16 @@ ppDIExpression e = "!DIExpression"
 
 ppDIFile :: DIFile -> Doc
 ppDIFile f = "!DIFile"
-  <> parens (commas [ "filename:"  <+> doubleQuotes (text (difFilename f))
-                    , "directory:" <+> doubleQuotes (text (difDirectory f))
+  <> parens (commas [ "filename:"  <+> ppStringLiteral (difFilename f)
+                    , "directory:" <+> ppStringLiteral (difDirectory f)
                     ])
 
 ppDIGlobalVariable :: LLVM => DIGlobalVariable -> Doc
 ppDIGlobalVariable gv = "!DIGlobalVariable"
   <> parens (mcommas
        [      (("scope:"       <+>) . ppValMd) <$> (digvScope gv)
-       ,      (("name:"        <+>) . doubleQuotes . text) <$> (digvName gv)
-       ,      (("linkageName:" <+>) . doubleQuotes . text)
+       ,      (("name:"        <+>) . ppStringLiteral) <$> (digvName gv)
+       ,      (("linkageName:" <+>) . ppStringLiteral)
               <$> (digvLinkageName gv)
        ,      (("file:"        <+>) . ppValMd) <$> (digvFile gv)
        , pure ("line:"         <+> integral (digvLine gv))
@@ -978,7 +987,7 @@ ppDILocalVariable :: LLVM => DILocalVariable -> Doc
 ppDILocalVariable lv = "!DILocalVariable"
   <> parens (mcommas
        [      (("scope:" <+>) . ppValMd) <$> (dilvScope lv)
-       ,      (("name:"  <+>) . doubleQuotes . text) <$> (dilvName lv)
+       ,      (("name:"  <+>) . ppStringLiteral) <$> (dilvName lv)
        ,      (("file:"  <+>) . ppValMd) <$> (dilvFile lv)
        , pure ("line:"   <+> integral (dilvLine lv))
        ,      (("type:"  <+>) . ppValMd) <$> (dilvType lv)
@@ -990,8 +999,8 @@ ppDISubprogram :: LLVM => DISubprogram -> Doc
 ppDISubprogram sp = "!DISubprogram"
   <> parens (mcommas
        [      (("scope:"          <+>) . ppValMd) <$> (dispScope sp)
-       ,      (("name:"           <+>) . doubleQuotes . text) <$> (dispName sp)
-       ,      (("linkageName:"    <+>) . doubleQuotes . text)
+       ,      (("name:"           <+>) . ppStringLiteral) <$> (dispName sp)
+       ,      (("linkageName:"    <+>) . ppStringLiteral)
               <$> (dispLinkageName sp)
        ,      (("file:"           <+>) . ppValMd) <$> (dispFile sp)
        , pure ("line:"            <+> integral (dispLine sp))

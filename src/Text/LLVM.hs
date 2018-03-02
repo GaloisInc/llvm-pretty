@@ -7,6 +7,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 #ifndef MIN_VERSION_base
 #define MIN_VERSION_base(x,y,z) 1
@@ -110,6 +111,7 @@ module Text.LLVM (
 import Text.LLVM.AST
 
 import Control.Monad.Fix (MonadFix)
+import Data.ByteString (ByteString)
 import Data.Char (ord)
 import Data.Int (Int8,Int16,Int32,Int64)
 import Data.Maybe (maybeToList)
@@ -126,23 +128,23 @@ import Control.Applicative ( Applicative )
 
 -- Fresh Names -----------------------------------------------------------------
 
-type Names = Map.Map String Int
+type Names = Map.Map ByteString Int
 
 -- | Avoid generating the provided name.  When the name already exists, return
 -- Nothing.
-avoid :: String -> Names -> Maybe Names
+avoid :: ByteString -> Names -> Maybe Names
 avoid name ns =
   case Map.lookup name ns of
     Nothing -> Just (Map.insert name 0 ns)
     Just _  -> Nothing
 
-nextName :: String -> Names -> (String,Names)
+nextName :: ByteString -> Names -> (ByteString, Names)
 nextName pfx ns =
   case Map.lookup pfx ns of
     Nothing -> (fmt (0 :: Int),  Map.insert pfx 1 ns)
     Just ix -> (fmt ix, Map.insert pfx (ix+1) ns)
   where
-  fmt i = showString pfx (shows i "")
+  fmt i = pfx `mappend` fromString (show i)
 
 
 -- LLVM Monad ------------------------------------------------------------------
@@ -151,7 +153,7 @@ newtype LLVM a = LLVM
   { unLLVM :: WriterT Module (StateT Names Id) a
   } deriving (Functor,Applicative,Monad,MonadFix)
 
-freshNameLLVM :: String -> LLVM String
+freshNameLLVM :: ByteString -> LLVM ByteString
 freshNameLLVM pfx = LLVM $ do
   ns <- get
   let (n,ns') = nextName pfx ns
@@ -319,14 +321,14 @@ newtype BB a = BB
   { unBB :: WriterT [BasicBlock] (StateT RW Id) a
   } deriving (Functor,Applicative,Monad,MonadFix)
 
-avoidName :: String -> BB ()
+avoidName :: ByteString -> BB ()
 avoidName name = BB $ do
   rw <- get
   case avoid name (rwNames rw) of
     Just ns' -> set rw { rwNames = ns' }
-    Nothing  -> fail ("avoidName: " ++ name ++ " already registered")
+    Nothing  -> fail ("avoidName: " ++ show name ++ " already registered")
 
-freshNameBB :: String -> BB String
+freshNameBB :: ByteString -> BB ByteString
 freshNameBB pfx = BB $ do
   rw <- get
   let (n,ns') = nextName pfx (rwNames rw)
