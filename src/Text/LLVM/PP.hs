@@ -709,7 +709,7 @@ ppValue val = case val of
   ValStruct fs       -> structBraces (commas (map (ppTyped ppValue) fs))
   ValPackedStruct fs -> angles
                       $ structBraces (commas (map (ppTyped ppValue) fs))
-  ValString s        -> char 'c' <> ppStringLiteral s
+  ValString s        -> char 'c' <> ppStringLiteral (map (toEnum . fromIntegral) s)
   ValConstExpr ce    -> ppConstExpr ce
   ValUndef           -> "undef"
   ValLabel l         -> ppLabel l

@@ -944,7 +944,7 @@ data Value' lab
   | ValVector Type [Value' lab]
   | ValStruct [Typed (Value' lab)]
   | ValPackedStruct [Typed (Value' lab)]
-  | ValString String
+  | ValString [Word8]
   | ValConstExpr (ConstExpr' lab)
   | ValUndef
   | ValLabel lab
