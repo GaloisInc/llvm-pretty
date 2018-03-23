@@ -26,6 +26,7 @@ import Data.Maybe (catMaybes,fromMaybe,isJust)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
 import Data.Int
+import Prelude hiding ((<>))
 
 
 -- Pretty-printer Config -------------------------------------------------------

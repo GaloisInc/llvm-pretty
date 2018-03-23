@@ -15,6 +15,7 @@ import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
 import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
+import Data.Semigroup
 import Data.String (IsString(fromString))
 import Data.Word (Word8,Word16,Word32,Word64)
 import GHC.Generics (Generic, Generic1)
@@ -46,21 +47,24 @@ data Module = Module
   , modAliases    :: [GlobalAlias]
   } deriving (Show,Generic)
 
+instance Semigroup Module where
+  m1 <> m2 = Module
+    { modSourceName = modSourceName m1 `mplus`   modSourceName m2
+    , modDataLayout = modDataLayout m1 <> modDataLayout m2
+    , modTypes      = modTypes      m1 <> modTypes      m2
+    , modUnnamedMd  = modUnnamedMd  m1 <> modUnnamedMd  m2
+    , modNamedMd    = modNamedMd    m1 <> modNamedMd    m2
+    , modGlobals    = modGlobals    m1 <> modGlobals    m2
+    , modDeclares   = modDeclares   m1 <> modDeclares   m2
+    , modDefines    = modDefines    m1 <> modDefines    m2
+    , modInlineAsm  = modInlineAsm  m1 <> modInlineAsm  m2
+    , modAliases    = modAliases    m1 <> modAliases    m2
+    , modComdat     = modComdat     m1 <> modComdat     m2
+    }
+
 instance Monoid Module where
   mempty = emptyModule
-  mappend m1 m2 = Module
-    { modSourceName = modSourceName m1 `mplus`   modSourceName m2
-    , modDataLayout = modDataLayout m1 `mappend` modDataLayout m2
-    , modTypes      = modTypes      m1 `mappend` modTypes      m2
-    , modUnnamedMd  = modUnnamedMd  m1 `mappend` modUnnamedMd  m2
-    , modNamedMd    = modNamedMd    m1 `mappend` modNamedMd    m2
-    , modGlobals    = modGlobals    m1 `mappend` modGlobals    m2
-    , modDeclares   = modDeclares   m1 `mappend` modDeclares   m2
-    , modDefines    = modDefines    m1 `mappend` modDefines    m2
-    , modInlineAsm  = modInlineAsm  m1 `mappend` modInlineAsm  m2
-    , modAliases    = modAliases    m1 `mappend` modAliases    m2
-    , modComdat     = modComdat     m1 `mappend` modComdat     m2
-    }
+  mappend m1 m2 = m1 <> m2
 
 emptyModule :: Module
 emptyModule  = Module
@@ -203,9 +207,12 @@ instance IsString Ident where
 newtype Symbol = Symbol String
     deriving (Show,Generic,Eq,Ord)
 
+instance Semigroup Symbol where
+  Symbol a <> Symbol b = Symbol (a <> b)
+
 instance Monoid Symbol where
-  mappend (Symbol a) (Symbol b) = Symbol (mappend a b)
-  mempty                        = Symbol mempty
+  mappend = (<>)
+  mempty  = Symbol mempty
 
 instance IsString Symbol where
   fromString = Symbol
