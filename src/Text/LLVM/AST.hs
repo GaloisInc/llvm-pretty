@@ -15,7 +15,7 @@ import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
 import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
-import Data.Semigroup
+import Data.Semigroup as Sem
 import Data.String (IsString(fromString))
 import Data.Word (Word8,Word16,Word32,Word64)
 import GHC.Generics (Generic, Generic1)
@@ -47,7 +47,7 @@ data Module = Module
   , modAliases    :: [GlobalAlias]
   } deriving (Show,Generic)
 
-instance Semigroup Module where
+instance Sem.Semigroup Module where
   m1 <> m2 = Module
     { modSourceName = modSourceName m1 `mplus`   modSourceName m2
     , modDataLayout = modDataLayout m1 <> modDataLayout m2
@@ -207,7 +207,7 @@ instance IsString Ident where
 newtype Symbol = Symbol String
     deriving (Show,Generic,Eq,Ord)
 
-instance Semigroup Symbol where
+instance Sem.Semigroup Symbol where
   Symbol a <> Symbol b = Symbol (a <> b)
 
 instance Monoid Symbol where
