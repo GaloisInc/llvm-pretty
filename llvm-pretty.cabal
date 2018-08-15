@@ -13,6 +13,8 @@ Description:
   Augustsson.  The library provides a monadic interface to a pretty printer,
   that allows functions to be defined and called, generating the corresponding
   LLVM assembly when run.
+tested-with:         GHC==8.4.3, GHC==8.2.2, GHC==8.0.2
+
 
 source-repository head
   type:                 git
