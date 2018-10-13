@@ -11,6 +11,8 @@
 
 module Text.LLVM.AST where
 
+import Data.Functor.Identity (Identity(..))
+import Data.Coerce (coerce)
 import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
 import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
@@ -251,21 +253,24 @@ data Type' ident
   | Opaque
     deriving (Eq, Generic, Ord, Show, Functor)
 
--- | Traverse a type, updating or removing aliases.
-updateAliases :: (a -> Type' b) -> (Type' a -> Type' b)
-updateAliases f = loop
+-- | Applicatively traverse a type, updating or removing aliases.
+updateAliasesA :: (Applicative f) => (a -> f (Type' b)) -> Type' a -> f (Type' b)
+updateAliasesA f = loop
   where
   loop ty = case ty of
-    Array len ety    -> Array len    (loop ety)
-    FunTy res ps var -> FunTy        (loop res) (map loop ps) var
-    PtrTo pty        -> PtrTo        (loop pty)
-    Struct fs        -> Struct       (map loop fs)
-    PackedStruct fs  -> PackedStruct (map loop fs)
+    Array len ety    -> Array len    <$> (loop ety)
+    FunTy res ps var -> FunTy        <$> (loop res) <*> (traverse loop ps) <*> pure var
+    PtrTo pty        -> PtrTo        <$> (loop pty)
+    Struct fs        -> Struct       <$> (traverse loop fs)
+    PackedStruct fs  -> PackedStruct <$> (traverse loop fs)
+    Vector len ety   -> Vector       <$> pure len <*> (loop ety)
+    PrimType pty     -> pure $ PrimType pty
+    Opaque           -> pure $ Opaque
     Alias lab        -> f lab
-    PrimType pty     -> PrimType pty
-    Vector len ety   -> Vector len (loop ety)
-    Opaque           -> Opaque
 
+-- | Traverse a type, updating or removing aliases.
+updateAliases :: (a -> Type' b) -> Type' a -> Type' b
+updateAliases f = coerce $ updateAliasesA (Identity . f)
 
 isFloatingPoint :: PrimType -> Bool
 isFloatingPoint (FloatType _) = True
