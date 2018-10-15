@@ -694,8 +694,8 @@ ppFCmpOp Fune   = "une"
 ppFCmpOp Funo   = "uno"
 ppFCmpOp Ftrue  = "true"
 
-ppValue :: LLVM => Value -> Doc
-ppValue val = case val of
+ppValue' :: LLVM => (i -> Doc) -> Value' i -> Doc
+ppValue' pp val = case val of
   ValInteger i       -> integer i
   ValBool b          -> ppBool b
   ValFloat i         -> float i
@@ -704,41 +704,50 @@ ppValue val = case val of
   ValSymbol s        -> ppSymbol s
   ValNull            -> "null"
   ValArray ty es     -> brackets
-                      $ commas (map (ppTyped ppValue . Typed ty) es)
+                      $ commas (map (ppTyped (ppValue' pp) . Typed ty) es)
   ValVector ty es   -> angles $ commas
-                     $ map (ppTyped ppValue . Typed ty) es
-  ValStruct fs       -> structBraces (commas (map (ppTyped ppValue) fs))
+                     $ map (ppTyped (ppValue' pp) . Typed ty) es
+  ValStruct fs       -> structBraces (commas (map (ppTyped (ppValue' pp)) fs))
   ValPackedStruct fs -> angles
-                      $ structBraces (commas (map (ppTyped ppValue) fs))
+                      $ structBraces (commas (map (ppTyped (ppValue' pp)) fs))
   ValString s        -> char 'c' <> ppStringLiteral (map (toEnum . fromIntegral) s)
-  ValConstExpr ce    -> ppConstExpr ce
+  ValConstExpr ce    -> ppConstExpr' pp ce
   ValUndef           -> "undef"
-  ValLabel l         -> ppLabel l
+  ValLabel l         -> pp l
   ValZeroInit        -> "zeroinitializer"
   ValAsm s a i c     -> ppAsm s a i c
-  ValMd m            -> ppValMd m
+  ValMd m            -> ppValMd' pp m
+
+ppValue :: LLVM => Value -> Doc
+ppValue = ppValue' ppLabel
+
+ppValMd' :: LLVM => (i -> Doc) -> ValMd' i -> Doc
+ppValMd' pp m = case m of
+  ValMdString str   -> ppMetadata (ppStringLiteral str)
+  ValMdValue tv     -> ppTyped (ppValue' pp) tv
+  ValMdRef i        -> ppMetadata (int i)
+  ValMdNode vs      -> ppMetadataNode' pp vs
+  ValMdLoc l        -> ppDebugLoc' pp l
+  ValMdDebugInfo di -> ppDebugInfo' pp di
 
 ppValMd :: LLVM => ValMd -> Doc
-ppValMd m = case m of
-  ValMdString str   -> ppMetadata (ppStringLiteral str)
-  ValMdValue tv     -> ppTyped ppValue tv
-  ValMdRef i        -> ppMetadata (int i)
-  ValMdNode vs      -> ppMetadataNode vs
-  ValMdLoc l        -> ppDebugLoc l
-  ValMdDebugInfo di -> ppDebugInfo di
+ppValMd = ppValMd' ppLabel
 
-ppDebugLoc :: LLVM => DebugLoc -> Doc
-ppDebugLoc dl = (if cfgUseDILocation ?config then "!DILocation"
-                                             else "!MDLocation")
+ppDebugLoc' :: LLVM => (i -> Doc) -> DebugLoc' i -> Doc
+ppDebugLoc' pp dl = (if cfgUseDILocation ?config then "!DILocation"
+                                                 else "!MDLocation")
              <> parens (commas [ "line:"   <+> integral (dlLine dl)
                                , "column:" <+> integral (dlCol dl)
-                               , "scope:"  <+> ppValMd (dlScope dl)
+                               , "scope:"  <+> ppValMd' pp (dlScope dl)
                                ] <+> mbIA)
 
   where
   mbIA = case dlIA dl of
-           Just md -> comma <+> "inlinedAt:" <+> ppValMd md
+           Just md -> comma <+> "inlinedAt:" <+> ppValMd' pp md
            Nothing -> empty
+
+ppDebugLoc :: LLVM => DebugLoc -> Doc
+ppDebugLoc = ppDebugLoc' ppLabel
 
 ppTypedValMd :: LLVM => ValMd -> Doc
 ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
@@ -746,10 +755,12 @@ ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
 ppMetadata :: Doc -> Doc
 ppMetadata body = char '!' <> body
 
+ppMetadataNode' :: LLVM => (i -> Doc) -> [Maybe (ValMd' i)] -> Doc
+ppMetadataNode' pp vs = ppMetadata (braces (commas (map arg vs)))
+  where arg = maybe ("null") (ppValMd' pp)
+
 ppMetadataNode :: LLVM => [Maybe ValMd] -> Doc
-ppMetadataNode vs = ppMetadata (braces (commas (map arg vs)))
-  where
-  arg = maybe ("null") ppValMd
+ppMetadataNode = ppMetadataNode' ppLabel
 
 ppStringLiteral :: String -> Doc
 ppStringLiteral  = doubleQuotes . text . concatMap escape
@@ -773,81 +784,97 @@ ppAsm s a i c =
              | otherwise = empty
 
 
+ppConstExpr' :: LLVM => (i -> Doc) -> ConstExpr' i -> Doc
+ppConstExpr' pp expr =
+  case expr of
+    ConstGEP inb _mix mp ixs  ->
+      "getelementptr"
+        <+> opt inb "inbounds"
+        <+> parens (mcommas ((ppType <$> mp) : (map (pure . ppTyp') ixs)))
+    ConstConv op tv t  -> ppConvOp op <+> parens (ppTyp' tv <+> "to" <+> ppType t)
+    ConstSelect c l r  ->
+      "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])
+    ConstBlockAddr t l -> "blockaddress" <+> parens (ppSymbol t <> comma <+> pp l)
+    ConstFCmp  op a b  -> "fcmp" <+> ppFCmpOp op <+> ppTupleT a b
+    ConstICmp  op a b  -> "icmp" <+> ppICmpOp op <+> ppTupleT a b
+    ConstArith op a b  -> ppArithOp op <+> ppTuple a b
+    ConstBit   op a b  -> ppBitOp op   <+> ppTuple a b
+  where ppTuple  a b = parens $ ppTyped ppVal' a <> comma <+> ppVal' b
+        ppTupleT a b = parens $ ppTyped ppVal' a <> comma <+> ppTyp' b
+        ppVal'       = ppValue' pp
+        ppTyp'       = ppTyped ppVal'
+
 ppConstExpr :: LLVM => ConstExpr -> Doc
-ppConstExpr (ConstGEP inb _mix mp ixs)  = "getelementptr"
-  <+> opt inb "inbounds"
-  <+> parens (mcommas ((ppType <$> mp) : (map (pure . ppTyped ppValue) ixs)))
-ppConstExpr (ConstConv op tv t) = ppConvOp op <+> parens
-                                 (ppTyped ppValue tv <+> "to" <+> ppType t)
-ppConstExpr (ConstSelect c l r) = "select" <+> parens
-                                 (commas [ ppTyped ppValue c, ppTyped ppValue l
-                                         , ppTyped ppValue r])
-ppConstExpr (ConstBlockAddr t l)= "blockaddress" <+> parens
-                                 (ppSymbol t <> comma <+> ppLabel l)
-
-ppConstExpr (ConstFCmp op a b)  = "fcmp" <+> ppFCmpOp op <+> parens
-                                 (ppTyped ppValue a <> comma <+> ppTyped ppValue b)
-
-ppConstExpr (ConstICmp op a b)  = "icmp" <+> ppICmpOp op <+> parens
-                                 (ppTyped ppValue a <> comma <+> ppTyped ppValue b)
-ppConstExpr (ConstArith op a b) = ppArithOp op <+> parens
-                                  (ppTyped ppValue a <> comma <+> ppValue b)
-ppConstExpr (ConstBit op a b)   = ppBitOp op <+> parens
-                                  (ppTyped ppValue a <> comma <+> ppValue b)
+ppConstExpr = ppConstExpr' ppLabel
 
 -- DWARF Debug Info ------------------------------------------------------------
 
-ppDebugInfo :: LLVM => DebugInfo -> Doc
-ppDebugInfo di = case di of
+ppDebugInfo' :: LLVM => (i -> Doc) -> DebugInfo' i -> Doc
+ppDebugInfo' pp di = case di of
   DebugInfoBasicType bt         -> ppDIBasicType bt
-  DebugInfoCompileUnit cu       -> ppDICompileUnit cu
-  DebugInfoCompositeType ct     -> ppDICompositeType ct
-  DebugInfoDerivedType dt       -> ppDIDerivedType dt
+  DebugInfoCompileUnit cu       -> ppDICompileUnit' pp cu
+  DebugInfoCompositeType ct     -> ppDICompositeType' pp ct
+  DebugInfoDerivedType dt       -> ppDIDerivedType' pp dt
   DebugInfoEnumerator nm v      -> ppDIEnumerator nm v
   DebugInfoExpression e         -> ppDIExpression e
   DebugInfoFile f               -> ppDIFile f
-  DebugInfoGlobalVariable gv    -> ppDIGlobalVariable gv
-  DebugInfoGlobalVariableExpression gv -> ppDIGlobalVariableExpression gv
-  DebugInfoLexicalBlock lb      -> ppDILexicalBlock lb
-  DebugInfoLexicalBlockFile lbf -> ppDILexicalBlockFile lbf
-  DebugInfoLocalVariable lv     -> ppDILocalVariable lv
-  DebugInfoSubprogram sp        -> ppDISubprogram sp
+  DebugInfoGlobalVariable gv    -> ppDIGlobalVariable' pp gv
+  DebugInfoGlobalVariableExpression gv -> ppDIGlobalVariableExpression' pp gv
+  DebugInfoLexicalBlock lb      -> ppDILexicalBlock' pp lb
+  DebugInfoLexicalBlockFile lbf -> ppDILexicalBlockFile' pp lbf
+  DebugInfoLocalVariable lv     -> ppDILocalVariable' pp lv
+  DebugInfoSubprogram sp        -> ppDISubprogram' pp sp
   DebugInfoSubrange sr          -> ppDISubrange sr
-  DebugInfoSubroutineType st    -> ppDISubroutineType st
-  DebugInfoNameSpace ns         -> ppDINameSpace ns
-  DebugInfoTemplateTypeParameter dttp  -> ppDITemplateTypeParameter dttp
-  DebugInfoTemplateValueParameter dtvp -> ppDITemplateValueParameter dtvp
-  DebugInfoImportedEntity diip         -> ppDIImportedEntity diip
+  DebugInfoSubroutineType st    -> ppDISubroutineType' pp st
+  DebugInfoNameSpace ns         -> ppDINameSpace' pp ns
+  DebugInfoTemplateTypeParameter dttp  -> ppDITemplateTypeParameter' pp dttp
+  DebugInfoTemplateValueParameter dtvp -> ppDITemplateValueParameter' pp dtvp
+  DebugInfoImportedEntity diip         -> ppDIImportedEntity' pp diip
 
-ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc
-ppDIImportedEntity ie = "!DIImportedEntity"
+ppDebugInfo :: LLVM => DebugInfo -> Doc
+ppDebugInfo = ppDebugInfo' ppLabel
+
+ppDIImportedEntity' :: LLVM => (i -> Doc) -> DIImportedEntity' i -> Doc
+ppDIImportedEntity' pp ie = "!DIImportedEntity"
   <> parens (mcommas [ pure ("tag:"    <+> integral (diieTag ie))
                      , pure ("name:"   <+> text     (diieName ie))
-                     , (("scope:"  <+>) . ppValMd) <$> diieScope ie
-                     , (("entity:" <+>) . ppValMd) <$> diieEntity ie
+                     , (("scope:"  <+>) . ppValMd' pp) <$> diieScope ie
+                     , (("entity:" <+>) . ppValMd' pp) <$> diieEntity ie
                      , pure ("line:"   <+> integral (diieLine ie))
                      ])
 
-ppDINameSpace :: LLVM => DINameSpace -> Doc
-ppDINameSpace ns = "!DINameSpace"
+ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc
+ppDIImportedEntity = ppDIImportedEntity' ppLabel
+
+ppDINameSpace' :: LLVM => (i -> Doc) -> DINameSpace' i -> Doc
+ppDINameSpace' pp ns = "!DINameSpace"
   <> parens (commas [ "name:"   <+> text (dinsName ns)
-                    , "scope:"  <+> ppValMd (dinsScope ns)
-                    , "file:"   <+> ppValMd (dinsFile ns)
+                    , "scope:"  <+> ppValMd' pp (dinsScope ns)
+                    , "file:"   <+> ppValMd' pp (dinsFile ns)
                     , "line:"   <+> integral (dinsLine ns)
                     ])
 
-ppDITemplateTypeParameter :: LLVM => DITemplateTypeParameter -> Doc
-ppDITemplateTypeParameter tp = "!DITemplateTypeParameter"
+ppDINameSpace :: LLVM => DINameSpace -> Doc
+ppDINameSpace = ppDINameSpace' ppLabel
+
+ppDITemplateTypeParameter' :: LLVM => (i -> Doc) -> DITemplateTypeParameter' i -> Doc
+ppDITemplateTypeParameter' pp tp = "!DITemplateTypeParameter"
   <> parens (commas [ "name:" <+> text (dittpName tp)
-                    , "type:" <+> ppValMd (dittpType tp)
+                    , "type:" <+> ppValMd' pp (dittpType tp)
+                    ])
+
+ppDITemplateTypeParameter :: LLVM => DITemplateTypeParameter -> Doc
+ppDITemplateTypeParameter = ppDITemplateTypeParameter' ppLabel
+
+ppDITemplateValueParameter' :: LLVM => (i -> Doc) -> DITemplateValueParameter' i -> Doc
+ppDITemplateValueParameter' pp vp = "!DITemplateValueParameter"
+  <> parens (commas [ "name:"  <+> text (ditvpName vp)
+                    , "type:"  <+> ppValMd' pp (ditvpType vp)
+                    , "value:" <+> ppValMd' pp (ditvpValue vp)
                     ])
 
 ppDITemplateValueParameter :: LLVM => DITemplateValueParameter -> Doc
-ppDITemplateValueParameter vp = "!DITemplateValueParameter"
-  <> parens (commas [ "name:"  <+> text (ditvpName vp)
-                    , "type:"  <+> ppValMd (ditvpType vp)
-                    , "value:" <+> ppValMd (ditvpValue vp)
-                    ])
+ppDITemplateValueParameter = ppDITemplateValueParameter' ppLabel
 
 ppDIBasicType :: DIBasicType -> Doc
 ppDIBasicType bt = "!DIBasicType"
@@ -858,11 +885,11 @@ ppDIBasicType bt = "!DIBasicType"
                     , "encoding:" <+> integral (dibtEncoding bt)
                     ])
 
-ppDICompileUnit :: LLVM => DICompileUnit -> Doc
-ppDICompileUnit cu = "!DICompileUnit"
+ppDICompileUnit' :: LLVM => (i -> Doc) -> DICompileUnit' i -> Doc
+ppDICompileUnit' pp cu = "!DICompileUnit"
   <> parens (mcommas
        [ pure ("language:"           <+> integral (dicuLanguage cu))
-       ,     (("file:"               <+>) . ppValMd) <$> (dicuFile cu)
+       ,     (("file:"               <+>) . ppValMd' pp) <$> (dicuFile cu)
        ,     (("producer:"           <+>) . doubleQuotes . text)
              <$> (dicuProducer cu)
        , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
@@ -871,52 +898,61 @@ ppDICompileUnit cu = "!DICompileUnit"
        ,     (("splitDebugFilename:" <+>) . doubleQuotes . text)
              <$> (dicuSplitDebugFilename cu)
        , pure ("emissionKind:"       <+> integral (dicuEmissionKind cu))
-       ,     (("enums:"              <+>) . ppValMd) <$> (dicuEnums cu)
-       ,     (("retainedTypes:"      <+>) . ppValMd) <$> (dicuRetainedTypes cu)
-       ,     (("subprograms:"        <+>) . ppValMd) <$> (dicuSubprograms cu)
-       ,     (("globals:"            <+>) . ppValMd) <$> (dicuGlobals cu)
-       ,     (("imports:"            <+>) . ppValMd) <$> (dicuImports cu)
-       ,     (("macros:"             <+>) . ppValMd) <$> (dicuMacros cu)
+       ,     (("enums:"              <+>) . ppValMd' pp) <$> (dicuEnums cu)
+       ,     (("retainedTypes:"      <+>) . ppValMd' pp) <$> (dicuRetainedTypes cu)
+       ,     (("subprograms:"        <+>) . ppValMd' pp) <$> (dicuSubprograms cu)
+       ,     (("globals:"            <+>) . ppValMd' pp) <$> (dicuGlobals cu)
+       ,     (("imports:"            <+>) . ppValMd' pp) <$> (dicuImports cu)
+       ,     (("macros:"             <+>) . ppValMd' pp) <$> (dicuMacros cu)
        , pure ("dwoId:"              <+> integral (dicuDWOId cu))
        ])
+
+ppDICompileUnit :: LLVM => DICompileUnit -> Doc
+ppDICompileUnit = ppDICompileUnit' ppLabel
 
 ppFlags :: Maybe String -> Doc
 ppFlags mb = doubleQuotes (maybe empty text mb)
 
-ppDICompositeType :: LLVM => DICompositeType -> Doc
-ppDICompositeType ct = "!DICompositeType"
+ppDICompositeType' :: LLVM => (i -> Doc) -> DICompositeType' i -> Doc
+ppDICompositeType' pp ct = "!DICompositeType"
   <> parens (mcommas
        [ pure ("tag:"            <+> integral (dictTag ct))
        ,     (("name:"           <+>) . doubleQuotes . text) <$> (dictName ct)
-       ,     (("file:"           <+>) . ppValMd) <$> (dictFile ct)
+       ,     (("file:"           <+>) . ppValMd' pp) <$> (dictFile ct)
        , pure ("line:"           <+> integral (dictLine ct))
-       ,     (("baseType:"       <+>) . ppValMd) <$> (dictBaseType ct)
+       ,     (("baseType:"       <+>) . ppValMd' pp) <$> (dictBaseType ct)
        , pure ("size:"           <+> integral (dictSize ct))
        , pure ("align:"          <+> integral (dictAlign ct))
        , pure ("offset:"         <+> integral (dictOffset ct))
        , pure ("flags:"          <+> integral (dictFlags ct))
-       ,     (("elements:"       <+>) . ppValMd) <$> (dictElements ct)
+       ,     (("elements:"       <+>) . ppValMd' pp) <$> (dictElements ct)
        , pure ("runtimeLang:"    <+> integral (dictRuntimeLang ct))
-       ,     (("vtableHolder:"   <+>) . ppValMd) <$> (dictVTableHolder ct)
-       ,     (("templateParams:" <+>) . ppValMd) <$> (dictTemplateParams ct)
+       ,     (("vtableHolder:"   <+>) . ppValMd' pp) <$> (dictVTableHolder ct)
+       ,     (("templateParams:" <+>) . ppValMd' pp) <$> (dictTemplateParams ct)
        ,     (("identifier:"     <+>) . doubleQuotes . text)
              <$> (dictIdentifier ct)
        ])
 
-ppDIDerivedType :: LLVM => DIDerivedType -> Doc
-ppDIDerivedType dt = "!DIDerivedType"
+ppDICompositeType :: LLVM => DICompositeType -> Doc
+ppDICompositeType = ppDICompositeType' ppLabel
+
+ppDIDerivedType' :: LLVM => (i -> Doc) -> DIDerivedType' i -> Doc
+ppDIDerivedType' pp dt = "!DIDerivedType"
   <> parens (mcommas
        [ pure ("tag:"       <+> integral (didtTag dt))
        ,     (("name:"      <+>) . doubleQuotes . text) <$> (didtName dt)
-       ,     (("file:"      <+>) . ppValMd) <$> (didtFile dt)
+       ,     (("file:"      <+>) . ppValMd' pp) <$> (didtFile dt)
        , pure ("line:"      <+> integral (didtLine dt))
-       ,      ("baseType:"  <+>) <$> (ppValMd <$> didtBaseType dt <|> Just "null")
+       ,      ("baseType:"  <+>) <$> (ppValMd' pp <$> didtBaseType dt <|> Just "null")
        , pure ("size:"      <+> integral (didtSize dt))
        , pure ("align:"     <+> integral (didtAlign dt))
        , pure ("offset:"    <+> integral (didtOffset dt))
        , pure ("flags:"     <+> integral (didtFlags dt))
-       ,     (("extraData:" <+>) . ppValMd) <$> (didtExtraData dt)
+       ,     (("extraData:" <+>) . ppValMd' pp) <$> (didtExtraData dt)
        ])
+
+ppDIDerivedType :: LLVM => DIDerivedType -> Doc
+ppDIDerivedType = ppDIDerivedType' ppLabel
 
 ppDIEnumerator :: String -> Int64 -> Doc
 ppDIEnumerator n v = "!DIEnumerator"
@@ -934,81 +970,99 @@ ppDIFile f = "!DIFile"
                     , "directory:" <+> doubleQuotes (text (difDirectory f))
                     ])
 
-ppDIGlobalVariable :: LLVM => DIGlobalVariable -> Doc
-ppDIGlobalVariable gv = "!DIGlobalVariable"
+ppDIGlobalVariable' :: LLVM => (i -> Doc) -> DIGlobalVariable' i -> Doc
+ppDIGlobalVariable' pp gv = "!DIGlobalVariable"
   <> parens (mcommas
-       [      (("scope:"       <+>) . ppValMd) <$> (digvScope gv)
+       [      (("scope:"       <+>) . ppValMd' pp) <$> (digvScope gv)
        ,      (("name:"        <+>) . doubleQuotes . text) <$> (digvName gv)
        ,      (("linkageName:" <+>) . doubleQuotes . text)
               <$> (digvLinkageName gv)
-       ,      (("file:"        <+>) . ppValMd) <$> (digvFile gv)
+       ,      (("file:"        <+>) . ppValMd' pp) <$> (digvFile gv)
        , pure ("line:"         <+> integral (digvLine gv))
-       ,      (("type:"        <+>) . ppValMd) <$> (digvType gv)
+       ,      (("type:"        <+>) . ppValMd' pp) <$> (digvType gv)
        , pure ("isLocal:"      <+> ppBool (digvIsLocal gv))
        , pure ("isDefinition:" <+> ppBool (digvIsDefinition gv))
-       ,      (("variable:"    <+>) . ppValMd) <$> (digvVariable gv)
-       ,      (("declaration:" <+>) . ppValMd) <$> (digvDeclaration gv)
+       ,      (("variable:"    <+>) . ppValMd' pp) <$> (digvVariable gv)
+       ,      (("declaration:" <+>) . ppValMd' pp) <$> (digvDeclaration gv)
        ,      (("align:"       <+>) . integral) <$> digvAlignment gv
        ])
 
-ppDIGlobalVariableExpression :: LLVM => DIGlobalVariableExpression -> Doc
-ppDIGlobalVariableExpression gve = "!DIGlobalVariableExpression"
+ppDIGlobalVariable :: LLVM => DIGlobalVariable -> Doc
+ppDIGlobalVariable = ppDIGlobalVariable' ppLabel
+
+ppDIGlobalVariableExpression' :: LLVM => (i -> Doc) -> DIGlobalVariableExpression' i -> Doc
+ppDIGlobalVariableExpression' pp gve = "!DIGlobalVariableExpression"
   <> parens (mcommas
-       [      (("var:"  <+>) . ppValMd) <$> (digveVariable gve)
-       ,      (("expr:" <+>) . ppValMd) <$> (digveExpression gve)
+       [      (("var:"  <+>) . ppValMd' pp) <$> (digveVariable gve)
+       ,      (("expr:" <+>) . ppValMd' pp) <$> (digveExpression gve)
        ])
 
-ppDILexicalBlock :: LLVM => DILexicalBlock -> Doc
-ppDILexicalBlock ct = "!DILexicalBlock"
+ppDIGlobalVariableExpression :: LLVM => DIGlobalVariableExpression -> Doc
+ppDIGlobalVariableExpression = ppDIGlobalVariableExpression' ppLabel
+
+ppDILexicalBlock' :: LLVM => (i -> Doc) -> DILexicalBlock' i -> Doc
+ppDILexicalBlock' pp ct = "!DILexicalBlock"
   <> parens (mcommas
-       [     (("scope:"  <+>) . ppValMd) <$> (dilbScope ct)
-       ,     (("file:"   <+>) . ppValMd) <$> (dilbFile ct)
+       [     (("scope:"  <+>) . ppValMd' pp) <$> (dilbScope ct)
+       ,     (("file:"   <+>) . ppValMd' pp) <$> (dilbFile ct)
        , pure ("line:"   <+> integral (dilbLine ct))
        , pure ("column:" <+> integral (dilbColumn ct))
        ])
 
-ppDILexicalBlockFile :: LLVM => DILexicalBlockFile -> Doc
-ppDILexicalBlockFile lbf = "!DILexicalBlockFile"
+ppDILexicalBlock :: LLVM => DILexicalBlock -> Doc
+ppDILexicalBlock = ppDILexicalBlock' ppLabel
+
+ppDILexicalBlockFile' :: LLVM => (i -> Doc) -> DILexicalBlockFile' i -> Doc
+ppDILexicalBlockFile' pp lbf = "!DILexicalBlockFile"
   <> parens (mcommas
-       [ pure ("scope:"         <+> ppValMd (dilbfScope lbf))
-       ,     (("file:"          <+>) . ppValMd) <$> (dilbfFile lbf)
+       [ pure ("scope:"         <+> ppValMd' pp (dilbfScope lbf))
+       ,     (("file:"          <+>) . ppValMd' pp) <$> (dilbfFile lbf)
        , pure ("discriminator:" <+> integral (dilbfDiscriminator lbf))
        ])
 
-ppDILocalVariable :: LLVM => DILocalVariable -> Doc
-ppDILocalVariable lv = "!DILocalVariable"
+ppDILexicalBlockFile :: LLVM => DILexicalBlockFile -> Doc
+ppDILexicalBlockFile = ppDILexicalBlockFile' ppLabel
+
+ppDILocalVariable' :: LLVM => (i -> Doc) -> DILocalVariable' i -> Doc
+ppDILocalVariable' pp lv = "!DILocalVariable"
   <> parens (mcommas
-       [      (("scope:" <+>) . ppValMd) <$> (dilvScope lv)
+       [      (("scope:" <+>) . ppValMd' pp) <$> (dilvScope lv)
        ,      (("name:"  <+>) . doubleQuotes . text) <$> (dilvName lv)
-       ,      (("file:"  <+>) . ppValMd) <$> (dilvFile lv)
+       ,      (("file:"  <+>) . ppValMd' pp) <$> (dilvFile lv)
        , pure ("line:"   <+> integral (dilvLine lv))
-       ,      (("type:"  <+>) . ppValMd) <$> (dilvType lv)
+       ,      (("type:"  <+>) . ppValMd' pp) <$> (dilvType lv)
        , pure ("arg:"    <+> integral (dilvArg lv))
        , pure ("flags:"  <+> integral (dilvFlags lv))
        ])
 
-ppDISubprogram :: LLVM => DISubprogram -> Doc
-ppDISubprogram sp = "!DISubprogram"
+ppDILocalVariable :: LLVM => DILocalVariable -> Doc
+ppDILocalVariable = ppDILocalVariable' ppLabel
+
+ppDISubprogram' :: LLVM => (i -> Doc) -> DISubprogram' i -> Doc
+ppDISubprogram' pp sp = "!DISubprogram"
   <> parens (mcommas
-       [      (("scope:"          <+>) . ppValMd) <$> (dispScope sp)
+       [      (("scope:"          <+>) . ppValMd' pp) <$> (dispScope sp)
        ,      (("name:"           <+>) . doubleQuotes . text) <$> (dispName sp)
        ,      (("linkageName:"    <+>) . doubleQuotes . text)
               <$> (dispLinkageName sp)
-       ,      (("file:"           <+>) . ppValMd) <$> (dispFile sp)
+       ,      (("file:"           <+>) . ppValMd' pp) <$> (dispFile sp)
        , pure ("line:"            <+> integral (dispLine sp))
-       ,      (("type:"           <+>) . ppValMd) <$> (dispType sp)
+       ,      (("type:"           <+>) . ppValMd' pp) <$> (dispType sp)
        , pure ("isLocal:"         <+> ppBool (dispIsLocal sp))
        , pure ("isDefinition:"    <+> ppBool (dispIsDefinition sp))
        , pure ("scopeLine:"       <+> integral (dispScopeLine sp))
-       ,      (("containingType:" <+>) . ppValMd) <$> (dispContainingType sp)
+       ,      (("containingType:" <+>) . ppValMd' pp) <$> (dispContainingType sp)
        , pure ("virtuality:"      <+> integral (dispVirtuality sp))
        , pure ("virtualIndex:"    <+> integral (dispVirtualIndex sp))
        , pure ("flags:"           <+> integral (dispFlags sp))
        , pure ("isOptimized:"     <+> ppBool (dispIsOptimized sp))
-       ,      (("templateParams:" <+>) . ppValMd) <$> (dispTemplateParams sp)
-       ,      (("declaration:"    <+>) . ppValMd) <$> (dispDeclaration sp)
-       ,      (("variables:"      <+>) . ppValMd) <$> (dispVariables sp)
+       ,      (("templateParams:" <+>) . ppValMd' pp) <$> (dispTemplateParams sp)
+       ,      (("declaration:"    <+>) . ppValMd' pp) <$> (dispDeclaration sp)
+       ,      (("variables:"      <+>) . ppValMd' pp) <$> (dispVariables sp)
        ])
+
+ppDISubprogram :: LLVM => DISubprogram -> Doc
+ppDISubprogram = ppDISubprogram' ppLabel
 
 ppDISubrange :: DISubrange -> Doc
 ppDISubrange sr = "!DISubrange"
@@ -1016,12 +1070,15 @@ ppDISubrange sr = "!DISubrange"
                     , "lowerBound:" <+> integral (disrLowerBound sr)
                     ])
 
-ppDISubroutineType :: LLVM => DISubroutineType -> Doc
-ppDISubroutineType st = "!DISubroutineType"
+ppDISubroutineType' :: LLVM => (i -> Doc) -> DISubroutineType' i -> Doc
+ppDISubroutineType' pp st = "!DISubroutineType"
   <> parens (commas
        [ "flags:" <+> integral (distFlags st)
-       , "types:" <+> fromMaybe "null" (ppValMd <$> (distTypeArray st))
+       , "types:" <+> fromMaybe "null" (ppValMd' pp <$> (distTypeArray st))
        ])
+
+ppDISubroutineType :: LLVM => DISubroutineType -> Doc
+ppDISubroutineType = ppDISubroutineType' ppLabel
 
 -- Utilities -------------------------------------------------------------------
 
