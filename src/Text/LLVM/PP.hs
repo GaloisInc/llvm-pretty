@@ -77,7 +77,8 @@ checkConfig p = p ?config
 
 ppModule :: LLVM => Module -> Doc
 ppModule m = foldr ($+$) empty
-  $ ppDataLayout (modDataLayout m)
+  $ ppSourceName (modSourceName m)
+  : ppDataLayout (modDataLayout m)
   : ppInlineAsm  (modInlineAsm m)
   : concat [ map ppTypeDecl    (modTypes m)
            , map ppGlobal      (modGlobals m)
@@ -89,6 +90,12 @@ ppModule m = foldr ($+$) empty
            , map ppComdat      (Map.toList (modComdat m))
            ]
 
+
+-- Source filename -------------------------------------------------------------
+
+ppSourceName :: Maybe String -> Doc
+ppSourceName Nothing   = empty
+ppSourceName (Just sn) = "source_filename" <+> char '=' <+> doubleQuotes (text sn)
 
 -- Metadata --------------------------------------------------------------------
 
