@@ -137,7 +137,7 @@ data Mangling = ElfMangling
 -- | Parse the data layout string.
 parseDataLayout :: MonadPlus m => String -> m DataLayout
 parseDataLayout str =
-  case parse (pDataLayout <* eof) "<internal>" str of
+  case parse (pDataLayout <* eof) "<internal: data layout>" str of
     Left _err -> mzero
     Right specs -> return specs
   where
