@@ -12,22 +12,24 @@ tests = testGroup "AST"
       [ let triple = "x86_64-unknown-linux-gnu"
         in testCase ("parse target triple: " ++ triple) $
             parseTargetTriple triple @?=
-              ( Just X8664
-              , Nothing
-              , Just (UnknownVendor "unknown")
-              , Just Linux
-              , Just GNU
-              , Just (UnknownObjectFormat "gnu")
-              )
+              TargetTriple
+                ( Just X8664
+                , Nothing
+                , Just (UnknownVendor "unknown")
+                , Just Linux
+                , Just GNU
+                , Just (UnknownObjectFormat "gnu")
+                )
       , let triple = "x86_64-apple-macosx10.10.0"
         in testCase ("parse target triple: " ++ triple) $
             parseTargetTriple triple @?=
-              ( Just X8664
-              , Nothing
-              , Just Apple
-              , Just MacOSX
-              , Nothing
-              , Nothing
-              )
+              TargetTriple
+                ( Just X8664
+                , Nothing
+                , Just Apple
+                , Just MacOSX
+                , Nothing
+                , Nothing
+                )
       ]
   ]

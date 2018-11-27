@@ -1,5 +1,3 @@
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE TupleSections #-}
 {- |
 Module      : Text.LLVM.AST.Triple
 Description : AST and parsing of LLVM target triples.
@@ -10,13 +8,18 @@ Stability   : experimental
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE StrictData #-}
+{-# LANGUAGE TupleSections #-}
 
 module Text.LLVM.AST.Triple where
 
+import Data.Coerce (coerce)
 import Data.Maybe (fromMaybe)
 import Data.List (foldl', elem, isPrefixOf, isSuffixOf)
 import Data.Monoid (First(..))
 import Data.List.Split (splitOn)
+import Data.Semigroup (Semigroup(..))
 
 import Data.Data (Data)
 import Data.Typeable (Typeable)
@@ -224,14 +227,39 @@ data ObjectFormat =
   deriving (Data, Eq, Generic, Ord, Read, Show, Typeable)
 
 -- | More like a sextuple, if you think about it
-type TargetTriple =
-  ( Maybe Arch
-  , Maybe SubArch
-  , Maybe Vendor
-  , Maybe OS
-  , Maybe Environment
-  , Maybe ObjectFormat
-  )
+newtype TargetTriple = TargetTriple
+  { getTargetTriple ::
+      ( Maybe Arch
+      , Maybe SubArch
+      , Maybe Vendor
+      , Maybe OS
+      , Maybe Environment
+      , Maybe ObjectFormat
+      )
+  } deriving (Data, Eq, Generic, Ord, Read, Show, Typeable)
+
+-- | Naturally, there is a semigroup instance for only up to 5-tuples in base.
+instance ( Semigroup a
+         , Semigroup b
+         , Semigroup c
+         , Semigroup d
+         , Semigroup e
+         , Semigroup f
+         ) => Semigroup (a, b, c, d, e, f) where
+  (a, b, c, d, e, f) <> (a', b', c', d', e', f') =
+    (a <> a', b <> b', c <> c', d <> d', e <> e', f <> f')
+  stimes n (a, b, c, d, e, f) =
+    (stimes n a, stimes n b, stimes n c, stimes n d, stimes n e, stimes n f)
+
+-- | A 'First'-based semigroup instance
+instance Semigroup TargetTriple where
+  tt <> tt' =
+    let tt'' :: (First Arch, First SubArch, First Vendor, First OS, First Environment, First ObjectFormat)
+        tt'' = coerce tt
+    in coerce $ tt'' <> coerce tt'
+
+instance Monoid TargetTriple where
+  mempty = TargetTriple (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing)
 
 -- | Parse a target triple string.
 --
@@ -242,7 +270,7 @@ type TargetTriple =
 --
 -- https://github.com/llvm-mirror/llvm/blob/release_60/lib/Support/Triple.cpp#L691
 parseTargetTriple :: String -> TargetTriple
-parseTargetTriple str = flattenSix $
+parseTargetTriple str = TargetTriple . flattenSix . coerce $
   case splitOn "-" str of
     []             -> (Nothing, (Nothing, (Nothing, (Nothing, (Nothing, Nothing)))))
     (archStr : as) -> (\rest -> (Just (parseArch archStr), (parseSubArch archStr, rest))) $
