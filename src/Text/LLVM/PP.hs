@@ -79,6 +79,7 @@ ppModule :: LLVM => Module -> Doc
 ppModule m = foldr ($+$) empty
   $ ppSourceName (modSourceName m)
   : ppDataLayout (modDataLayout m)
+  -- TODO: Print target tiples
   : ppInlineAsm  (modInlineAsm m)
   : concat [ map ppTypeDecl    (modTypes m)
            , map ppGlobal      (modGlobals m)

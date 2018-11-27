@@ -11,57 +11,61 @@
 
 module Text.LLVM.AST where
 
-import Data.Functor.Identity (Identity(..))
-import Data.Coerce (coerce)
-import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
-import Data.Int (Int32,Int64)
-import Data.List (genericIndex,genericLength)
+import           Data.Functor.Identity (Identity(..))
+import           Data.Coerce (coerce)
+import           Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
+import           Data.Int (Int32,Int64)
+import           Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
-import Data.Semigroup as Sem
-import Data.String (IsString(fromString))
-import Data.Word (Word8,Word16,Word32,Word64)
-import GHC.Generics (Generic, Generic1)
+import qualified Data.Semigroup as Sem
+import           Data.String (IsString(fromString))
+import           Data.Word (Word8,Word16,Word32,Word64)
+import           GHC.Generics (Generic, Generic1)
 
-import Text.Parsec
-import Text.Parsec.String
+import           Text.Parsec
+import           Text.Parsec.String
+
+import           Text.LLVM.AST.Triple
 
 #if !(MIN_VERSION_base(4,8,0))
-import Control.Applicative ((<$))
-import Data.Foldable (Foldable(foldMap))
-import Data.Monoid (Monoid(..))
-import Data.Traversable (Traversable(sequenceA))
+import           Control.Applicative ((<$))
+import           Data.Foldable (Foldable(foldMap))
+import           Data.Monoid (Monoid(..))
+import           Data.Traversable (Traversable(sequenceA))
 #endif
 
 
 -- Modules ---------------------------------------------------------------------
 
 data Module = Module
-  { modSourceName :: Maybe String
-  , modDataLayout :: DataLayout    -- ^ type size and alignment information
-  , modTypes      :: [TypeDecl]    -- ^ top-level type aliases
-  , modNamedMd    :: [NamedMd]
-  , modUnnamedMd  :: [UnnamedMd]
-  , modComdat     :: Map.Map String SelectionKind
-  , modGlobals    :: [Global]      -- ^ global value declarations
-  , modDeclares   :: [Declare]     -- ^ external function declarations (without definitions)
-  , modDefines    :: [Define]      -- ^ internal function declarations (with definitions)
-  , modInlineAsm  :: InlineAsm
-  , modAliases    :: [GlobalAlias]
-  } deriving (Show,Generic)
+  { modSourceName   :: !(Maybe String)
+  , modTargetTriple :: !TargetTriple
+  , modDataLayout   :: !DataLayout    -- ^ type size and alignment information
+  , modTypes        :: [TypeDecl]     -- ^ top-level type aliases
+  , modNamedMd      :: [NamedMd]
+  , modUnnamedMd    :: [UnnamedMd]
+  , modComdat       :: Map.Map String SelectionKind
+  , modGlobals      :: [Global]       -- ^ global value declarations
+  , modDeclares     :: [Declare]      -- ^ external function declarations (without definitions)
+  , modDefines      :: [Define]       -- ^ internal function declarations (with definitions)
+  , modInlineAsm    :: InlineAsm
+  , modAliases      :: [GlobalAlias]
+  } deriving (Show, Generic)
 
 instance Sem.Semigroup Module where
   m1 <> m2 = Module
-    { modSourceName = modSourceName m1 `mplus`   modSourceName m2
-    , modDataLayout = modDataLayout m1 <> modDataLayout m2
-    , modTypes      = modTypes      m1 <> modTypes      m2
-    , modUnnamedMd  = modUnnamedMd  m1 <> modUnnamedMd  m2
-    , modNamedMd    = modNamedMd    m1 <> modNamedMd    m2
-    , modGlobals    = modGlobals    m1 <> modGlobals    m2
-    , modDeclares   = modDeclares   m1 <> modDeclares   m2
-    , modDefines    = modDefines    m1 <> modDefines    m2
-    , modInlineAsm  = modInlineAsm  m1 <> modInlineAsm  m2
-    , modAliases    = modAliases    m1 <> modAliases    m2
-    , modComdat     = modComdat     m1 <> modComdat     m2
+    { modSourceName   = modSourceName   m1 `mplus` modSourceName m2
+    , modTargetTriple = modTargetTriple m1 <> modTargetTriple m2
+    , modDataLayout   = modDataLayout   m1 <> modDataLayout m2
+    , modTypes        = modTypes        m1 <> modTypes      m2
+    , modUnnamedMd    = modUnnamedMd    m1 <> modUnnamedMd  m2
+    , modNamedMd      = modNamedMd      m1 <> modNamedMd    m2
+    , modGlobals      = modGlobals      m1 <> modGlobals    m2
+    , modDeclares     = modDeclares     m1 <> modDeclares   m2
+    , modDefines      = modDefines      m1 <> modDefines    m2
+    , modInlineAsm    = modInlineAsm    m1 <> modInlineAsm  m2
+    , modAliases      = modAliases      m1 <> modAliases    m2
+    , modComdat       = modComdat       m1 <> modComdat     m2
     }
 
 instance Monoid Module where
@@ -70,17 +74,18 @@ instance Monoid Module where
 
 emptyModule :: Module
 emptyModule  = Module
-  { modSourceName = mempty
-  , modDataLayout = mempty
-  , modTypes      = mempty
-  , modNamedMd    = mempty
-  , modUnnamedMd  = mempty
-  , modGlobals    = mempty
-  , modDeclares   = mempty
-  , modDefines    = mempty
-  , modInlineAsm  = mempty
-  , modAliases    = mempty
-  , modComdat     = mempty
+  { modSourceName   = mempty
+  , modTargetTriple = mempty
+  , modDataLayout   = mempty
+  , modTypes        = mempty
+  , modNamedMd      = mempty
+  , modUnnamedMd    = mempty
+  , modGlobals      = mempty
+  , modDeclares     = mempty
+  , modDefines      = mempty
+  , modInlineAsm    = mempty
+  , modAliases      = mempty
+  , modComdat       = mempty
   }
 
 
