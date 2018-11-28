@@ -1172,17 +1172,20 @@ data DICompositeType' lab = DICompositeType
 type DICompositeType = DICompositeType' BlockLabel
 
 data DIDerivedType' lab = DIDerivedType
-  { didtTag :: DwarfTag
-  , didtName :: Maybe String
-  , didtFile :: Maybe (ValMd' lab)
-  , didtLine :: Word32
-  , didtScope :: Maybe (ValMd' lab)
-  , didtBaseType :: Maybe (ValMd' lab)
-  , didtSize :: Word64
-  , didtAlign :: Word64
-  , didtOffset :: Word64
-  , didtFlags :: DIFlags
-  , didtExtraData :: Maybe (ValMd' lab)
+  { didtTag               :: DwarfTag
+  , didtName              :: Maybe String
+  , didtFile              :: Maybe (ValMd' lab)
+  , didtLine              :: Word32
+  , didtScope             :: Maybe (ValMd' lab)
+  , didtBaseType          :: Maybe (ValMd' lab)
+  , didtSize              :: Word64
+  , didtAlign             :: Word64
+  , didtOffset            :: Word64
+  , didtFlags             :: DIFlags
+  , didtExtraData         :: Maybe (ValMd' lab)
+  , didtDWARFAddressSpace :: Maybe Word64
+  -- ^ The 'Maybe' encodes the possibility that there is no associated address
+  -- space (in LLVM, the sentinel value @0@ is used for this).
   }
   deriving (Show,Functor,Generic,Generic1)
 
