@@ -44,6 +44,15 @@ data Config = Config { cfgLoadImplicitType :: Bool
                        -- instruction is implied.
 
                      , cfgUseDILocation :: Bool
+
+                     , cfgDistinctDICU :: Bool
+                     -- ^ After LLVM 3.7, @DICompileUnit@ must be "distinct".
+                     -- If this is set, the pretty-printer will only produce
+                     -- valid assembly if the AST doesn't have inline
+                     -- @DICompileUnit@ or @DISubprogram@, since can't handle
+                     -- inline @distinct@ declarations.
+                     --
+                     -- https://github.com/llvm-mirror/llvm/commit/c61bc48acb6bd55fa6b96b9b27de079b441e0b17
                      }
 
 withConfig :: Config -> (LLVM => a) -> a
@@ -59,14 +68,17 @@ ppLLVM35 = ppLLVM36
 ppLLVM36 = withConfig Config { cfgLoadImplicitType = True
                              , cfgGEPImplicitType  = True
                              , cfgUseDILocation    = False
+                             , cfgDistinctDICU     = False
                              }
 ppLLVM37 = withConfig Config { cfgLoadImplicitType = False
                              , cfgGEPImplicitType  = False
                              , cfgUseDILocation    = True
+                             , cfgDistinctDICU     = False
                              }
 ppLLVM38 = withConfig Config { cfgLoadImplicitType = False
                              , cfgGEPImplicitType  = False
                              , cfgUseDILocation    = True
+                             , cfgDistinctDICU     = True
                              }
 
 checkConfig :: LLVM => (Config -> Bool) -> Bool
@@ -109,8 +121,18 @@ ppUnnamedMd um =
   sep [ ppMetadata (int (umIndex um)) <+> char '='
       , distinct <+> ppValMd (umValues um) ]
   where
-  distinct | umDistinct um = "distinct"
-           | otherwise     = empty
+  distinct | umDistinct um && not (always um) = "distinct"
+           | otherwise                        = empty
+  -- does the pretty-printer for this specific kind of DI always print
+  -- "distinct?" See comment on 'cfg'
+  --
+  -- This could be done more elegantly with prisms
+  always um' = checkConfig cfgDistinctDICU ||
+    case umValues um' of
+      ValMdDebugInfo (DebugInfoCompileUnit _) -> True
+      ValMdDebugInfo (DebugInfoSubprogram  _) -> True
+      _                                       -> False
+
 
 
 -- Aliases ---------------------------------------------------------------------
@@ -893,26 +915,28 @@ ppDIBasicType bt = "!DIBasicType"
                     ])
 
 ppDICompileUnit' :: LLVM => (i -> Doc) -> DICompileUnit' i -> Doc
-ppDICompileUnit' pp cu = "!DICompileUnit"
-  <> parens (mcommas
-       [ pure ("language:"           <+> integral (dicuLanguage cu))
-       ,     (("file:"               <+>) . ppValMd' pp) <$> (dicuFile cu)
-       ,     (("producer:"           <+>) . doubleQuotes . text)
-             <$> (dicuProducer cu)
-       , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
-       , pure ("flags:"              <+> ppFlags (dicuFlags cu))
-       , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
-       ,     (("splitDebugFilename:" <+>) . doubleQuotes . text)
-             <$> (dicuSplitDebugFilename cu)
-       , pure ("emissionKind:"       <+> integral (dicuEmissionKind cu))
-       ,     (("enums:"              <+>) . ppValMd' pp) <$> (dicuEnums cu)
-       ,     (("retainedTypes:"      <+>) . ppValMd' pp) <$> (dicuRetainedTypes cu)
-       ,     (("subprograms:"        <+>) . ppValMd' pp) <$> (dicuSubprograms cu)
-       ,     (("globals:"            <+>) . ppValMd' pp) <$> (dicuGlobals cu)
-       ,     (("imports:"            <+>) . ppValMd' pp) <$> (dicuImports cu)
-       ,     (("macros:"             <+>) . ppValMd' pp) <$> (dicuMacros cu)
-       , pure ("dwoId:"              <+> integral (dicuDWOId cu))
-       ])
+ppDICompileUnit' pp cu =
+  (if checkConfig cfgDistinctDICU then "distinct" else empty)
+  <+> "!DICompileUnit"
+  <>  parens (mcommas
+        [ pure ("language:"           <+> integral (dicuLanguage cu))
+        ,     (("file:"               <+>) . ppValMd' pp) <$> (dicuFile cu)
+        ,     (("producer:"           <+>) . doubleQuotes . text)
+              <$> (dicuProducer cu)
+        , pure ("isOptimized:"        <+> ppBool (dicuIsOptimized cu))
+        , pure ("flags:"              <+> ppFlags (dicuFlags cu))
+        , pure ("runtimeVersion:"     <+> integral (dicuRuntimeVersion cu))
+        ,     (("splitDebugFilename:" <+>) . doubleQuotes . text)
+              <$> (dicuSplitDebugFilename cu)
+        , pure ("emissionKind:"       <+> integral (dicuEmissionKind cu))
+        ,     (("enums:"              <+>) . ppValMd' pp) <$> (dicuEnums cu)
+        ,     (("retainedTypes:"      <+>) . ppValMd' pp) <$> (dicuRetainedTypes cu)
+        ,     (("subprograms:"        <+>) . ppValMd' pp) <$> (dicuSubprograms cu)
+        ,     (("globals:"            <+>) . ppValMd' pp) <$> (dicuGlobals cu)
+        ,     (("imports:"            <+>) . ppValMd' pp) <$> (dicuImports cu)
+        ,     (("macros:"             <+>) . ppValMd' pp) <$> (dicuMacros cu)
+        , pure ("dwoId:"              <+> integral (dicuDWOId cu))
+        ])
 
 ppDICompileUnit :: LLVM => DICompileUnit -> Doc
 ppDICompileUnit = ppDICompileUnit' ppLabel
@@ -1046,27 +1070,29 @@ ppDILocalVariable :: LLVM => DILocalVariable -> Doc
 ppDILocalVariable = ppDILocalVariable' ppLabel
 
 ppDISubprogram' :: LLVM => (i -> Doc) -> DISubprogram' i -> Doc
-ppDISubprogram' pp sp = "!DISubprogram"
-  <> parens (mcommas
-       [      (("scope:"          <+>) . ppValMd' pp) <$> (dispScope sp)
-       ,      (("name:"           <+>) . doubleQuotes . text) <$> (dispName sp)
-       ,      (("linkageName:"    <+>) . doubleQuotes . text)
-              <$> (dispLinkageName sp)
-       ,      (("file:"           <+>) . ppValMd' pp) <$> (dispFile sp)
-       , pure ("line:"            <+> integral (dispLine sp))
-       ,      (("type:"           <+>) . ppValMd' pp) <$> (dispType sp)
-       , pure ("isLocal:"         <+> ppBool (dispIsLocal sp))
-       , pure ("isDefinition:"    <+> ppBool (dispIsDefinition sp))
-       , pure ("scopeLine:"       <+> integral (dispScopeLine sp))
-       ,      (("containingType:" <+>) . ppValMd' pp) <$> (dispContainingType sp)
-       , pure ("virtuality:"      <+> integral (dispVirtuality sp))
-       , pure ("virtualIndex:"    <+> integral (dispVirtualIndex sp))
-       , pure ("flags:"           <+> integral (dispFlags sp))
-       , pure ("isOptimized:"     <+> ppBool (dispIsOptimized sp))
-       ,      (("templateParams:" <+>) . ppValMd' pp) <$> (dispTemplateParams sp)
-       ,      (("declaration:"    <+>) . ppValMd' pp) <$> (dispDeclaration sp)
-       ,      (("variables:"      <+>) . ppValMd' pp) <$> (dispVariables sp)
-       ])
+ppDISubprogram' pp sp =
+  (if checkConfig cfgDistinctDICU then "distinct" else empty)
+  <+> "!DISubprogram"
+  <>  parens (mcommas
+        [      (("scope:"          <+>) . ppValMd' pp) <$> (dispScope sp)
+        ,      (("name:"           <+>) . doubleQuotes . text) <$> (dispName sp)
+        ,      (("linkageName:"    <+>) . doubleQuotes . text)
+               <$> (dispLinkageName sp)
+        ,      (("file:"           <+>) . ppValMd' pp) <$> (dispFile sp)
+        , pure ("line:"            <+> integral (dispLine sp))
+        ,      (("type:"           <+>) . ppValMd' pp) <$> (dispType sp)
+        , pure ("isLocal:"         <+> ppBool (dispIsLocal sp))
+        , pure ("isDefinition:"    <+> ppBool (dispIsDefinition sp))
+        , pure ("scopeLine:"       <+> integral (dispScopeLine sp))
+        ,      (("containingType:" <+>) . ppValMd' pp) <$> (dispContainingType sp)
+        , pure ("virtuality:"      <+> integral (dispVirtuality sp))
+        , pure ("virtualIndex:"    <+> integral (dispVirtualIndex sp))
+        , pure ("flags:"           <+> integral (dispFlags sp))
+        , pure ("isOptimized:"     <+> ppBool (dispIsOptimized sp))
+        ,      (("templateParams:" <+>) . ppValMd' pp) <$> (dispTemplateParams sp)
+        ,      (("declaration:"    <+>) . ppValMd' pp) <$> (dispDeclaration sp)
+        ,      (("variables:"      <+>) . ppValMd' pp) <$> (dispVariables sp)
+        ])
 
 ppDISubprogram :: LLVM => DISubprogram -> Doc
 ppDISubprogram = ppDISubprogram' ppLabel
