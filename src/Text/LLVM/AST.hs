@@ -1088,15 +1088,15 @@ data DIImportedEntity' lab = DIImportedEntity
 
 type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
 data DITemplateTypeParameter' lab = DITemplateTypeParameter
-    { dittpName :: Maybe String
-    , dittpType :: ValMd' lab
+    { dittpName :: String
+    , dittpType :: Maybe (ValMd' lab)
     } deriving (Show,Functor,Generic,Generic1)
 
 type DITemplateValueParameter = DITemplateValueParameter' BlockLabel
 data DITemplateValueParameter' lab = DITemplateValueParameter
     { ditvpName  :: String
     , ditvpType  :: ValMd' lab
-    , ditvpValue :: ValMd' lab
+    , ditvpValue :: Maybe (ValMd' lab)
     } deriving (Show,Functor,Generic,Generic1)
 
 type DINameSpace = DINameSpace' BlockLabel
