@@ -866,19 +866,19 @@ ppDINameSpace = ppDINameSpace' ppLabel
 
 ppDITemplateTypeParameter' :: LLVM => (i -> Doc) -> DITemplateTypeParameter' i -> Doc
 ppDITemplateTypeParameter' pp tp = "!DITemplateTypeParameter"
-  <> parens (commas [ "name:" <+> text (dittpName tp)
-                    , "type:" <+> ppValMd' pp (dittpType tp)
-                    ])
+  <> parens (mcommas [ pure ("name:" <+> text (dittpName tp))
+                     , ("type:" <+>) . ppValMd' pp <$> dittpType tp
+                     ])
 
 ppDITemplateTypeParameter :: LLVM => DITemplateTypeParameter -> Doc
 ppDITemplateTypeParameter = ppDITemplateTypeParameter' ppLabel
 
 ppDITemplateValueParameter' :: LLVM => (i -> Doc) -> DITemplateValueParameter' i -> Doc
 ppDITemplateValueParameter' pp vp = "!DITemplateValueParameter"
-  <> parens (commas [ "name:"  <+> text (ditvpName vp)
-                    , "type:"  <+> ppValMd' pp (ditvpType vp)
-                    , "value:" <+> ppValMd' pp (ditvpValue vp)
-                    ])
+  <> parens (mcommas [ pure ("name:"  <+> text (ditvpName vp))
+                     , pure ("type:"  <+> ppValMd' pp (ditvpType vp))
+                     , ("value:" <+>) . ppValMd' pp <$> ditvpValue vp
+                     ])
 
 ppDITemplateValueParameter :: LLVM => DITemplateValueParameter -> Doc
 ppDITemplateValueParameter = ppDITemplateValueParameter' ppLabel

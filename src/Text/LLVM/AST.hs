@@ -1088,7 +1088,7 @@ data DIImportedEntity' lab = DIImportedEntity
 
 type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
 data DITemplateTypeParameter' lab = DITemplateTypeParameter
-    { dittpName :: String
+    { dittpName :: Maybe String
     , dittpType :: ValMd' lab
     } deriving (Show,Functor,Generic,Generic1)
 
