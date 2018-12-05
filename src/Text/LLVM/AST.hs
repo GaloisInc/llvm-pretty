@@ -1263,12 +1263,13 @@ data DISubprogram' lab = DISubprogram
   , dispVirtuality     :: DwarfVirtuality
   , dispVirtualIndex   :: Word32
   , dispThisAdjustment :: Int64
-  , dispThrownTypes    :: Maybe (ValMd' lab)
   , dispFlags          :: DIFlags
   , dispIsOptimized    :: Bool
+  , dispUnit           :: Maybe (ValMd' lab)
   , dispTemplateParams :: Maybe (ValMd' lab)
   , dispDeclaration    :: Maybe (ValMd' lab)
   , dispVariables      :: Maybe (ValMd' lab)
+  , dispThrownTypes    :: Maybe (ValMd' lab)
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DISubprogram = DISubprogram' BlockLabel
