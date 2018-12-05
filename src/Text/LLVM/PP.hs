@@ -1045,6 +1045,7 @@ ppDILocalVariable' pp lv = "!DILocalVariable"
 ppDILocalVariable :: LLVM => DILocalVariable -> Doc
 ppDILocalVariable = ppDILocalVariable' ppLabel
 
+-- | See @writeDISubprogram@ in the LLVM source, in the file @AsmWriter.cpp@
 ppDISubprogram' :: LLVM => (i -> Doc) -> DISubprogram' i -> Doc
 ppDISubprogram' pp sp = "!DISubprogram"
   <> parens (mcommas
@@ -1063,9 +1064,11 @@ ppDISubprogram' pp sp = "!DISubprogram"
        , pure ("virtualIndex:"    <+> integral (dispVirtualIndex sp))
        , pure ("flags:"           <+> integral (dispFlags sp))
        , pure ("isOptimized:"     <+> ppBool (dispIsOptimized sp))
+       ,      (("unit:"           <+>) . ppValMd' pp) <$> (dispUnit sp)
        ,      (("templateParams:" <+>) . ppValMd' pp) <$> (dispTemplateParams sp)
        ,      (("declaration:"    <+>) . ppValMd' pp) <$> (dispDeclaration sp)
        ,      (("variables:"      <+>) . ppValMd' pp) <$> (dispVariables sp)
+       ,      (("thrownTypes:"    <+>) . ppValMd' pp) <$> (dispThrownTypes sp)
        ])
 
 ppDISubprogram :: LLVM => DISubprogram -> Doc
