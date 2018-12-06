@@ -844,10 +844,11 @@ ppDebugInfo = ppDebugInfo' ppLabel
 ppDIImportedEntity' :: LLVM => (i -> Doc) -> DIImportedEntity' i -> Doc
 ppDIImportedEntity' pp ie = "!DIImportedEntity"
   <> parens (mcommas [ pure ("tag:"    <+> integral (diieTag ie))
-                     , pure ("name:"   <+> text     (diieName ie))
                      , (("scope:"  <+>) . ppValMd' pp) <$> diieScope ie
                      , (("entity:" <+>) . ppValMd' pp) <$> diieEntity ie
+                     , (("file:"   <+>) . ppValMd' pp) <$> diieFile ie
                      , pure ("line:"   <+> integral (diieLine ie))
+                     , (("name:"   <+>) . text)        <$> diieName ie
                      ])
 
 ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc

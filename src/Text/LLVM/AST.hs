@@ -1082,11 +1082,12 @@ type DebugInfo = DebugInfo' BlockLabel
 
 type DIImportedEntity = DIImportedEntity' BlockLabel
 data DIImportedEntity' lab = DIImportedEntity
-    { diieTag      :: DwarfTag
-    , diieName     :: String
-    , diieScope    :: Maybe (ValMd' lab)
-    , diieEntity   :: Maybe (ValMd' lab)
-    , diieLine     :: Word32
+    { diieTag    :: DwarfTag
+    , diieScope  :: Maybe (ValMd' lab)
+    , diieEntity :: Maybe (ValMd' lab)
+    , diieFile   :: Maybe (ValMd' lab)
+    , diieLine   :: Word32
+    , diieName   :: Maybe String
     } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
