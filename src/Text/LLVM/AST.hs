@@ -1092,14 +1092,15 @@ data DIImportedEntity' lab = DIImportedEntity
 
 type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
 data DITemplateTypeParameter' lab = DITemplateTypeParameter
-    { dittpName :: String
-    , dittpType :: ValMd' lab
+    { dittpName :: Maybe String
+    , dittpType :: Maybe (ValMd' lab)
     } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DITemplateValueParameter = DITemplateValueParameter' BlockLabel
 data DITemplateValueParameter' lab = DITemplateValueParameter
-    { ditvpName  :: String
-    , ditvpType  :: ValMd' lab
+    { ditvpTag   :: DwarfTag
+    , ditvpName  :: Maybe String
+    , ditvpType  :: Maybe (ValMd' lab)
     , ditvpValue :: ValMd' lab
     } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
