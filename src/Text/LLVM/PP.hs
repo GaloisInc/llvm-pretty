@@ -940,6 +940,7 @@ ppDICompositeType' pp ct = "!DICompositeType"
        ,     (("templateParams:" <+>) . ppValMd' pp) <$> (dictTemplateParams ct)
        ,     (("identifier:"     <+>) . doubleQuotes . text)
              <$> (dictIdentifier ct)
+       ,     (("discriminator:"  <+>) . ppValMd' pp) <$> (dictDiscriminator ct)
        ])
 
 ppDICompositeType :: LLVM => DICompositeType -> Doc
