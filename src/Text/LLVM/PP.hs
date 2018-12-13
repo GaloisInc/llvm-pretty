@@ -496,9 +496,7 @@ ppInstr instr = case instr of
   Call tc ty f args      -> ppCall tc ty f args
   Alloca ty len align    -> ppAlloca ty len align
   Load ptr mo ma         -> ppLoad ptr mo ma
-  Store a ptr ma         -> "store" <+> ppTyped ppValue a
-                         <> comma <+> ppTyped ppValue ptr
-                         <> ppAlign ma
+  Store a ptr mo ma      -> ppStore a ptr mo ma
   Fence scope order      -> "fence" <+> ppScope scope <+> ppAtomicOrdering order
   CmpXchg w v p a n s o o' -> "cmpxchg" <+> opt w "weak"
                          <+> opt v "volatile"
@@ -597,6 +595,22 @@ ppLoad ptr mo ma =
     case typedType ptr of
       PtrTo ty -> ppType ty <> comma
       ty       -> ppType ty <> comma
+
+ppStore :: LLVM
+        => Typed (Value' BlockLabel)
+        -> Typed (Value' BlockLabel)
+        -> Maybe AtomicOrdering
+        -> Maybe Align
+        -> Doc
+ppStore ptr val mo ma =
+  "store" <+> (if isJust mo  then "atomic" else empty)
+          <+> ppTyped ppValue ptr <> comma
+          <+> ppTyped ppValue val
+          <+> case mo of
+                Just ao -> ppAtomicOrdering ao
+                _       -> empty
+          <> ppAlign ma
+
 
 ppClauses :: LLVM => Bool -> [Clause] -> Doc
 ppClauses isCleanup cs = vcat (cleanup : map ppClause cs)

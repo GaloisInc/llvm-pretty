@@ -634,7 +634,7 @@ load tv ma =
 store :: (IsValue a, IsValue b) => a -> Typed b -> Maybe Align -> BB ()
 store a ptr ma =
   case typedType ptr of
-    PtrTo ty -> effect (Store (ty -: a) (toValue `fmap` ptr) ma)
+    PtrTo ty -> effect (Store (ty -: a) (toValue `fmap` ptr) Nothing ma)
     _        -> error "store not given a pointer"
 
 nullPtr :: Type -> Typed Value

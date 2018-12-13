@@ -755,14 +755,16 @@ data Instr' lab
   | Load (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Read a value from the given address:
            address to read from;
+           atomic ordering;
            assumptions about alignment of the given pointer.
          * Middle of basic block.
          * Returns a value of type matching the pointer. -}
 
-  | Store (Typed (Value' lab)) (Typed (Value' lab)) (Maybe Align)
+  | Store (Typed (Value' lab)) (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Write a value to memory:
              value to store;
              pointer to location where to store;
+             atomic ordering;
              assumptions about the alignment of the given pointer.
          * Middle of basic block.
          * Effect. -}
