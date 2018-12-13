@@ -506,7 +506,7 @@ ppInstr instr = case instr of
                          <+> ppScope s
                          <+> ppAtomicOrdering o
                          <+> ppAtomicOrdering o'
-  AtomicRW v op p a s o  -> "atomicrw"
+  AtomicRW v op p a s o  -> "atomicrmw"
                          <+> opt v "volatile"
                          <+> ppAtomicOp op
                          <+> ppTyped ppValue p
