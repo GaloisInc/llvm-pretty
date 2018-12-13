@@ -84,9 +84,10 @@ instance HasLabel Instr' where
                                 <$> traverse (traverse (relabel f)) n
                                 <*> pure a
   relabel f (Load a mo ma)        = Load <$> traverse (relabel f) a <*> pure mo <*> pure ma
-  relabel f (Store d v ma)        = Store
+  relabel f (Store d v mo ma)     = Store
                                 <$> traverse (relabel f) d
                                 <*> traverse (relabel f) v
+                                <*> pure mo
                                 <*> pure ma
   relabel _ (Fence s o)           = pure (Fence s o)
   relabel f (CmpXchg w v p a n s o o')
