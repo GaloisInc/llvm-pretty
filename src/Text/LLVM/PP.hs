@@ -510,7 +510,6 @@ ppInstr instr = case instr of
                          <+> opt v "volatile"
                          <+> ppAtomicOp op
                          <+> ppTyped ppValue p
-                         <> comma <+> ppTyped ppValue p
                          <> comma <+> ppTyped ppValue a
                          <+> ppScope s
                          <+> ppAtomicOrdering o
