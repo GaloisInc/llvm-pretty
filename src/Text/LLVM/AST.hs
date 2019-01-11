@@ -700,7 +700,7 @@ data AtomicRWOp
   | AtomicMax
   | AtomicMin
   | AtomicUMax
-  | AcomicUMin
+  | AtomicUMin
     deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 data AtomicOrdering

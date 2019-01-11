@@ -477,7 +477,7 @@ ppAtomicOp AtomicXor  = "xor"
 ppAtomicOp AtomicMax  = "max"
 ppAtomicOp AtomicMin  = "min"
 ppAtomicOp AtomicUMax = "umax"
-ppAtomicOp AcomicUMin = "umin"
+ppAtomicOp AtomicUMin = "umin"
 
 ppScope ::  Maybe String -> Doc
 ppScope Nothing = empty
