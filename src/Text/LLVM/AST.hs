@@ -1294,15 +1294,15 @@ type DISubroutineType = DISubroutineType' BlockLabel
 -- Aggregate Utilities ---------------------------------------------------------
 
 data IndexResult
-  = Invalid                             -- ^ An invalid use of GEP
+  = Invalid Type                        -- ^ An invalid use of GEP
   | HasType Type                        -- ^ A resolved type
   | Resolve Ident (Type -> IndexResult) -- ^ Continue, after resolving an alias
   deriving (Generic, Typeable)
 
 isInvalid :: IndexResult -> Bool
 isInvalid ir = case ir of
-  Invalid -> True
-  _       -> False
+  Invalid _ -> True
+  _         -> False
 
 -- | Resolves the type of a GEP instruction. Type aliases are resolved
 -- using the given function. An invalid use of GEP or one relying
@@ -1314,7 +1314,7 @@ resolveGepFull ::
   Maybe Type            {- ^ Type of result        -}
 resolveGepFull env t ixs = go (resolveGep t ixs)
   where
-  go Invalid                = Nothing
+  go (Invalid _)            = Nothing
   go (HasType result)       = Just result
   go (Resolve ident resume) = go . resume =<< env ident
 
@@ -1330,7 +1330,7 @@ resolveGep ty0@PtrTo{} (v:ixs0)
     Resolve i (\ty' -> resolveGep ty0 (Typed ty' (typedValue v):ixs0))
 resolveGep (Alias i) ixs =
     Resolve i (\ty' -> resolveGep ty' ixs)
-resolveGep _ _ = Invalid
+resolveGep ty0 _ = Invalid ty0
 
 -- | Resolve the type of a GEP instruction.  This assumes that the input has
 -- already been processed as a pointer.
@@ -1355,8 +1355,8 @@ resolveGepBody ty (v:ixs)
     Resolve i (\ty' -> resolveGepBody ty (Typed ty' (typedValue v):ixs))
 resolveGepBody ty [] =
     HasType ty
-resolveGepBody _ _ =
-    Invalid
+resolveGepBody ty _ =
+    Invalid ty
 
 isGepIndex :: Typed (Value' lab) -> Bool
 isGepIndex tv =
@@ -1368,6 +1368,8 @@ isGepStructIndex tv = do
   guard (isGepIndex tv)
   elimValInteger (typedValue tv)
 
+-- | Either resolve an index list into a type, or return the type
+-- and indices that couldn't be resolved
 resolveValueIndex :: Type -> [Int32] -> IndexResult
 resolveValueIndex ty is@(ix:ixs) = case ty of
   Struct fs | genericLength fs > ix
@@ -1382,5 +1384,5 @@ resolveValueIndex ty is@(ix:ixs) = case ty of
   Alias name
     -> Resolve name (\ty' -> resolveValueIndex ty' is)
 
-  _ -> Invalid
+  ty' -> Invalid ty'
 resolveValueIndex ty [] = HasType ty
