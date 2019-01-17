@@ -1108,7 +1108,7 @@ data DITemplateValueParameter' lab = DITemplateValueParameter
 
 type DINameSpace = DINameSpace' BlockLabel
 data DINameSpace' lab = DINameSpace
-    { dinsName  :: String
+    { dinsName  :: Maybe String
     , dinsScope :: ValMd' lab
     , dinsFile  :: ValMd' lab
     , dinsLine  :: Word32

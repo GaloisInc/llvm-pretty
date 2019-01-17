@@ -869,11 +869,11 @@ ppDIImportedEntity = ppDIImportedEntity' ppLabel
 
 ppDINameSpace' :: LLVM => (i -> Doc) -> DINameSpace' i -> Doc
 ppDINameSpace' pp ns = "!DINameSpace"
-  <> parens (commas [ "name:"   <+> text (dinsName ns)
-                    , "scope:"  <+> ppValMd' pp (dinsScope ns)
-                    , "file:"   <+> ppValMd' pp (dinsFile ns)
-                    , "line:"   <+> integral (dinsLine ns)
-                    ])
+  <> parens (mcommas [ ("name:"   <+>) . text <$> (dinsName ns)
+                     , pure ("scope:"  <+> ppValMd' pp (dinsScope ns))
+                     , pure ("file:"   <+> ppValMd' pp (dinsFile ns))
+                     , pure ("line:"   <+> integral (dinsLine ns))
+                     ])
 
 ppDINameSpace :: LLVM => DINameSpace -> Doc
 ppDINameSpace = ppDINameSpace' ppLabel
