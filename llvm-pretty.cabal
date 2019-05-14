@@ -27,6 +27,7 @@ Library
   Exposed-modules:     Text.LLVM
                        Text.LLVM.AST
                        Text.LLVM.Labels
+                       Text.LLVM.Labels.TH
                        Text.LLVM.Lens
                        Text.LLVM.Parser
                        Text.LLVM.PP
@@ -40,6 +41,7 @@ Library
                        monadLib         >= 3.6.1,
                        microlens        >= 0.4,
                        microlens-th     >= 0.4,
-                       template-haskell >= 2.7
+                       template-haskell >= 2.7,
+                       th-abstraction   >= 0.3.1 && <0.4
 
   Ghc-options:         -Wall
