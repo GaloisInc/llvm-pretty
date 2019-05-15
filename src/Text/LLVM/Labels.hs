@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE EmptyCase, TypeOperators, FlexibleContexts #-}
 
 #ifndef MIN_VERSION_base
@@ -8,61 +9,17 @@
 module Text.LLVM.Labels where
 
 import Text.LLVM.AST
-import GHC.Generics
+import Text.LLVM.Labels.TH
 
 #if !(MIN_VERSION_base(4,8,0))
 import Control.Applicative ((<$>),Applicative(..))
 import Data.Traversable (traverse)
 #endif
 
-------------------------------------------------------------------------
-
--- | Generic implementation of 'relabel' the never provides symbols
-genericRelabel ::
-  (Applicative m, Generic1 f, GHasLabel (Rep1 f)) =>
-  (Maybe Symbol -> a -> m b) -> f a -> m (f b)
-genericRelabel f x = to1 <$> grelabel f (from1 x)
-
--- | Implementation details for 'genericRelabel'
-class GHasLabel f where
-  grelabel :: Applicative m => (Maybe Symbol -> a -> m b) -> f a -> m (f b)
-
-instance GHasLabel f => GHasLabel (M1 i c f) where
-  grelabel f (M1 x) = M1 <$> grelabel f x
-
-instance (GHasLabel f, GHasLabel g) => GHasLabel (f :*: g) where
-  grelabel f (x :*: y) = (:*:) <$> grelabel f x <*> grelabel f y
-
-instance (GHasLabel f, GHasLabel g) => GHasLabel (f :+: g) where
-  grelabel f (L1 x) = L1 <$> grelabel f x
-  grelabel f (R1 x) = R1 <$> grelabel f x
-
-instance GHasLabel U1 where
-  grelabel _ U1 = pure U1
-
-instance GHasLabel V1 where
-  grelabel _ v1 = case v1 of {}
-
-instance GHasLabel Par1 where
-  grelabel f (Par1 x) = Par1 <$> f Nothing x
-
-instance GHasLabel (K1 i a) where
-  grelabel _ (K1 a) = pure (K1 a)
-
-instance HasLabel f => GHasLabel (Rec1 f) where
-  grelabel f (Rec1 x) = Rec1 <$> relabel f x
-
-instance (Traversable f, GHasLabel g) => GHasLabel (f :.: g) where
-  grelabel f (Comp1 x) = Comp1 <$> traverse (grelabel f) x
-
-------------------------------------------------------------------------
-
 class Functor f => HasLabel f where
   -- | Given a function for resolving labels, where the presence of a symbol
   -- denotes a label in a different function, rename all labels in a function.
   relabel :: Applicative m => (Maybe Symbol -> a -> m b) -> f a -> m (f b)
-
-instance HasLabel Stmt' where relabel = genericRelabel
 
 instance HasLabel Instr' where
   relabel _ RetVoid               = pure  RetVoid
@@ -164,27 +121,28 @@ instance HasLabel Instr' where
 
   relabel f (Resume tv)           = Resume <$> traverse (relabel f) tv
 
-instance HasLabel Clause'                     where relabel = genericRelabel
-instance HasLabel Value'                      where relabel = genericRelabel
-instance HasLabel ValMd'                      where relabel = genericRelabel
-instance HasLabel DebugLoc'                   where relabel = genericRelabel
-instance HasLabel DebugInfo'                  where relabel = genericRelabel
-instance HasLabel DIDerivedType'              where relabel = genericRelabel
-instance HasLabel DISubroutineType'           where relabel = genericRelabel
-instance HasLabel DIGlobalVariable'           where relabel = genericRelabel
-instance HasLabel DIGlobalVariableExpression' where relabel = genericRelabel
-instance HasLabel DILocalVariable'            where relabel = genericRelabel
-instance HasLabel DISubprogram'               where relabel = genericRelabel
-instance HasLabel DICompositeType'            where relabel = genericRelabel
-instance HasLabel DILexicalBlock'             where relabel = genericRelabel
-instance HasLabel DICompileUnit'              where relabel = genericRelabel
-instance HasLabel DILexicalBlockFile'         where relabel = genericRelabel
-instance HasLabel DINameSpace'                where relabel = genericRelabel
-instance HasLabel DITemplateTypeParameter'    where relabel = genericRelabel
-instance HasLabel DITemplateValueParameter'   where relabel = genericRelabel
-instance HasLabel DIImportedEntity'           where relabel = genericRelabel
+instance HasLabel Stmt'                       where relabel = $(generateRelabel 'relabel ''Stmt')
+instance HasLabel Clause'                     where relabel = $(generateRelabel 'relabel ''Clause')
+instance HasLabel Value'                      where relabel = $(generateRelabel 'relabel ''Value')
+instance HasLabel ValMd'                      where relabel = $(generateRelabel 'relabel ''ValMd')
+instance HasLabel DebugLoc'                   where relabel = $(generateRelabel 'relabel ''DebugLoc')
+instance HasLabel DebugInfo'                  where relabel = $(generateRelabel 'relabel ''DebugInfo')
+instance HasLabel DIDerivedType'              where relabel = $(generateRelabel 'relabel ''DIDerivedType')
+instance HasLabel DISubroutineType'           where relabel = $(generateRelabel 'relabel ''DISubroutineType')
+instance HasLabel DIGlobalVariable'           where relabel = $(generateRelabel 'relabel ''DIGlobalVariable')
+instance HasLabel DIGlobalVariableExpression' where relabel = $(generateRelabel 'relabel ''DIGlobalVariableExpression')
+instance HasLabel DILocalVariable'            where relabel = $(generateRelabel 'relabel ''DILocalVariable')
+instance HasLabel DISubprogram'               where relabel = $(generateRelabel 'relabel ''DISubprogram')
+instance HasLabel DICompositeType'            where relabel = $(generateRelabel 'relabel ''DICompositeType')
+instance HasLabel DILexicalBlock'             where relabel = $(generateRelabel 'relabel ''DILexicalBlock')
+instance HasLabel DICompileUnit'              where relabel = $(generateRelabel 'relabel ''DICompileUnit')
+instance HasLabel DILexicalBlockFile'         where relabel = $(generateRelabel 'relabel ''DILexicalBlockFile')
+instance HasLabel DINameSpace'                where relabel = $(generateRelabel 'relabel ''DINameSpace')
+instance HasLabel DITemplateTypeParameter'    where relabel = $(generateRelabel 'relabel ''DITemplateTypeParameter')
+instance HasLabel DITemplateValueParameter'   where relabel = $(generateRelabel 'relabel ''DITemplateValueParameter')
+instance HasLabel DIImportedEntity'           where relabel = $(generateRelabel 'relabel ''DIImportedEntity')
 
 -- | Clever instance that actually uses the block name
 instance HasLabel ConstExpr' where
   relabel f (ConstBlockAddr t l) = ConstBlockAddr t <$> f (Just t) l
-  relabel f x = genericRelabel f x
+  relabel f x = $(generateRelabel 'relabel ''ConstExpr') f x
