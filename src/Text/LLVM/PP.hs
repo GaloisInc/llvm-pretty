@@ -19,6 +19,7 @@ module Text.LLVM.PP where
 import Text.LLVM.AST
 
 import Control.Applicative ((<|>))
+import Data.Bits ( shiftR )
 import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
 import Data.List (intersperse)
 import qualified Data.Map as Map
@@ -720,6 +721,13 @@ ppValue' pp val = case val of
   ValBool b          -> ppBool b
   ValFloat i         -> float i
   ValDouble i        -> double i
+  ValFP80 (FP80_LongDouble e s) ->
+    -- shown as 0xK<<20-hex-digits>>, per
+    -- https://llvm.org/docs/LangRef.html#simple-constants
+    let pad n | n < 0x10  = shows (0::Int) . showHex n
+              | otherwise = showHex n
+        fld v i = pad $ v `shiftR` (i * 8)
+    in "0xK" <> text (foldr (fld e) (foldr (fld s) "" $ reverse [0..7::Int]) [1, 0])
   ValIdent i         -> ppIdent i
   ValSymbol s        -> ppSymbol s
   ValNull            -> "null"

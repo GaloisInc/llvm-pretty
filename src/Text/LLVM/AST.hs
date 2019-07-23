@@ -156,7 +156,21 @@ parseDataLayout str =
            'p' -> PointerSize   <$> pInt0 <*> pCInt <*> pCInt <*> pPref
            'i' -> IntegerSize   <$> pInt <*> pCInt <*> pPref
            'v' -> VectorSize    <$> pInt <*> pCInt <*> pPref
-           'f' -> FloatSize     <$> pInt <*> pCInt <*> pPref
+           'f' -> FloatSize     <$> pInt <*> pCInt <*> pPref  -- size of float, abi-align, pref-align
+                  -- Note that the data layout specified in the LLVM
+                  -- BC/IR file is not a directive to the backend, but
+                  -- is instead an indication of what the particular
+                  -- backend chosen expects to receive.  The actual
+                  -- floating point size and alignment is specified as
+                  -- zero or more "fSZ:A1:A2" portions of the
+                  -- datawidth, where SZ is the size, A1 is the ABI
+                  -- alignment, and A2 is the preferred alignment
+                  -- (defaulting to A1 if not specified).  Not
+                  -- included in the data layout is the actual width,
+                  -- alignment, and format for implementation.  See
+                  -- (for example) references to LongDoubleWidth and
+                  -- LongDoubleFormat in
+                  -- https://github.com/llvm/llvm-project/blob/release_60/clang/lib/Basic/Targets/X86.h
            's' -> StackObjSize  <$> pInt <*> pCInt <*> pPref
            'a' -> AggregateSize <$> pInt <*> pCInt <*> pPref
            'n' -> NativeIntSize <$> sepBy pInt (char ':')
@@ -326,8 +340,10 @@ primTypeNull (FloatType ft) = floatTypeNull ft
 primTypeNull _              = ValZeroInit
 
 floatTypeNull :: FloatType -> Value' lab
-floatTypeNull Float = ValFloat 0
-floatTypeNull _     = ValDouble 0 -- XXX not sure about this
+floatTypeNull Float    = ValFloat 0
+floatTypeNull Double   = ValDouble 0 -- XXX not sure about this
+floatTypeNull X86_fp80 = ValFP80 $ FP80_LongDouble 0 0
+floatTypeNull _        = error "must be a float type"
 
 typeNull :: Type -> NullResult lab
 typeNull (PrimType pt) = HasNull (primTypeNull pt)
@@ -954,6 +970,7 @@ data Value' lab
   | ValBool Bool
   | ValFloat Float
   | ValDouble Double
+  | ValFP80 FP80Value
   | ValIdent Ident
   | ValSymbol Symbol
   | ValNull
@@ -971,6 +988,9 @@ data Value' lab
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type Value = Value' BlockLabel
+
+data FP80Value = FP80_LongDouble Word16 Word64
+               deriving (Data, Eq, Ord, Generic, Show, Typeable)
 
 data ValMd' lab
   = ValMdString String
@@ -1001,6 +1021,7 @@ isConst ValInteger{}   = True
 isConst ValBool{}      = True
 isConst ValFloat{}     = True
 isConst ValDouble{}    = True
+isConst ValFP80{}      = True
 isConst ValConstExpr{} = True
 isConst ValZeroInit    = True
 isConst ValNull        = True
