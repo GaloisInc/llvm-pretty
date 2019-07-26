@@ -2,6 +2,7 @@ module Text.LLVM.Parser where
 
 import Text.LLVM.AST
 
+import Data.Char (chr)
 import Data.Int (Int32)
 import Text.Parsec
 import Text.Parsec.String
@@ -12,11 +13,24 @@ import Text.Parsec.String
 pNameChar :: Parser Char
 pNameChar = letter <|> digit <|> oneOf "-$._"
 
+pHexEscape :: Parser Char
+pHexEscape =
+  do _ <- char '\\'
+     a <- hexDigit
+     b <- hexDigit
+     return (chr (read ("0x" ++ [a, b])))
+
+pStringChar :: Parser Char
+pStringChar = noneOf "\"\\" <|> pHexEscape
+
+pName :: Parser String
+pName = many1 pNameChar <|> quotes (many1 pStringChar)
+
 pIdent :: Parser Ident
-pIdent = Ident <$> (char '%' >> many1 pNameChar)
+pIdent = Ident <$> (char '%' >> pName)
 
 pSymbol :: Parser Symbol
-pSymbol = Symbol <$> (char '@' >> many1 pNameChar)
+pSymbol = Symbol <$> (char '@' >> pName)
 
 
 -- Types -----------------------------------------------------------------------
@@ -101,6 +115,9 @@ brackets body = char '[' *> body <* char ']'
 
 parens :: Parser a -> Parser a
 parens body = char '(' *> body <* char ')'
+
+quotes :: Parser a -> Parser a
+quotes body = char '"' *> body <* char '"'
 
 spaced :: Parser a -> Parser a
 spaced body = spaces *> body <* spaces
