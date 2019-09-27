@@ -767,12 +767,13 @@ ppDebugLoc' pp dl = (if cfgUseDILocation ?config then "!DILocation"
              <> parens (commas [ "line:"   <+> integral (dlLine dl)
                                , "column:" <+> integral (dlCol dl)
                                , "scope:"  <+> ppValMd' pp (dlScope dl)
-                               ] <+> mbIA)
+                               ] <> mbIA <> mbImplicit)
 
   where
   mbIA = case dlIA dl of
            Just md -> comma <+> "inlinedAt:" <+> ppValMd' pp md
            Nothing -> empty
+  mbImplicit = if dlImplicit dl then comma <+> "implicit" else empty
 
 ppDebugLoc :: LLVM => DebugLoc -> Doc
 ppDebugLoc = ppDebugLoc' ppLabel
@@ -913,7 +914,11 @@ ppDIBasicType bt = "!DIBasicType"
                     , "size:"     <+> integral (dibtSize bt)
                     , "align:"    <+> integral (dibtAlign bt)
                     , "encoding:" <+> integral (dibtEncoding bt)
-                    ])
+                    ] <> mbFlags)
+  where
+  mbFlags = case dibtFlags bt of
+              Just flags -> comma <+> "flags:" <+> integral flags
+              Nothing -> empty
 
 ppDICompileUnit' :: LLVM => (i -> Doc) -> DICompileUnit' i -> Doc
 ppDICompileUnit' pp cu = "!DICompileUnit"
