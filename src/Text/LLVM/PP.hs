@@ -859,6 +859,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoTemplateTypeParameter dttp  -> ppDITemplateTypeParameter' pp dttp
   DebugInfoTemplateValueParameter dtvp -> ppDITemplateValueParameter' pp dtvp
   DebugInfoImportedEntity diip         -> ppDIImportedEntity' pp diip
+  DebugInfoLabel dil            -> ppDILabel' pp dil
 
 ppDebugInfo :: LLVM => DebugInfo -> Doc
 ppDebugInfo = ppDebugInfo' ppLabel
@@ -875,6 +876,17 @@ ppDIImportedEntity' pp ie = "!DIImportedEntity"
 
 ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc
 ppDIImportedEntity = ppDIImportedEntity' ppLabel
+
+ppDILabel' :: LLVM => (i -> Doc) -> DILabel' i -> Doc
+ppDILabel' pp ie = "!DILabel"
+  <> parens (mcommas [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
+                     , pure ("name:" <+> text (dilName ie))
+                     , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
+                     , pure ("line:"   <+> integral (dilLine ie))
+                     ])
+
+ppDILabel :: LLVM => DILabel -> Doc
+ppDILabel = ppDILabel' ppLabel
 
 ppDINameSpace' :: LLVM => (i -> Doc) -> DINameSpace' i -> Doc
 ppDINameSpace' pp ns = "!DINameSpace"

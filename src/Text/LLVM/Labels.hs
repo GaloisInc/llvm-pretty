@@ -125,6 +125,7 @@ instance HasLabel Stmt'                       where relabel = $(generateRelabel 
 instance HasLabel Clause'                     where relabel = $(generateRelabel 'relabel ''Clause')
 instance HasLabel Value'                      where relabel = $(generateRelabel 'relabel ''Value')
 instance HasLabel ValMd'                      where relabel = $(generateRelabel 'relabel ''ValMd')
+instance HasLabel DILabel'                    where relabel = $(generateRelabel 'relabel ''DILabel')
 instance HasLabel DebugLoc'                   where relabel = $(generateRelabel 'relabel ''DebugLoc')
 instance HasLabel DebugInfo'                  where relabel = $(generateRelabel 'relabel ''DebugInfo')
 instance HasLabel DIDerivedType'              where relabel = $(generateRelabel 'relabel ''DIDerivedType')
