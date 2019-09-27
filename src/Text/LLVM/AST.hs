@@ -1012,6 +1012,7 @@ data DebugLoc' lab = DebugLoc
   , dlCol   :: Word32
   , dlScope :: ValMd' lab
   , dlIA    :: Maybe (ValMd' lab)
+  , dlImplicit :: Bool
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugLoc = DebugLoc' BlockLabel
@@ -1154,6 +1155,7 @@ data DIBasicType = DIBasicType
   , dibtSize     :: Word64
   , dibtAlign    :: Word64
   , dibtEncoding :: DwarfAttrEncoding
+  , dibtFlags    :: Maybe DIFlags
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data DICompileUnit' lab = DICompileUnit
