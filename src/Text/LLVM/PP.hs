@@ -767,12 +767,13 @@ ppDebugLoc' pp dl = (if cfgUseDILocation ?config then "!DILocation"
              <> parens (commas [ "line:"   <+> integral (dlLine dl)
                                , "column:" <+> integral (dlCol dl)
                                , "scope:"  <+> ppValMd' pp (dlScope dl)
-                               ] <+> mbIA)
+                               ] <> mbIA <> mbImplicit)
 
   where
   mbIA = case dlIA dl of
            Just md -> comma <+> "inlinedAt:" <+> ppValMd' pp md
            Nothing -> empty
+  mbImplicit = if dlImplicit dl then comma <+> "implicit" else empty
 
 ppDebugLoc :: LLVM => DebugLoc -> Doc
 ppDebugLoc = ppDebugLoc' ppLabel
@@ -858,6 +859,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoTemplateTypeParameter dttp  -> ppDITemplateTypeParameter' pp dttp
   DebugInfoTemplateValueParameter dtvp -> ppDITemplateValueParameter' pp dtvp
   DebugInfoImportedEntity diip         -> ppDIImportedEntity' pp diip
+  DebugInfoLabel dil            -> ppDILabel' pp dil
 
 ppDebugInfo :: LLVM => DebugInfo -> Doc
 ppDebugInfo = ppDebugInfo' ppLabel
@@ -874,6 +876,17 @@ ppDIImportedEntity' pp ie = "!DIImportedEntity"
 
 ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc
 ppDIImportedEntity = ppDIImportedEntity' ppLabel
+
+ppDILabel' :: LLVM => (i -> Doc) -> DILabel' i -> Doc
+ppDILabel' pp ie = "!DILabel"
+  <> parens (mcommas [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
+                     , pure ("name:" <+> text (dilName ie))
+                     , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
+                     , pure ("line:"   <+> integral (dilLine ie))
+                     ])
+
+ppDILabel :: LLVM => DILabel -> Doc
+ppDILabel = ppDILabel' ppLabel
 
 ppDINameSpace' :: LLVM => (i -> Doc) -> DINameSpace' i -> Doc
 ppDINameSpace' pp ns = "!DINameSpace"
@@ -913,7 +926,11 @@ ppDIBasicType bt = "!DIBasicType"
                     , "size:"     <+> integral (dibtSize bt)
                     , "align:"    <+> integral (dibtAlign bt)
                     , "encoding:" <+> integral (dibtEncoding bt)
-                    ])
+                    ] <> mbFlags)
+  where
+  mbFlags = case dibtFlags bt of
+              Just flags -> comma <+> "flags:" <+> integral flags
+              Nothing -> empty
 
 ppDICompileUnit' :: LLVM => (i -> Doc) -> DICompileUnit' i -> Doc
 ppDICompileUnit' pp cu = "!DICompileUnit"

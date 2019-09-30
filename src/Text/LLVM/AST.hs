@@ -1012,6 +1012,7 @@ data DebugLoc' lab = DebugLoc
   , dlCol   :: Word32
   , dlScope :: ValMd' lab
   , dlIA    :: Maybe (ValMd' lab)
+  , dlImplicit :: Bool
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugLoc = DebugLoc' BlockLabel
@@ -1099,9 +1100,18 @@ data DebugInfo' lab
   | DebugInfoTemplateTypeParameter (DITemplateTypeParameter' lab)
   | DebugInfoTemplateValueParameter (DITemplateValueParameter' lab)
   | DebugInfoImportedEntity (DIImportedEntity' lab)
+  | DebugInfoLabel (DILabel' lab)
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugInfo = DebugInfo' BlockLabel
+
+type DILabel = DILabel' BlockLabel
+data DILabel' lab = DILabel
+    { dilScope :: Maybe (ValMd' lab)
+    , dilName  :: String
+    , dilFile  :: Maybe (ValMd' lab)
+    , dilLine  :: Word32
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DIImportedEntity = DIImportedEntity' BlockLabel
 data DIImportedEntity' lab = DIImportedEntity
@@ -1154,6 +1164,7 @@ data DIBasicType = DIBasicType
   , dibtSize     :: Word64
   , dibtAlign    :: Word64
   , dibtEncoding :: DwarfAttrEncoding
+  , dibtFlags    :: Maybe DIFlags
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data DICompileUnit' lab = DICompileUnit
