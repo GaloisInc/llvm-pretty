@@ -324,7 +324,7 @@ avoidName name = BB $ do
   rw <- get
   case avoid name (rwNames rw) of
     Just ns' -> set rw { rwNames = ns' }
-    Nothing  -> fail ("avoidName: " ++ name ++ " already registered")
+    Nothing  -> error ("avoidName: " ++ name ++ " already registered")
 
 freshNameBB :: String -> BB String
 freshNameBB pfx = BB $ do
@@ -514,7 +514,7 @@ assign r@(Ident name) body = do
       do BB (set rw { rwStmts = stmts Seq.|> Result r i m })
          return (const (ValIdent r) `fmap` tv)
 
-    _ -> fail "assign: invalid argument"
+    _ -> error "assign: invalid argument"
 
 -- | Emit the ``ret'' instruction and terminate the current basic block.
 ret :: IsValue a => Typed a -> BB ()
