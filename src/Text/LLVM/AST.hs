@@ -838,14 +838,14 @@ data Instr' lab
     {- ^ * "Get element pointer",
             compute the address of a field in a structure:
             inbounds check (value poisoned if this fails);
-            pointer to parent strucutre;
-            path to a sub-component of a strucutre.
+            pointer to parent structure;
+            path to a sub-component of a structure.
          * Middle of basic block.
-         * Returns the address of the requiested member.
+         * Returns the address of the requested member.
 
     The types in path are the types of the index, not the fields.
 
-    The indexes are in units of a fields (i.e., the first element in
+    The indexes are in units of fields (i.e., the first element in
     a struct is field 0, the next one is 1, etc., regardless of the size
     of the fields in bytes). -}
 
