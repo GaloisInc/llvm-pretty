@@ -240,7 +240,7 @@ instance IsString Symbol where
 data PrimType
   = Label
   | Void
-  | Integer Int32
+  | Integer Word32
   | FloatType FloatType
   | X86mmx
   | Metadata
@@ -260,12 +260,12 @@ type Type = Type' Ident
 data Type' ident
   = PrimType PrimType
   | Alias ident
-  | Array Int32 (Type' ident)
+  | Array Word64 (Type' ident)
   | FunTy (Type' ident) [Type' ident] Bool
   | PtrTo (Type' ident)
   | Struct [Type' ident]
   | PackedStruct [Type' ident]
-  | Vector Int32 (Type' ident)
+  | Vector Word64 (Type' ident)
   | Opaque
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
@@ -365,11 +365,11 @@ elimPtrTo :: MonadPlus m => Type -> m Type
 elimPtrTo (PtrTo ty) = return ty
 elimPtrTo _          = mzero
 
-elimVector :: MonadPlus m => Type -> m (Int32,Type)
+elimVector :: MonadPlus m => Type -> m (Word64,Type)
 elimVector (Vector n pty) = return (n,pty)
 elimVector _              = mzero
 
-elimArray :: MonadPlus m => Type -> m (Int32, Type)
+elimArray :: MonadPlus m => Type -> m (Word64, Type)
 elimArray (Array n ety) = return (n, ety)
 elimArray _             = mzero
 
@@ -1147,7 +1147,7 @@ data DINameSpace' lab = DINameSpace
 
 -- TODO: Turn these into sum types
 -- See https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/Support/Dwarf.def
-type DwarfAttrEncoding = Word8
+type DwarfAttrEncoding = Word16
 type DwarfLang = Word16
 type DwarfTag = Word16
 type DwarfVirtuality = Word8
