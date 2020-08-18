@@ -3,7 +3,7 @@ module Text.LLVM.Parser where
 import Text.LLVM.AST
 
 import Data.Char (chr)
-import Data.Int (Int32)
+import Data.Word (Word32, Word64)
 import Text.Parsec
 import Text.Parsec.String
 
@@ -35,12 +35,15 @@ pSymbol = Symbol <$> (char '@' >> pName)
 
 -- Types -----------------------------------------------------------------------
 
-pInt32 :: Parser Int32
-pInt32 = read <$> many1 digit
+pWord32 :: Parser Word32
+pWord32 = read <$> many1 digit
+
+pWord64 :: Parser Word64
+pWord64 = read <$> many1 digit
 
 pPrimType :: Parser PrimType
 pPrimType = choice
-  [ Integer <$> try (char 'i' >> pInt32)
+  [ Integer <$> try (char 'i' >> pWord32)
   , FloatType <$> try pFloatType
   , try (string "label")    >> return Label
   , try (string "void")     >> return Void
@@ -75,9 +78,9 @@ pType = pType0 >>= pFunPtr
     pTypeList :: Parser [Type]
     pTypeList = sepBy (spaced pType) (char ',')
 
-    pNumType :: (Int32 -> Type -> Type) -> Parser Type
+    pNumType :: (Word64 -> Type -> Type) -> Parser Type
     pNumType f =
-      do n <- pInt32
+      do n <- pWord64
          spaces >> char 'x' >> spaces
          t <- pType
          return (f n t)
