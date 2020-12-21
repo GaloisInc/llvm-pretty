@@ -1184,6 +1184,11 @@ data DICompileUnit' lab = DICompileUnit
   , dicuMacros             :: Maybe (ValMd' lab)
   , dicuDWOId              :: Word64
   , dicuSplitDebugInlining :: Bool
+  , dicuDebugInfoForProf   :: Bool
+  , dicuNameTableKind      :: Word64
+  , dicuRangesBaseAddress  :: Word64
+  , dicuSysRoot            :: Maybe String
+  , dicuSDK                :: Maybe String
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DICompileUnit = DICompileUnit' BlockLabel
@@ -1205,6 +1210,7 @@ data DICompositeType' lab = DICompositeType
   , dictTemplateParams :: Maybe (ValMd' lab)
   , dictIdentifier     :: Maybe String
   , dictDiscriminator  :: Maybe (ValMd' lab)
+  , dictDataLocation   :: Maybe (ValMd' lab)
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DICompositeType = DICompositeType' BlockLabel
