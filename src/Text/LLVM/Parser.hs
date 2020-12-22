@@ -2,7 +2,8 @@ module Text.LLVM.Parser where
 
 import Text.LLVM.AST
 
-import Data.Int (Int32)
+import Data.Char (chr)
+import Data.Word (Word32, Word64)
 import Text.Parsec
 import Text.Parsec.String
 
@@ -12,21 +13,37 @@ import Text.Parsec.String
 pNameChar :: Parser Char
 pNameChar = letter <|> digit <|> oneOf "-$._"
 
+pHexEscape :: Parser Char
+pHexEscape =
+  do _ <- char '\\'
+     a <- hexDigit
+     b <- hexDigit
+     return (chr (read ("0x" ++ [a, b])))
+
+pStringChar :: Parser Char
+pStringChar = noneOf "\"\\" <|> pHexEscape
+
+pName :: Parser String
+pName = many1 pNameChar <|> quotes (many1 pStringChar)
+
 pIdent :: Parser Ident
-pIdent = Ident <$> (char '%' >> many1 pNameChar)
+pIdent = Ident <$> (char '%' >> pName)
 
 pSymbol :: Parser Symbol
-pSymbol = Symbol <$> (char '@' >> many1 pNameChar)
+pSymbol = Symbol <$> (char '@' >> pName)
 
 
 -- Types -----------------------------------------------------------------------
 
-pInt32 :: Parser Int32
-pInt32 = read <$> many1 digit
+pWord32 :: Parser Word32
+pWord32 = read <$> many1 digit
+
+pWord64 :: Parser Word64
+pWord64 = read <$> many1 digit
 
 pPrimType :: Parser PrimType
 pPrimType = choice
-  [ Integer <$> try (char 'i' >> pInt32)
+  [ Integer <$> try (char 'i' >> pWord32)
   , FloatType <$> try pFloatType
   , try (string "label")    >> return Label
   , try (string "void")     >> return Void
@@ -61,9 +78,9 @@ pType = pType0 >>= pFunPtr
     pTypeList :: Parser [Type]
     pTypeList = sepBy (spaced pType) (char ',')
 
-    pNumType :: (Int32 -> Type -> Type) -> Parser Type
+    pNumType :: (Word64 -> Type -> Type) -> Parser Type
     pNumType f =
-      do n <- pInt32
+      do n <- pWord64
          spaces >> char 'x' >> spaces
          t <- pType
          return (f n t)
@@ -101,6 +118,9 @@ brackets body = char '[' *> body <* char ']'
 
 parens :: Parser a -> Parser a
 parens body = char '(' *> body <* char ')'
+
+quotes :: Parser a -> Parser a
+quotes body = char '"' *> body <* char '"'
 
 spaced :: Parser a -> Parser a
 spaced body = spaces *> body <* spaces

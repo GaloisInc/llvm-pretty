@@ -112,6 +112,7 @@ import Text.LLVM.AST
 import Control.Monad.Fix (MonadFix)
 import Data.Char (ord)
 import Data.Int (Int8,Int16,Int32,Int64)
+import Data.Word (Word32, Word64)
 import Data.Maybe (maybeToList)
 import Data.String (IsString(..))
 import MonadLib hiding (jump,Label)
@@ -324,7 +325,7 @@ avoidName name = BB $ do
   rw <- get
   case avoid name (rwNames rw) of
     Just ns' -> set rw { rwNames = ns' }
-    Nothing  -> fail ("avoidName: " ++ name ++ " already registered")
+    Nothing  -> error ("avoidName: " ++ name ++ " already registered")
 
 freshNameBB :: String -> BB String
 freshNameBB pfx = BB $ do
@@ -413,7 +414,7 @@ terminateBasicBlock  = BB $ do
 
 -- Type Helpers ----------------------------------------------------------------
 
-iT :: Int32 -> Type
+iT :: Word32 -> Type
 iT  = PrimType . Integer
 
 ptrT :: Type -> Type
@@ -422,7 +423,7 @@ ptrT  = PtrTo
 voidT :: Type
 voidT  = PrimType Void
 
-arrayT :: Int32 -> Type -> Type
+arrayT :: Word64 -> Type -> Type
 arrayT  = Array
 
 
@@ -514,7 +515,7 @@ assign r@(Ident name) body = do
       do BB (set rw { rwStmts = stmts Seq.|> Result r i m })
          return (const (ValIdent r) `fmap` tv)
 
-    _ -> fail "assign: invalid argument"
+    _ -> error "assign: invalid argument"
 
 -- | Emit the ``ret'' instruction and terminate the current basic block.
 ret :: IsValue a => Typed a -> BB ()
@@ -634,7 +635,7 @@ load tv ma =
 store :: (IsValue a, IsValue b) => a -> Typed b -> Maybe Align -> BB ()
 store a ptr ma =
   case typedType ptr of
-    PtrTo ty -> effect (Store (ty -: a) (toValue `fmap` ptr) ma)
+    PtrTo ty -> effect (Store (ty -: a) (toValue `fmap` ptr) Nothing ma)
     _        -> error "store not given a pointer"
 
 nullPtr :: Type -> Typed Value

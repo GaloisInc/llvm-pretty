@@ -254,7 +254,7 @@ localVariableNameDeclarations mdMap def =
   where
 
     aux :: [Stmt] -> Map Ident Ident -> Map Ident Ident
-    aux ( Effect (Store src dst _) _
+    aux ( Effect (Store src dst _ _) _
         : Effect (Call _ _ (ValSymbol (Symbol what)) [var,md,_]) _
         : _) sofar
       | what == "llvm.dbg.declare"

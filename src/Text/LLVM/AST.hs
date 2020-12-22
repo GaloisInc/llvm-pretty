@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DeriveFunctor, DeriveGeneric #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveFunctor, DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -11,10 +11,15 @@
 
 module Text.LLVM.AST where
 
+import Data.Functor.Identity (Identity(..))
+import Data.Coerce (coerce)
+import Data.Data (Data)
+import Data.Typeable (Typeable)
 import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
 import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
+import Data.Semigroup as Sem
 import Data.String (IsString(fromString))
 import Data.Word (Word8,Word16,Word32,Word64)
 import GHC.Generics (Generic, Generic1)
@@ -44,23 +49,26 @@ data Module = Module
   , modDefines    :: [Define]      -- ^ internal function declarations (with definitions)
   , modInlineAsm  :: InlineAsm
   , modAliases    :: [GlobalAlias]
-  } deriving (Show,Generic)
+  } deriving (Data, Eq, Ord, Generic, Show, Typeable)
+
+instance Sem.Semigroup Module where
+  m1 <> m2 = Module
+    { modSourceName = modSourceName m1 `mplus`   modSourceName m2
+    , modDataLayout = modDataLayout m1 <> modDataLayout m2
+    , modTypes      = modTypes      m1 <> modTypes      m2
+    , modUnnamedMd  = modUnnamedMd  m1 <> modUnnamedMd  m2
+    , modNamedMd    = modNamedMd    m1 <> modNamedMd    m2
+    , modGlobals    = modGlobals    m1 <> modGlobals    m2
+    , modDeclares   = modDeclares   m1 <> modDeclares   m2
+    , modDefines    = modDefines    m1 <> modDefines    m2
+    , modInlineAsm  = modInlineAsm  m1 <> modInlineAsm  m2
+    , modAliases    = modAliases    m1 <> modAliases    m2
+    , modComdat     = modComdat     m1 <> modComdat     m2
+    }
 
 instance Monoid Module where
   mempty = emptyModule
-  mappend m1 m2 = Module
-    { modSourceName = modSourceName m1 `mplus`   modSourceName m2
-    , modDataLayout = modDataLayout m1 `mappend` modDataLayout m2
-    , modTypes      = modTypes      m1 `mappend` modTypes      m2
-    , modUnnamedMd  = modUnnamedMd  m1 `mappend` modUnnamedMd  m2
-    , modNamedMd    = modNamedMd    m1 `mappend` modNamedMd    m2
-    , modGlobals    = modGlobals    m1 `mappend` modGlobals    m2
-    , modDeclares   = modDeclares   m1 `mappend` modDeclares   m2
-    , modDefines    = modDefines    m1 `mappend` modDefines    m2
-    , modInlineAsm  = modInlineAsm  m1 `mappend` modInlineAsm  m2
-    , modAliases    = modAliases    m1 `mappend` modAliases    m2
-    , modComdat     = modComdat     m1 `mappend` modComdat     m2
-    }
+  mappend m1 m2 = m1 <> m2
 
 emptyModule :: Module
 emptyModule  = Module
@@ -83,16 +91,16 @@ emptyModule  = Module
 data NamedMd = NamedMd
   { nmName   :: String
   , nmValues :: [Int]
-  } deriving (Show,Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 
 -- Unnamed Metadata ------------------------------------------------------------
 
 data UnnamedMd = UnnamedMd
-  { umIndex  :: !Int
-  , umValues :: ValMd
+  { umIndex    :: !Int
+  , umValues   :: ValMd
   , umDistinct :: Bool
-  } deriving (Show,Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 
 -- Aliases ---------------------------------------------------------------------
@@ -101,7 +109,7 @@ data GlobalAlias = GlobalAlias
   { aliasName   :: Symbol
   , aliasType   :: Type
   , aliasTarget :: Value
-  } deriving (Show,Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 
 -- Data Layout -----------------------------------------------------------------
@@ -120,13 +128,13 @@ data LayoutSpec
   | NativeIntSize [Int]
   | StackAlign    !Int -- ^ size
   | Mangling Mangling
-    deriving (Show,Generic)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data Mangling = ElfMangling
               | MipsMangling
               | MachOMangling
               | WindowsCoffMangling
-                deriving (Show,Generic,Eq)
+                deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 -- | Parse the data layout string.
 parseDataLayout :: MonadPlus m => String -> m DataLayout
@@ -148,7 +156,21 @@ parseDataLayout str =
            'p' -> PointerSize   <$> pInt0 <*> pCInt <*> pCInt <*> pPref
            'i' -> IntegerSize   <$> pInt <*> pCInt <*> pPref
            'v' -> VectorSize    <$> pInt <*> pCInt <*> pPref
-           'f' -> FloatSize     <$> pInt <*> pCInt <*> pPref
+           'f' -> FloatSize     <$> pInt <*> pCInt <*> pPref  -- size of float, abi-align, pref-align
+                  -- Note that the data layout specified in the LLVM
+                  -- BC/IR file is not a directive to the backend, but
+                  -- is instead an indication of what the particular
+                  -- backend chosen expects to receive.  The actual
+                  -- floating point size and alignment is specified as
+                  -- zero or more "fSZ:A1:A2" portions of the
+                  -- datawidth, where SZ is the size, A1 is the ABI
+                  -- alignment, and A2 is the preferred alignment
+                  -- (defaulting to A1 if not specified).  Not
+                  -- included in the data layout is the actual width,
+                  -- alignment, and format for implementation.  See
+                  -- (for example) references to LongDoubleWidth and
+                  -- LongDoubleFormat in
+                  -- https://github.com/llvm/llvm-project/blob/release_60/clang/lib/Basic/Targets/X86.h
            's' -> StackObjSize  <$> pInt <*> pCInt <*> pPref
            'a' -> AggregateSize <$> pInt <*> pCInt <*> pPref
            'n' -> NativeIntSize <$> sepBy pInt (char ':')
@@ -188,12 +210,12 @@ data SelectionKind = ComdatAny
                    | ComdatLargest
                    | ComdatNoDuplicates
                    | ComdatSameSize
-    deriving(Show,Generic,Eq,Ord)
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 -- Identifiers -----------------------------------------------------------------
 
 newtype Ident = Ident String
-    deriving (Show,Generic,Eq,Ord)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 instance IsString Ident where
   fromString = Ident
@@ -201,11 +223,14 @@ instance IsString Ident where
 -- Symbols ---------------------------------------------------------------------
 
 newtype Symbol = Symbol String
-    deriving (Show,Generic,Eq,Ord)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+instance Sem.Semigroup Symbol where
+  Symbol a <> Symbol b = Symbol (a <> b)
 
 instance Monoid Symbol where
-  mappend (Symbol a) (Symbol b) = Symbol (mappend a b)
-  mempty                        = Symbol mempty
+  mappend = (<>)
+  mempty  = Symbol mempty
 
 instance IsString Symbol where
   fromString = Symbol
@@ -215,11 +240,11 @@ instance IsString Symbol where
 data PrimType
   = Label
   | Void
-  | Integer Int32
+  | Integer Word32
   | FloatType FloatType
   | X86mmx
   | Metadata
-    deriving (Eq, Generic, Ord, Show)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data FloatType
   = Half
@@ -228,37 +253,40 @@ data FloatType
   | Fp128
   | X86_fp80
   | PPC_fp128
-    deriving (Eq, Generic, Ord, Show)
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 type Type = Type' Ident
 
 data Type' ident
   = PrimType PrimType
   | Alias ident
-  | Array Int32 (Type' ident)
+  | Array Word64 (Type' ident)
   | FunTy (Type' ident) [Type' ident] Bool
   | PtrTo (Type' ident)
   | Struct [Type' ident]
   | PackedStruct [Type' ident]
-  | Vector Int32 (Type' ident)
+  | Vector Word64 (Type' ident)
   | Opaque
-    deriving (Eq, Generic, Ord, Show, Functor)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
--- | Traverse a type, updating or removing aliases.
-updateAliases :: (a -> Type' b) -> (Type' a -> Type' b)
-updateAliases f = loop
+-- | Applicatively traverse a type, updating or removing aliases.
+updateAliasesA :: (Applicative f) => (a -> f (Type' b)) -> Type' a -> f (Type' b)
+updateAliasesA f = loop
   where
   loop ty = case ty of
-    Array len ety    -> Array len    (loop ety)
-    FunTy res ps var -> FunTy        (loop res) (map loop ps) var
-    PtrTo pty        -> PtrTo        (loop pty)
-    Struct fs        -> Struct       (map loop fs)
-    PackedStruct fs  -> PackedStruct (map loop fs)
+    Array len ety    -> Array len    <$> (loop ety)
+    FunTy res ps var -> FunTy        <$> (loop res) <*> (traverse loop ps) <*> pure var
+    PtrTo pty        -> PtrTo        <$> (loop pty)
+    Struct fs        -> Struct       <$> (traverse loop fs)
+    PackedStruct fs  -> PackedStruct <$> (traverse loop fs)
+    Vector len ety   -> Vector       <$> pure len <*> (loop ety)
+    PrimType pty     -> pure $ PrimType pty
+    Opaque           -> pure $ Opaque
     Alias lab        -> f lab
-    PrimType pty     -> PrimType pty
-    Vector len ety   -> Vector len (loop ety)
-    Opaque           -> Opaque
 
+-- | Traverse a type, updating or removing aliases.
+updateAliases :: (a -> Type' b) -> Type' a -> Type' b
+updateAliases f = coerce $ updateAliasesA (Identity . f)
 
 isFloatingPoint :: PrimType -> Bool
 isFloatingPoint (FloatType _) = True
@@ -303,6 +331,7 @@ isPointer _         = False
 data NullResult lab
   = HasNull (Value' lab)
   | ResolveNull Ident
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 primTypeNull :: PrimType -> Value' lab
 primTypeNull (Integer 1)    = ValBool False
@@ -311,8 +340,10 @@ primTypeNull (FloatType ft) = floatTypeNull ft
 primTypeNull _              = ValZeroInit
 
 floatTypeNull :: FloatType -> Value' lab
-floatTypeNull Float = ValFloat 0
-floatTypeNull _     = ValDouble 0 -- XXX not sure about this
+floatTypeNull Float    = ValFloat 0
+floatTypeNull Double   = ValDouble 0 -- XXX not sure about this
+floatTypeNull X86_fp80 = ValFP80 $ FP80_LongDouble 0 0
+floatTypeNull _        = error "must be a float type"
 
 typeNull :: Type -> NullResult lab
 typeNull (PrimType pt) = HasNull (primTypeNull pt)
@@ -334,11 +365,11 @@ elimPtrTo :: MonadPlus m => Type -> m Type
 elimPtrTo (PtrTo ty) = return ty
 elimPtrTo _          = mzero
 
-elimVector :: MonadPlus m => Type -> m (Int32,Type)
+elimVector :: MonadPlus m => Type -> m (Word64,Type)
 elimVector (Vector n pty) = return (n,pty)
 elimVector _              = mzero
 
-elimArray :: MonadPlus m => Type -> m (Int32, Type)
+elimArray :: MonadPlus m => Type -> m (Word64, Type)
 elimArray (Array n ety) = return (n, ety)
 elimArray _             = mzero
 
@@ -367,19 +398,19 @@ elimSequentialType ty = case ty of
 data TypeDecl = TypeDecl
   { typeName  :: Ident
   , typeValue :: Type
-  } deriving (Show, Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 
 -- Globals ---------------------------------------------------------------------
 
 data Global = Global
-  { globalSym   :: Symbol
-  , globalAttrs :: GlobalAttrs
-  , globalType  :: Type
-  , globalValue :: Maybe Value
-  , globalAlign :: Maybe Align
+  { globalSym      :: Symbol
+  , globalAttrs    :: GlobalAttrs
+  , globalType     :: Type
+  , globalValue    :: Maybe Value
+  , globalAlign    :: Maybe Align
   , globalMetadata :: GlobalMdAttachments
-  } deriving (Show, Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 addGlobal :: Global -> Module -> Module
 addGlobal g m = m { modGlobals = g : modGlobals m }
@@ -388,7 +419,7 @@ data GlobalAttrs = GlobalAttrs
   { gaLinkage    :: Maybe Linkage
   , gaVisibility :: Maybe Visibility
   , gaConstant   :: Bool
-  } deriving (Show, Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 emptyGlobalAttrs :: GlobalAttrs
 emptyGlobalAttrs  = GlobalAttrs
@@ -407,7 +438,7 @@ data Declare = Declare
   , decVarArgs :: Bool
   , decAttrs   :: [FunAttr]
   , decComdat  :: Maybe String
-  } deriving (Show, Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 -- | The function type of this declaration
 decFunType :: Declare -> Type
@@ -428,7 +459,7 @@ data Define = Define
   , defBody     :: [BasicBlock]
   , defMetadata :: FnMdAttachments
   , defComdat   :: Maybe String
-  } deriving (Show, Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 defFunType :: Define -> Type
 defFunType Define { .. } =
@@ -469,14 +500,14 @@ data FunAttr
    | SSPreq
    | SSPstrong
    | UWTable
-  deriving (Show, Generic)
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 -- Basic Block Labels ----------------------------------------------------------
 
 data BlockLabel
   = Named Ident
   | Anon Int
-    deriving (Eq,Ord,Show, Generic)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 instance IsString BlockLabel where
   fromString str = Named (fromString str)
@@ -486,7 +517,7 @@ instance IsString BlockLabel where
 data BasicBlock' lab = BasicBlock
   { bbLabel :: Maybe lab
   , bbStmts :: [Stmt' lab]
-  } deriving (Show, Generic)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type BasicBlock = BasicBlock' BlockLabel
 
@@ -520,23 +551,23 @@ data Linkage
   | External
   | DLLImport
   | DLLExport
-    deriving (Eq,Show,Generic)
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 data Visibility = DefaultVisibility
                 | HiddenVisibility
                 | ProtectedVisibility
-    deriving (Eq,Show,Generic)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 newtype GC = GC
   { getGC :: String
-  } deriving (Show,Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 -- Typed Things ----------------------------------------------------------------
 
 data Typed a = Typed
   { typedType  :: Type
   , typedValue :: a
-  } deriving (Show,Generic,Functor)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 instance Foldable Typed where
   foldMap f t = f (typedValue t)
@@ -606,7 +637,7 @@ data ArithOp
     -- ^ * Floating point reminder resulting from floating point division.
     --   * The reminder has the same sign as the divident (first parameter).
 
-    deriving (Eq,Generic,Show)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 isIArith :: ArithOp -> Bool
 isIArith Add{}  = True
@@ -656,7 +687,7 @@ data BitOp
   | And
   | Or
   | Xor
-    deriving (Show,Generic)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 -- | Conversions from one type to another.
 data ConvOp
@@ -672,7 +703,7 @@ data ConvOp
   | PtrToInt
   | IntToPtr
   | BitCast
-    deriving (Show,Generic)
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 data AtomicRWOp
   = AtomicXchg
@@ -685,8 +716,8 @@ data AtomicRWOp
   | AtomicMax
   | AtomicMin
   | AtomicUMax
-  | AcomicUMin
-    deriving (Eq,Generic,Show)
+  | AtomicUMin
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 data AtomicOrdering
   = Unordered
@@ -695,7 +726,7 @@ data AtomicOrdering
   | Release
   | AcqRel
   | SeqCst
-    deriving (Eq,Show,Generic)
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 type Align = Int
 
@@ -740,14 +771,16 @@ data Instr' lab
   | Load (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Read a value from the given address:
            address to read from;
+           atomic ordering;
            assumptions about alignment of the given pointer.
          * Middle of basic block.
          * Returns a value of type matching the pointer. -}
 
-  | Store (Typed (Value' lab)) (Typed (Value' lab)) (Maybe Align)
+  | Store (Typed (Value' lab)) (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Write a value to memory:
              value to store;
              pointer to location where to store;
+             atomic ordering;
              assumptions about the alignment of the given pointer.
          * Middle of basic block.
          * Effect. -}
@@ -805,14 +838,14 @@ data Instr' lab
     {- ^ * "Get element pointer",
             compute the address of a field in a structure:
             inbounds check (value poisoned if this fails);
-            pointer to parent strucutre;
-            path to a sub-component of a strucutre.
+            pointer to parent structure;
+            path to a sub-component of a structure.
          * Middle of basic block.
-         * Returns the address of the requiested member.
+         * Returns the address of the requested member.
 
     The types in path are the types of the index, not the fields.
 
-    The indexes are in units of a fields (i.e., the first element in
+    The indexes are in units of fields (i.e., the first element in
     a struct is field 0, the next one is 1, etc., regardless of the size
     of the fields in bytes). -}
 
@@ -885,14 +918,14 @@ data Instr' lab
 
   | Resume (Typed (Value' lab))
 
-    deriving (Show,Functor,Generic)
+    deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
 type Instr = Instr' BlockLabel
 
 data Clause' lab
   = Catch  (Typed (Value' lab))
   | Filter (Typed (Value' lab))
-    deriving (Show,Functor,Generic,Generic1)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type Clause = Clause' BlockLabel
 
@@ -921,13 +954,13 @@ isPhi _     = False
 
 -- | Integer comparison operators.
 data ICmpOp = Ieq | Ine | Iugt | Iuge | Iult | Iule | Isgt | Isge | Islt | Isle
-    deriving (Show, Generic)
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 -- | Floating-point comparison operators.
 data FCmpOp = Ffalse  | Foeq | Fogt | Foge | Folt | Fole | Fone
             | Ford    | Fueq | Fugt | Fuge | Fult | Fule | Fune
             | Funo    | Ftrue
-    deriving (Show, Generic)
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 
 -- Values ----------------------------------------------------------------------
@@ -937,6 +970,7 @@ data Value' lab
   | ValBool Bool
   | ValFloat Float
   | ValDouble Double
+  | ValFP80 FP80Value
   | ValIdent Ident
   | ValSymbol Symbol
   | ValNull
@@ -944,16 +978,19 @@ data Value' lab
   | ValVector Type [Value' lab]
   | ValStruct [Typed (Value' lab)]
   | ValPackedStruct [Typed (Value' lab)]
-  | ValString String
+  | ValString [Word8]
   | ValConstExpr (ConstExpr' lab)
   | ValUndef
   | ValLabel lab
   | ValZeroInit
   | ValAsm Bool Bool String String
   | ValMd (ValMd' lab)
-    deriving (Show,Functor,Generic,Generic1)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type Value = Value' BlockLabel
+
+data FP80Value = FP80_LongDouble Word16 Word64
+               deriving (Data, Eq, Ord, Generic, Show, Typeable)
 
 data ValMd' lab
   = ValMdString String
@@ -962,7 +999,7 @@ data ValMd' lab
   | ValMdNode [Maybe (ValMd' lab)]
   | ValMdLoc (DebugLoc' lab)
   | ValMdDebugInfo (DebugInfo' lab)
-    deriving (Show,Functor,Generic,Generic1)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type ValMd = ValMd' BlockLabel
 
@@ -975,7 +1012,8 @@ data DebugLoc' lab = DebugLoc
   , dlCol   :: Word32
   , dlScope :: ValMd' lab
   , dlIA    :: Maybe (ValMd' lab)
-  } deriving (Show,Functor,Generic,Generic1)
+  , dlImplicit :: Bool
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugLoc = DebugLoc' BlockLabel
 
@@ -984,6 +1022,7 @@ isConst ValInteger{}   = True
 isConst ValBool{}      = True
 isConst ValFloat{}     = True
 isConst ValDouble{}    = True
+isConst ValFP80{}      = True
 isConst ValConstExpr{} = True
 isConst ValZeroInit    = True
 isConst ValNull        = True
@@ -1004,7 +1043,7 @@ elimValInteger _              = mzero
 data Stmt' lab
   = Result Ident (Instr' lab) [(String,ValMd' lab)]
   | Effect (Instr' lab) [(String,ValMd' lab)]
-    deriving (Show,Functor,Generic,Generic1)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type Stmt = Stmt' BlockLabel
 
@@ -1035,7 +1074,7 @@ data ConstExpr' lab
   | ConstICmp ICmpOp (Typed (Value' lab)) (Typed (Value' lab))
   | ConstArith ArithOp (Typed (Value' lab)) (Value' lab)
   | ConstBit BitOp (Typed (Value' lab)) (Value' lab)
-    deriving (Show,Functor,Generic,Generic1)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type ConstExpr = ConstExpr' BlockLabel
 
@@ -1061,43 +1100,54 @@ data DebugInfo' lab
   | DebugInfoTemplateTypeParameter (DITemplateTypeParameter' lab)
   | DebugInfoTemplateValueParameter (DITemplateValueParameter' lab)
   | DebugInfoImportedEntity (DIImportedEntity' lab)
-  deriving (Show,Functor,Generic,Generic1)
+  | DebugInfoLabel (DILabel' lab)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugInfo = DebugInfo' BlockLabel
 
+type DILabel = DILabel' BlockLabel
+data DILabel' lab = DILabel
+    { dilScope :: Maybe (ValMd' lab)
+    , dilName  :: String
+    , dilFile  :: Maybe (ValMd' lab)
+    , dilLine  :: Word32
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+
 type DIImportedEntity = DIImportedEntity' BlockLabel
 data DIImportedEntity' lab = DIImportedEntity
-    { diieTag      :: DwarfTag
-    , diieName     :: String
-    , diieScope    :: Maybe (ValMd' lab)
-    , diieEntity   :: Maybe (ValMd' lab)
-    , diieLine     :: Word32
-    } deriving (Show,Functor,Generic,Generic1)
+    { diieTag    :: DwarfTag
+    , diieScope  :: Maybe (ValMd' lab)
+    , diieEntity :: Maybe (ValMd' lab)
+    , diieFile   :: Maybe (ValMd' lab)
+    , diieLine   :: Word32
+    , diieName   :: Maybe String
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
 data DITemplateTypeParameter' lab = DITemplateTypeParameter
-    { dittpName :: String
-    , dittpType :: ValMd' lab
-    } deriving (Show,Functor,Generic,Generic1)
+    { dittpName :: Maybe String
+    , dittpType :: Maybe (ValMd' lab)
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DITemplateValueParameter = DITemplateValueParameter' BlockLabel
 data DITemplateValueParameter' lab = DITemplateValueParameter
-    { ditvpName  :: String
-    , ditvpType  :: ValMd' lab
+    { ditvpTag   :: DwarfTag
+    , ditvpName  :: Maybe String
+    , ditvpType  :: Maybe (ValMd' lab)
     , ditvpValue :: ValMd' lab
-    } deriving (Show,Functor,Generic,Generic1)
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DINameSpace = DINameSpace' BlockLabel
 data DINameSpace' lab = DINameSpace
-    { dinsName  :: String
+    { dinsName  :: Maybe String
     , dinsScope :: ValMd' lab
     , dinsFile  :: ValMd' lab
     , dinsLine  :: Word32
-    } deriving (Show,Functor,Generic,Generic1)
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 -- TODO: Turn these into sum types
 -- See https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/Support/Dwarf.def
-type DwarfAttrEncoding = Word8
+type DwarfAttrEncoding = Word16
 type DwarfLang = Word16
 type DwarfTag = Word16
 type DwarfVirtuality = Word8
@@ -1109,12 +1159,13 @@ type DIFlags = Word32
 type DIEmissionKind = Word8
 
 data DIBasicType = DIBasicType
-  { dibtTag :: DwarfTag
-  , dibtName :: String
-  , dibtSize :: Word64
-  , dibtAlign :: Word64
+  { dibtTag      :: DwarfTag
+  , dibtName     :: String
+  , dibtSize     :: Word64
+  , dibtAlign    :: Word64
   , dibtEncoding :: DwarfAttrEncoding
-  } deriving (Show,Generic)
+  , dibtFlags    :: Maybe DIFlags
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data DICompileUnit' lab = DICompileUnit
   { dicuLanguage           :: DwarfLang
@@ -1133,8 +1184,12 @@ data DICompileUnit' lab = DICompileUnit
   , dicuMacros             :: Maybe (ValMd' lab)
   , dicuDWOId              :: Word64
   , dicuSplitDebugInlining :: Bool
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  , dicuDebugInfoForProf   :: Bool
+  , dicuNameTableKind      :: Word64
+  , dicuRangesBaseAddress  :: Word64
+  , dicuSysRoot            :: Maybe String
+  , dicuSDK                :: Maybe String
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DICompileUnit = DICompileUnit' BlockLabel
 
@@ -1154,8 +1209,9 @@ data DICompositeType' lab = DICompositeType
   , dictVTableHolder   :: Maybe (ValMd' lab)
   , dictTemplateParams :: Maybe (ValMd' lab)
   , dictIdentifier     :: Maybe String
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  , dictDiscriminator  :: Maybe (ValMd' lab)
+  , dictDataLocation   :: Maybe (ValMd' lab)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DICompositeType = DICompositeType' BlockLabel
 
@@ -1171,20 +1227,18 @@ data DIDerivedType' lab = DIDerivedType
   , didtOffset :: Word64
   , didtFlags :: DIFlags
   , didtExtraData :: Maybe (ValMd' lab)
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DIDerivedType = DIDerivedType' BlockLabel
 
 data DIExpression = DIExpression
   { dieElements :: [Word64]
-  }
-  deriving (Show,Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data DIFile = DIFile
   { difFilename  :: FilePath
   , difDirectory :: FilePath
-  } deriving (Show,Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data DIGlobalVariable' lab = DIGlobalVariable
   { digvScope                :: Maybe (ValMd' lab)
@@ -1198,16 +1252,14 @@ data DIGlobalVariable' lab = DIGlobalVariable
   , digvVariable             :: Maybe (ValMd' lab)
   , digvDeclaration          :: Maybe (ValMd' lab)
   , digvAlignment            :: Maybe Word32
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DIGlobalVariable = DIGlobalVariable' BlockLabel
 
 data DIGlobalVariableExpression' lab = DIGlobalVariableExpression
   { digveVariable   :: Maybe (ValMd' lab)
   , digveExpression :: Maybe (ValMd' lab)
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DIGlobalVariableExpression = DIGlobalVariableExpression' BlockLabel
 
@@ -1216,8 +1268,7 @@ data DILexicalBlock' lab = DILexicalBlock
   , dilbFile   :: Maybe (ValMd' lab)
   , dilbLine   :: Word32
   , dilbColumn :: Word16
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DILexicalBlock = DILexicalBlock' BlockLabel
 
@@ -1225,8 +1276,7 @@ data DILexicalBlockFile' lab = DILexicalBlockFile
   { dilbfScope         :: ValMd' lab
   , dilbfFile          :: Maybe (ValMd' lab)
   , dilbfDiscriminator :: Word32
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DILexicalBlockFile = DILexicalBlockFile' BlockLabel
 
@@ -1238,8 +1288,7 @@ data DILocalVariable' lab = DILocalVariable
   , dilvType :: Maybe (ValMd' lab)
   , dilvArg :: Word16
   , dilvFlags :: DIFlags
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DILocalVariable = DILocalVariable' BlockLabel
 
@@ -1257,28 +1306,26 @@ data DISubprogram' lab = DISubprogram
   , dispVirtuality     :: DwarfVirtuality
   , dispVirtualIndex   :: Word32
   , dispThisAdjustment :: Int64
-  , dispThrownTypes    :: Maybe (ValMd' lab)
   , dispFlags          :: DIFlags
   , dispIsOptimized    :: Bool
+  , dispUnit           :: Maybe (ValMd' lab)
   , dispTemplateParams :: Maybe (ValMd' lab)
   , dispDeclaration    :: Maybe (ValMd' lab)
   , dispVariables      :: Maybe (ValMd' lab)
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  , dispThrownTypes    :: Maybe (ValMd' lab)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DISubprogram = DISubprogram' BlockLabel
 
 data DISubrange = DISubrange
-  { disrCount :: Int64
+  { disrCount      :: Int64
   , disrLowerBound :: Int64
-  }
-  deriving (Show,Generic)
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data DISubroutineType' lab = DISubroutineType
-  { distFlags :: DIFlags
+  { distFlags     :: DIFlags
   , distTypeArray :: Maybe (ValMd' lab)
-  }
-  deriving (Show,Functor,Generic,Generic1)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DISubroutineType = DISubroutineType' BlockLabel
 
@@ -1288,6 +1335,7 @@ data IndexResult
   = Invalid                             -- ^ An invalid use of GEP
   | HasType Type                        -- ^ A resolved type
   | Resolve Ident (Type -> IndexResult) -- ^ Continue, after resolving an alias
+  deriving (Generic, Typeable)
 
 isInvalid :: IndexResult -> Bool
 isInvalid ir = case ir of
