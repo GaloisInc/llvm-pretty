@@ -42,6 +42,6 @@ Library
                        microlens        >= 0.4,
                        microlens-th     >= 0.4,
                        template-haskell >= 2.7,
-                       th-abstraction   >= 0.3.1 && <0.4
+                       th-abstraction   >= 0.3.1 && <0.5
 
   Ghc-options:         -Wall
