@@ -189,12 +189,14 @@ freshSymbol  = Symbol `fmap` freshNameLLVM "f"
 -- | Emit a declaration.
 declare :: Type -> Symbol -> [Type] -> Bool -> LLVM (Typed Value)
 declare rty sym tys va = emitDeclare Declare
-  { decRetType = rty
-  , decName    = sym
-  , decArgs    = tys
-  , decVarArgs = va
-  , decAttrs   = []
-  , decComdat  = Nothing
+  { decLinkage    = Nothing
+  , decVisibility = Nothing
+  , decRetType    = rty
+  , decName       = sym
+  , decArgs       = tys
+  , decVarArgs    = va
+  , decAttrs      = []
+  , decComdat     = Nothing
   }
 
 -- | Emit a global declaration.
@@ -222,14 +224,16 @@ string sym str =
 -- Function Definition ---------------------------------------------------------
 
 data FunAttrs = FunAttrs
-  { funLinkage :: Maybe Linkage
-  , funGC      :: Maybe GC
+  { funLinkage    :: Maybe Linkage
+  , funVisibility :: Maybe Visibility
+  , funGC         :: Maybe GC
   } deriving (Show)
 
 emptyFunAttrs :: FunAttrs
 emptyFunAttrs  = FunAttrs
-  { funLinkage = Nothing
-  , funGC      = Nothing
+  { funLinkage    = Nothing
+  , funVisibility = Nothing
+  , funGC         = Nothing
   }
 
 
@@ -273,17 +277,18 @@ define :: DefineArgs sig k => FunAttrs -> Type -> Symbol -> sig -> k
 define attrs rty fun sig k = do
   (args,body) <- defineBody [] sig k
   emitDefine Define
-    { defLinkage  = funLinkage attrs
-    , defName     = fun
-    , defRetType  = rty
-    , defArgs     = args
-    , defVarArgs  = False
-    , defAttrs    = []
-    , defSection  = Nothing
-    , defGC       = funGC attrs
-    , defBody     = body
-    , defMetadata = Map.empty
-    , defComdat  = Nothing
+    { defLinkage    = funLinkage attrs
+    , defVisibility = funVisibility attrs
+    , defName       = fun
+    , defRetType    = rty
+    , defArgs       = args
+    , defVarArgs    = False
+    , defAttrs      = []
+    , defSection    = Nothing
+    , defGC         = funGC attrs
+    , defBody       = body
+    , defMetadata   = Map.empty
+    , defComdat     = Nothing
     }
 
 -- | A combination of define and @freshSymbol@.
@@ -301,17 +306,18 @@ define' :: FunAttrs -> Type -> Symbol -> [Type] -> Bool
 define' attrs rty sym sig va k = do
   args <- mapM freshArg sig
   emitDefine Define
-    { defLinkage  = funLinkage attrs
-    , defName     = sym
-    , defRetType  = rty
-    , defArgs     = args
-    , defVarArgs  = va
-    , defAttrs    = []
-    , defSection  = Nothing
-    , defGC       = funGC attrs
-    , defBody     = snd (runBB (k (map (fmap toValue) args)))
-    , defMetadata = Map.empty
-    , defComdat   = Nothing
+    { defLinkage    = funLinkage attrs
+    , defVisibility = funVisibility attrs
+    , defName       = sym
+    , defRetType    = rty
+    , defArgs       = args
+    , defVarArgs    = va
+    , defAttrs      = []
+    , defSection    = Nothing
+    , defGC         = funGC attrs
+    , defBody       = snd (runBB (k (map (fmap toValue) args)))
+    , defMetadata   = Map.empty
+    , defComdat     = Nothing
     }
 
 -- Basic Block Monad -----------------------------------------------------------

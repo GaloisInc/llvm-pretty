@@ -117,7 +117,11 @@ ppUnnamedMd um =
 -- Aliases ---------------------------------------------------------------------
 
 ppGlobalAlias :: LLVM => GlobalAlias -> Doc
-ppGlobalAlias g = ppSymbol (aliasName g) <+> char '=' <+> body
+ppGlobalAlias g = ppSymbol (aliasName g)
+              <+> char '='
+              <+> ppMaybe ppLinkage (aliasLinkage g)
+              <+> ppMaybe ppVisibility (aliasVisibility g)
+              <+> body
   where
   val  = aliasTarget g
   body = case val of
@@ -276,6 +280,8 @@ ppStructGlobalAttrs ga
 
 ppDeclare :: Declare -> Doc
 ppDeclare d = "declare"
+          <+> ppMaybe ppLinkage (decLinkage d)
+          <+> ppMaybe ppVisibility (decVisibility d)
           <+> ppType (decRetType d)
           <+> ppSymbol (decName d)
            <> ppArgList (decVarArgs d) (map ppType (decArgs d))
@@ -300,6 +306,7 @@ ppSelectionKind k =
 ppDefine :: LLVM => Define -> Doc
 ppDefine d = "define"
          <+> ppMaybe ppLinkage (defLinkage d)
+         <+> ppMaybe ppVisibility (defVisibility d)
          <+> ppType (defRetType d)
          <+> ppSymbol (defName d)
           <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
