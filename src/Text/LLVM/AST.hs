@@ -106,9 +106,11 @@ data UnnamedMd = UnnamedMd
 -- Aliases ---------------------------------------------------------------------
 
 data GlobalAlias = GlobalAlias
-  { aliasName   :: Symbol
-  , aliasType   :: Type
-  , aliasTarget :: Value
+  { aliasLinkage    :: Maybe Linkage
+  , aliasVisibility :: Maybe Visibility
+  , aliasName       :: Symbol
+  , aliasType       :: Type
+  , aliasTarget     :: Value
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 
@@ -432,12 +434,14 @@ emptyGlobalAttrs  = GlobalAttrs
 -- Declarations ----------------------------------------------------------------
 
 data Declare = Declare
-  { decRetType :: Type
-  , decName    :: Symbol
-  , decArgs    :: [Type]
-  , decVarArgs :: Bool
-  , decAttrs   :: [FunAttr]
-  , decComdat  :: Maybe String
+  { decLinkage    :: Maybe Linkage
+  , decVisibility :: Maybe Visibility
+  , decRetType    :: Type
+  , decName       :: Symbol
+  , decArgs       :: [Type]
+  , decVarArgs    :: Bool
+  , decAttrs      :: [FunAttr]
+  , decComdat     :: Maybe String
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 -- | The function type of this declaration
@@ -448,17 +452,18 @@ decFunType Declare { .. } = PtrTo (FunTy decRetType decArgs decVarArgs)
 -- Function Definitions --------------------------------------------------------
 
 data Define = Define
-  { defLinkage  :: Maybe Linkage
-  , defRetType  :: Type
-  , defName     :: Symbol
-  , defArgs     :: [Typed Ident]
-  , defVarArgs  :: Bool
-  , defAttrs    :: [FunAttr]
-  , defSection  :: Maybe String
-  , defGC       :: Maybe GC
-  , defBody     :: [BasicBlock]
-  , defMetadata :: FnMdAttachments
-  , defComdat   :: Maybe String
+  { defLinkage    :: Maybe Linkage
+  , defVisibility :: Maybe Visibility
+  , defRetType    :: Type
+  , defName       :: Symbol
+  , defArgs       :: [Typed Ident]
+  , defVarArgs    :: Bool
+  , defAttrs      :: [FunAttr]
+  , defSection    :: Maybe String
+  , defGC         :: Maybe GC
+  , defBody       :: [BasicBlock]
+  , defMetadata   :: FnMdAttachments
+  , defComdat     :: Maybe String
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 defFunType :: Define -> Type
