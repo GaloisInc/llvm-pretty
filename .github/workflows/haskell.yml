@@ -12,7 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ghc: [ 'latest', '8.10.2' ]
+        ghc: [ 'latest' ]
+        cabal: [ 'latest' ]
         
     name: Build on ${{ matrix.ghc }}
 
@@ -21,7 +22,7 @@ jobs:
     - uses: actions/setup-haskell@v1.1
       with:
         ghc-version: ${{ matrix.ghc }}
-        cabal-version: 'latest'
+        cabal-version: ${{ matrix.cabal }}
 
     - name: Cache
       uses: actions/cache@v1
