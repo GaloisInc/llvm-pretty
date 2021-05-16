@@ -21,7 +21,7 @@ jobs:
     - uses: actions/setup-haskell@v1.1
       with:
         ghc-version: ${{ matrix.ghc }}
-        cabal-version: 'latest;
+        cabal-version: 'latest'
 
     - name: Cache
       uses: actions/cache@v1
