@@ -444,6 +444,9 @@ ppArithOp URem          = "urem"
 ppArithOp SRem          = "srem"
 ppArithOp FRem          = "frem"
 
+ppUnaryArithOp :: UnaryArithOp -> Doc
+ppUnaryArithOp FNeg = "fneg"
+
 ppBitOp :: BitOp -> Doc
 ppBitOp (Shl nuw nsw) = "shl"  <+> ppSignBits nuw nsw
 ppBitOp (Lshr e)      = "lshr" <+> ppExact e
@@ -497,6 +500,7 @@ ppInstr instr = case instr of
   RetVoid                -> "ret void"
   Arith op l r           -> ppArithOp op <+> ppTyped ppValue l
                          <> comma <+> ppValue r
+  UnaryArith op a        -> ppUnaryArithOp op <+> ppTyped ppValue a
   Bit op l r             -> ppBitOp op <+> ppTyped ppValue l
                          <> comma <+> ppValue r
   Conv op a ty           -> ppConvOp op <+> ppTyped ppValue a
@@ -834,6 +838,7 @@ ppConstExpr' pp expr =
     ConstFCmp  op a b  -> "fcmp" <+> ppFCmpOp op <+> ppTupleT a b
     ConstICmp  op a b  -> "icmp" <+> ppICmpOp op <+> ppTupleT a b
     ConstArith op a b  -> ppArithOp op <+> ppTuple a b
+    ConstUnaryArith op a -> ppUnaryArithOp op <+> ppTyp' a
     ConstBit   op a b  -> ppBitOp op   <+> ppTuple a b
   where ppTuple  a b = parens $ ppTyped ppVal' a <> comma <+> ppVal' b
         ppTupleT a b = parens $ ppTyped ppVal' a <> comma <+> ppTyp' b
