@@ -835,11 +835,11 @@ ppConstExpr' pp expr =
     ConstSelect c l r  ->
       "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])
     ConstBlockAddr t l -> "blockaddress" <+> parens (ppSymbol t <> comma <+> pp l)
-    ConstFCmp  op a b  -> "fcmp" <+> ppFCmpOp op <+> ppTupleT a b
-    ConstICmp  op a b  -> "icmp" <+> ppICmpOp op <+> ppTupleT a b
-    ConstArith op a b  -> ppArithOp op <+> ppTuple a b
-    ConstUnaryArith op a -> ppUnaryArithOp op <+> ppTyp' a
-    ConstBit   op a b  -> ppBitOp op   <+> ppTuple a b
+    ConstFCmp       op a b -> "fcmp" <+> ppFCmpOp op <+> ppTupleT a b
+    ConstICmp       op a b -> "icmp" <+> ppICmpOp op <+> ppTupleT a b
+    ConstArith      op a b -> ppArithOp op <+> ppTuple a b
+    ConstUnaryArith op a   -> ppUnaryArithOp op <+> ppTyp' a
+    ConstBit        op a b -> ppBitOp op   <+> ppTuple a b
   where ppTuple  a b = parens $ ppTyped ppVal' a <> comma <+> ppVal' b
         ppTupleT a b = parens $ ppTyped ppVal' a <> comma <+> ppTyp' b
         ppVal'       = ppValue' pp
