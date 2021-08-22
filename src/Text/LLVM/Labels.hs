@@ -30,6 +30,8 @@ instance HasLabel Instr' where
   relabel f (Arith op l r)        = Arith op
                                 <$> traverse (relabel f) l
                                 <*> relabel f r
+  relabel f (UnaryArith op a)     = UnaryArith op
+                                <$> traverse (relabel f) a
   relabel f (Bit op l r)          = Bit op
                                 <$> traverse (relabel f) l
                                 <*> relabel f r

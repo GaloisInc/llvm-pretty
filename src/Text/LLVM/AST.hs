@@ -657,6 +657,11 @@ isIArith _      = False
 isFArith :: ArithOp -> Bool
 isFArith  = not . isIArith
 
+data UnaryArithOp
+  = FNeg
+    -- ^ Floating point negation.
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
 -- | Binary bitwise operators.
 data BitOp
   = Shl Bool Bool
@@ -748,6 +753,11 @@ data Instr' lab
     {- ^ * Binary arithmetic operation, both operands have the same type.
          * Middle of basic block.
          * The result is the same as parameters. -}
+
+  | UnaryArith UnaryArithOp (Typed (Value' lab))
+    {- ^ * Unary arithmetic operation.
+         * Middle of basic block.
+         * The result is the same as the parameter. -}
 
   | Bit BitOp (Typed (Value' lab)) (Value' lab)
     {- ^ * Binary bit-vector operation, both operands have the same type.
@@ -1078,6 +1088,7 @@ data ConstExpr' lab
   | ConstFCmp FCmpOp (Typed (Value' lab)) (Typed (Value' lab))
   | ConstICmp ICmpOp (Typed (Value' lab)) (Typed (Value' lab))
   | ConstArith ArithOp (Typed (Value' lab)) (Value' lab)
+  | ConstUnaryArith UnaryArithOp (Typed (Value' lab))
   | ConstBit BitOp (Typed (Value' lab)) (Value' lab)
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
