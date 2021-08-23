@@ -1,14 +1,8 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveDataTypeable, DeriveFunctor, DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
-
-#ifndef MIN_VERSION_base
-#define MIN_VERSION_base(x,y,z) 1
-#endif
-
 module Text.LLVM.AST where
 
 import Data.Functor.Identity (Identity(..))
@@ -26,13 +20,6 @@ import GHC.Generics (Generic, Generic1)
 
 import Text.Parsec
 import Text.Parsec.String
-
-#if !(MIN_VERSION_base(4,8,0))
-import Control.Applicative ((<$))
-import Data.Foldable (Foldable(foldMap))
-import Data.Monoid (Monoid(..))
-import Data.Traversable (Traversable(sequenceA))
-#endif
 
 
 -- Modules ---------------------------------------------------------------------

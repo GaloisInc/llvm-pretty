@@ -1,20 +1,9 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE EmptyCase, TypeOperators, FlexibleContexts #-}
-
-#ifndef MIN_VERSION_base
-#define MIN_VERSION_base(x,y,z) 1
-#endif
-
 module Text.LLVM.Labels where
 
 import Text.LLVM.AST
 import Text.LLVM.Labels.TH
-
-#if !(MIN_VERSION_base(4,8,0))
-import Control.Applicative ((<$>),Applicative(..))
-import Data.Traversable (traverse)
-#endif
 
 class Functor f => HasLabel f where
   -- | Given a function for resolving labels, where the presence of a symbol
