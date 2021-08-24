@@ -3,6 +3,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveLift #-}
 module Text.LLVM.AST where
 
 import Data.Functor.Identity (Identity(..))
@@ -17,6 +18,7 @@ import Data.Semigroup as Sem
 import Data.String (IsString(fromString))
 import Data.Word (Word8,Word16,Word32,Word64)
 import GHC.Generics (Generic, Generic1)
+import Language.Haskell.TH.Syntax (Lift)
 
 import Text.Parsec
 import Text.Parsec.String
@@ -204,7 +206,7 @@ data SelectionKind = ComdatAny
 -- Identifiers -----------------------------------------------------------------
 
 newtype Ident = Ident String
-    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable, Lift)
 
 instance IsString Ident where
   fromString = Ident
@@ -212,7 +214,7 @@ instance IsString Ident where
 -- Symbols ---------------------------------------------------------------------
 
 newtype Symbol = Symbol String
-    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable, Lift)
 
 instance Sem.Semigroup Symbol where
   Symbol a <> Symbol b = Symbol (a <> b)
@@ -233,7 +235,7 @@ data PrimType
   | FloatType FloatType
   | X86mmx
   | Metadata
-    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable, Lift)
 
 data FloatType
   = Half
@@ -242,7 +244,7 @@ data FloatType
   | Fp128
   | X86_fp80
   | PPC_fp128
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable, Lift)
 
 type Type = Type' Ident
 
