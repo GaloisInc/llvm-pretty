@@ -856,7 +856,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoCompileUnit cu       -> ppDICompileUnit' pp cu
   DebugInfoCompositeType ct     -> ppDICompositeType' pp ct
   DebugInfoDerivedType dt       -> ppDIDerivedType' pp dt
-  DebugInfoEnumerator nm v      -> ppDIEnumerator nm v
+  DebugInfoEnumerator nm v u    -> ppDIEnumerator nm v u
   DebugInfoExpression e         -> ppDIExpression e
   DebugInfoFile f               -> ppDIFile f
   DebugInfoGlobalVariable gv    -> ppDIGlobalVariable' pp gv
@@ -1014,10 +1014,11 @@ ppDIDerivedType' pp dt = "!DIDerivedType"
 ppDIDerivedType :: LLVM => DIDerivedType -> Doc
 ppDIDerivedType = ppDIDerivedType' ppLabel
 
-ppDIEnumerator :: String -> Int64 -> Doc
-ppDIEnumerator n v = "!DIEnumerator"
+ppDIEnumerator :: String -> Integer -> Bool -> Doc
+ppDIEnumerator n v u = "!DIEnumerator"
   <> parens (commas [ "name:"  <+> doubleQuotes (text n)
                     , "value:" <+> integral v
+                    , "isUnsigned:" <+> ppBool u
                     ])
 
 ppDIExpression :: DIExpression -> Doc
