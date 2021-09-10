@@ -922,6 +922,10 @@ data Instr' lab
 
   | Resume (Typed (Value' lab))
 
+  | Freeze (Typed (Value' lab))
+    {- ^ * Used to stop propagation of @undef@ and @poison@ values.
+         * Middle of basic block. -}
+
     deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
 type Instr = Instr' BlockLabel
