@@ -1094,7 +1094,8 @@ data DebugInfo' lab
   | DebugInfoCompileUnit (DICompileUnit' lab)
   | DebugInfoCompositeType (DICompositeType' lab)
   | DebugInfoDerivedType (DIDerivedType' lab)
-  | DebugInfoEnumerator String !Int64
+  | DebugInfoEnumerator String !Integer Bool
+    -- ^ The 'Bool' field represents @isUnsigned@, introduced in LLVM 7.
   | DebugInfoExpression DIExpression
   | DebugInfoFile DIFile
   | DebugInfoGlobalVariable (DIGlobalVariable' lab)
