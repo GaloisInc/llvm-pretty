@@ -992,6 +992,9 @@ ppDICompositeType' pp ct = "!DICompositeType"
        ,     (("identifier:"     <+>) . doubleQuotes . text)
              <$> (dictIdentifier ct)
        ,     (("discriminator:"  <+>) . ppValMd' pp) <$> (dictDiscriminator ct)
+       ,     (("associated:"     <+>) . ppValMd' pp) <$> (dictAssociated ct)
+       ,     (("allocated:"      <+>) . ppValMd' pp) <$> (dictAllocated ct)
+       ,     (("rank:"           <+>) . ppValMd' pp) <$> (dictRank ct)
        ])
 
 ppDICompositeType :: LLVM => DICompositeType -> Doc

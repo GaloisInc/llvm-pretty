@@ -1221,6 +1221,9 @@ data DICompositeType' lab = DICompositeType
   , dictIdentifier     :: Maybe String
   , dictDiscriminator  :: Maybe (ValMd' lab)
   , dictDataLocation   :: Maybe (ValMd' lab)
+  , dictAssociated     :: Maybe (ValMd' lab)
+  , dictAllocated      :: Maybe (ValMd' lab)
+  , dictRank           :: Maybe (ValMd' lab)
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DICompositeType = DICompositeType' BlockLabel
