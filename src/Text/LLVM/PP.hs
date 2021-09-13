@@ -583,6 +583,7 @@ ppInstr instr = case instr of
                         <+> ppType ty
                         $$ nest 2 (ppClauses c cs)
   Resume tv           -> "resume" <+> ppTyped ppValue tv
+  Freeze tv           -> "freeze" <+> ppTyped ppValue tv
 
 ppLoad :: LLVM => Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Maybe Align -> Doc
 ppLoad ptr mo ma =

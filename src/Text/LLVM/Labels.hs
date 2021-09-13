@@ -111,6 +111,7 @@ instance HasLabel Instr' where
                                   <*> traverse (relabel f) cs
 
   relabel f (Resume tv)           = Resume <$> traverse (relabel f) tv
+  relabel f (Freeze tv)           = Freeze <$> traverse (relabel f) tv
 
 instance HasLabel Stmt'                       where relabel = $(generateRelabel 'relabel ''Stmt')
 instance HasLabel Clause'                     where relabel = $(generateRelabel 'relabel ''Clause')
