@@ -757,7 +757,7 @@ ppValue' pp val = case val of
   ValZeroInit        -> "zeroinitializer"
   ValAsm s a i c     -> ppAsm s a i c
   ValMd m            -> ppValMd' pp m
-  ValBlockAddr a b   -> ppTyped (ppValue' pp) a <> pp b
+  ValBlockAddr a b   -> "blockaddress" <+> parens (ppTyped (ppValue' pp) a <> comma <+> pp b)
 
 ppValue :: LLVM => Value -> Doc
 ppValue = ppValue' ppLabel
