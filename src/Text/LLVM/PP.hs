@@ -757,7 +757,6 @@ ppValue' pp val = case val of
   ValZeroInit        -> "zeroinitializer"
   ValAsm s a i c     -> ppAsm s a i c
   ValMd m            -> ppValMd' pp m
-  ValBlockAddr a b   -> "blockaddress" <+> parens (ppTyped (ppValue' pp) a <> comma <+> pp b)
 
 ppValue :: LLVM => Value -> Doc
 ppValue = ppValue' ppLabel
@@ -836,7 +835,7 @@ ppConstExpr' pp expr =
     ConstConv op tv t  -> ppConvOp op <+> parens (ppTyp' tv <+> "to" <+> ppType t)
     ConstSelect c l r  ->
       "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])
-    ConstBlockAddr t l -> "blockaddress" <+> parens (ppSymbol t <> comma <+> pp l)
+    ConstBlockAddr t l -> "blockaddress" <+> parens (ppTyped (ppValue' pp) t <> comma <+> pp l)
     ConstFCmp       op a b -> "fcmp" <+> ppFCmpOp op <+> ppTupleT a b
     ConstICmp       op a b -> "icmp" <+> ppICmpOp op <+> ppTupleT a b
     ConstArith      op a b -> ppArithOp op <+> ppTuple a b

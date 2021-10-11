@@ -137,5 +137,6 @@ instance HasLabel DIImportedEntity'           where relabel = $(generateRelabel 
 
 -- | Clever instance that actually uses the block name
 instance HasLabel ConstExpr' where
-  relabel f (ConstBlockAddr t l) = ConstBlockAddr t <$> f (Just t) l
+  relabel f (ConstBlockAddr t@(Typed { typedValue = ValSymbol s }) l) =
+    ConstBlockAddr <$> traverse (relabel f) t <*> f (Just s) l
   relabel f x = $(generateRelabel 'relabel ''ConstExpr') f x
