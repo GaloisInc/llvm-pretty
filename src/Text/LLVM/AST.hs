@@ -1135,16 +1135,18 @@ data DIImportedEntity' lab = DIImportedEntity
 
 type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
 data DITemplateTypeParameter' lab = DITemplateTypeParameter
-    { dittpName :: Maybe String
-    , dittpType :: Maybe (ValMd' lab)
+    { dittpName      :: Maybe String
+    , dittpType      :: Maybe (ValMd' lab)
+    , dittpIsDefault :: Maybe Bool         -- since LLVM 11
     } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DITemplateValueParameter = DITemplateValueParameter' BlockLabel
 data DITemplateValueParameter' lab = DITemplateValueParameter
-    { ditvpTag   :: DwarfTag
-    , ditvpName  :: Maybe String
-    , ditvpType  :: Maybe (ValMd' lab)
-    , ditvpValue :: ValMd' lab
+    { ditvpTag       :: DwarfTag
+    , ditvpName      :: Maybe String
+    , ditvpType      :: Maybe (ValMd' lab)
+    , ditvpIsDefault :: Maybe Bool         -- since LLVM 11
+    , ditvpValue     :: ValMd' lab
     } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DINameSpace = DINameSpace' BlockLabel
