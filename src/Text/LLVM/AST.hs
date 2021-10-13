@@ -1077,7 +1077,7 @@ data ConstExpr' lab
   -- ^ Element type introduced in LLVM 3.7
   | ConstConv ConvOp (Typed (Value' lab)) Type
   | ConstSelect (Typed (Value' lab)) (Typed (Value' lab)) (Typed (Value' lab))
-  | ConstBlockAddr Symbol lab
+  | ConstBlockAddr (Typed (Value' lab)) lab
   | ConstFCmp FCmpOp (Typed (Value' lab)) (Typed (Value' lab))
   | ConstICmp ICmpOp (Typed (Value' lab)) (Typed (Value' lab))
   | ConstArith ArithOp (Typed (Value' lab)) (Value' lab)
