@@ -993,6 +993,7 @@ data Value' lab
   | ValZeroInit
   | ValAsm Bool Bool String String
   | ValMd (ValMd' lab)
+  | ValPoison
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type Value = Value' BlockLabel
