@@ -757,6 +757,7 @@ ppValue' pp val = case val of
   ValZeroInit        -> "zeroinitializer"
   ValAsm s a i c     -> ppAsm s a i c
   ValMd m            -> ppValMd' pp m
+  ValPoison          -> "poison"
 
 ppValue :: LLVM => Value -> Doc
 ppValue = ppValue' ppLabel
