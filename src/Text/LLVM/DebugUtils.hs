@@ -10,7 +10,8 @@ Point-of-contact : emertens
 -}
 module Text.LLVM.DebugUtils
   ( -- * Definition type analyzer
-    Info(..), computeFunctionTypes, valMdToInfo
+    Info(..), StructFieldInfo(..), BitfieldInfo(..), UnionFieldInfo(..)
+  , computeFunctionTypes, valMdToInfo
   , localVariableNameDeclarations
 
   -- * Metadata lookup
@@ -27,6 +28,7 @@ module Text.LLVM.DebugUtils
 
 import           Control.Applicative    ((<|>))
 import           Control.Monad          ((<=<))
+import           Data.Bits              (Bits(..))
 import           Data.IntMap            (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.List              (elemIndex, tails, stripPrefix)
@@ -56,12 +58,98 @@ type MdMap = IntMap ValMd
 
 data Info
   = Pointer Info
-  | Structure [(String,Word64,Info)] -- ^ Fields: name, bit-offset, info
-  | Union     [(String,Info)]
+  | Structure [StructFieldInfo]
+  | Union     [UnionFieldInfo]
   | ArrInfo Info
   | BaseType String
   | Unknown
   deriving Show
+
+-- | Record debug information about a field in a struct type.
+data StructFieldInfo = StructFieldInfo
+  { sfiName :: String
+    -- ^ The field name.
+  , sfiOffset :: Word64
+    -- ^ The field's offset (in bits) from the start of the struct.
+  , sfiBitfield :: Maybe BitfieldInfo
+    -- ^ If this field resides within a bitfield, this is
+    -- @'Just' bitfieldInfo@. Otherwise, this is 'Nothing'.
+  , sfiInfo :: Info
+    -- ^ The debug 'Info' associated with the field's type.
+  } deriving Show
+
+-- | Record debug information about a field within a bitfield. For example,
+-- the following C struct:
+--
+-- @
+-- struct s {
+--   int32_t w;
+--   uint8_t x1:1;
+--   uint8_t x2:2;
+--   uint8_t y:1;
+--   int32_t z;
+-- };
+-- @
+--
+-- Corresponds to the following 'Info':
+--
+-- @
+-- 'Structure'
+--   [ 'StructFieldInfo' { 'sfiName' = \"w\"
+--                       , 'sfiOffset' = 0
+--                       , 'sfiBitfield' = Nothing
+--                       , 'sfiInfo' = 'BaseType' \"int32_t\"
+--                       }
+--   , 'StructFieldInfo' { 'sfiName' = \"x1\"
+--                       , 'sfiOffset' = 32
+--                       , 'sfiBitfield' = Just ('BitfieldInfo' { 'biFieldSize' = 1
+--                                                              , 'biBitfieldOffset' = 32
+--                                                              })
+--                       , 'sfiInfo' = 'BaseType' \"uint8_t\"
+--                       }
+--   , 'StructFieldInfo' { 'sfiName' = \"x2\"
+--                       , 'sfiOffset' = 33
+--                       , 'sfiBitfield' = Just ('BitfieldInfo' { 'biFieldSize' = 2
+--                                                              , 'biBitfieldOffset' = 32
+--                                                              })
+--                       , 'sfiInfo' = BaseType \"uint8_t\"
+--                       }
+--   , 'StructFieldInfo' { 'sfiName' = \"y\"
+--                       , 'sfiOffset' = 35
+--                       , 'sfiBitfield' = Just ('BitfieldInfo' { 'biFieldSize' = 1
+--                                                              , 'biBitfieldOffset' = 32
+--                                                              })
+--                       , 'sfiInfo' = 'BaseType' \"uint8_t\"
+--                       }
+--   , 'StructFieldInfo' { 'sfiName' = \"z\"
+--                       , 'sfiOffset' = 64
+--                       , 'sfiBitfield' = Nothing
+--                       , 'sfiInfo' = BaseType \"int32_t\"
+--                       }
+--   ]
+-- @
+--
+-- Notice that only @x1@, @x2@, and @y@ have 'BitfieldInfo's, as they are the
+-- only fields that were declared with bitfield syntax.
+data BitfieldInfo = BitfieldInfo
+  { biFieldSize :: Word64
+    -- ^ The field's size (in bits) within the bitfield. This should not be
+    --   confused with the size of the field's declared type. For example, the
+    --   'biFieldSize' of the @x1@ field is @1@, despite the fact that its
+    --   declared type, @uint8_t@, is otherwise 8 bits in size.
+  , biBitfieldOffset :: Word64
+    -- ^ The bitfield's offset (in bits) from the start of the struct. Note
+    --   that for a given field within a bitfield, its 'sfiOffset' is equal to
+    --   the 'biBitfieldOffset' plus the 'biFieldSize'.
+  } deriving Show
+
+-- | Record debug information about a field in a union type.
+data UnionFieldInfo = UnionFieldInfo
+  { ufiName :: String
+    -- ^ The field name.
+  , ufiInfo :: Info
+    -- ^ The debug 'Info' associated with the field's type.
+  } deriving Show
 
 {-
 import Text.Show.Pretty
@@ -89,6 +177,10 @@ getDebugInfo mdMap (ValMdRef i)    = getDebugInfo mdMap =<< IntMap.lookup i mdMa
 getDebugInfo _ (ValMdDebugInfo di) = Just di
 getDebugInfo _ _                   = Nothing
 
+getInteger :: MdMap -> ValMd -> Maybe Integer
+getInteger mdMap (ValMdRef i)                          = getInteger mdMap =<< IntMap.lookup i mdMap
+getInteger _     (ValMdValue (Typed _ (ValInteger i))) = Just i
+getInteger _     _                                     = Nothing
 
 getList :: MdMap -> ValMd -> Maybe [Maybe ValMd]
 getList mdMap (ValMdRef i) = getList mdMap =<< IntMap.lookup i mdMap
@@ -125,25 +217,47 @@ getFieldDIs mdMap =
   traverse (getDebugInfo mdMap) <=< sequence <=< getList mdMap <=< dictElements
 
 
-getStructFields :: MdMap -> DICompositeType -> Maybe [(String, Word64, Info)]
+getStructFields :: MdMap -> DICompositeType -> Maybe [StructFieldInfo]
 getStructFields mdMap = traverse (debugInfoToStructField mdMap) <=< getFieldDIs mdMap
 
-debugInfoToStructField :: MdMap -> DebugInfo -> Maybe (String, Word64, Info)
+debugInfoToStructField :: MdMap -> DebugInfo -> Maybe StructFieldInfo
 debugInfoToStructField mdMap di =
   do DebugInfoDerivedType dt <- Just di
      fieldName               <- didtName dt
-     Just (fieldName, didtOffset dt, valMdToInfo' mdMap (didtBaseType dt))
+     -- We check if a struct field resides within a bitfield by checking its
+     -- `flags` field sets `BitField`, which has a numeric value of 19.
+     -- (https://github.com/llvm/llvm-project/blob/1bebc31c617d1a0773f1d561f02dd17c5e83b23b/llvm/include/llvm/IR/DebugInfoFlags.def#L51)
+     --
+     -- If so, the `size` field records the size in bits, and the `extraData`
+     -- field records the offset of the overall bitfield from the start of the
+     -- struct.
+     -- (https://github.com/llvm/llvm-project/blob/ee7652569854af567ba83e5255d70e80cc8619a1/llvm/lib/CodeGen/AsmPrinter/CodeViewDebug.cpp#L2489-L2508)
+     let bitfield | testBit (didtFlags dt) 19
+                  , Just extraData      <- didtExtraData dt
+                  , Just bitfieldOffset <- getInteger mdMap extraData
+                  = Just $ BitfieldInfo { biFieldSize      = didtSize dt
+                                        , biBitfieldOffset = fromInteger bitfieldOffset
+                                        }
+                  | otherwise
+                  = Nothing
+     Just (StructFieldInfo { sfiName     = fieldName
+                           , sfiOffset   = didtOffset dt
+                           , sfiBitfield = bitfield
+                           , sfiInfo     = valMdToInfo' mdMap (didtBaseType dt)
+                           })
 
 
-getUnionFields :: MdMap -> DICompositeType -> Maybe [(String, Info)]
+getUnionFields :: MdMap -> DICompositeType -> Maybe [UnionFieldInfo]
 getUnionFields mdMap = traverse (debugInfoToUnionField mdMap) <=< getFieldDIs mdMap
 
 
-debugInfoToUnionField :: MdMap -> DebugInfo -> Maybe (String, Info)
+debugInfoToUnionField :: MdMap -> DebugInfo -> Maybe UnionFieldInfo
 debugInfoToUnionField mdMap di =
   do DebugInfoDerivedType dt <- Just di
      fieldName               <- didtName dt
-     Just (fieldName, valMdToInfo' mdMap (didtBaseType dt))
+     Just (UnionFieldInfo { ufiName = fieldName
+                          , ufiInfo = valMdToInfo' mdMap (didtBaseType dt)
+                          })
 
 
 
@@ -219,8 +333,8 @@ fieldIndexByPosition ::
   Info {- ^ type information for specified field -}
 fieldIndexByPosition i info =
   case info of
-    Structure xs -> go [ x | (_,_,x) <- xs ]
-    Union     xs -> go [ x | (_,x)   <- xs ]
+    Structure xs -> go [ x | StructFieldInfo{sfiInfo = x} <- xs ]
+    Union     xs -> go [ x | UnionFieldInfo{ufiInfo = x}  <- xs ]
     _            -> Unknown
   where
     go xs = case drop i xs of
@@ -235,8 +349,8 @@ fieldIndexByName ::
   Maybe Int {- ^ zero-based index of field matching the name -}
 fieldIndexByName n info =
   case info of
-    Structure xs -> go [ x | (x,_,_) <- xs ]
-    Union     xs -> go [ x | (x,_)   <- xs ]
+    Structure xs -> go [ x | StructFieldInfo{sfiName = x} <- xs ]
+    Union     xs -> go [ x | UnionFieldInfo{ufiName = x}  <- xs ]
     _            -> Nothing
   where
     go = elemIndex n
