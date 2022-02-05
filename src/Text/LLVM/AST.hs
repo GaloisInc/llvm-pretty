@@ -57,7 +57,7 @@ instance Sem.Semigroup Module where
 
 instance Monoid Module where
   mempty = emptyModule
-  mappend m1 m2 = m1 <> m2
+  mappend = (<>)
 
 emptyModule :: Module
 emptyModule  = Module
