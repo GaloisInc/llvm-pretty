@@ -24,6 +24,7 @@ module Text.LLVM.DebugUtils
 
   -- * Info hueristics
   , guessAliasInfo
+  , guessTypeInfo
   ) where
 
 import           Control.Applicative    ((<|>))
@@ -58,10 +59,11 @@ type MdMap = IntMap ValMd
 
 data Info
   = Pointer Info
-  | Structure [StructFieldInfo]
-  | Union     [UnionFieldInfo]
+  | Structure (Maybe String) [StructFieldInfo]
+  | Union     (Maybe String) [UnionFieldInfo]
+  | Typedef String Info
   | ArrInfo Info
-  | BaseType String
+  | BaseType String DIBasicType
   | Unknown
   deriving Show
 
@@ -201,13 +203,15 @@ valMdToInfo' = maybe Unknown . valMdToInfo
 debugInfoToInfo :: MdMap -> DebugInfo -> Info
 debugInfoToInfo mdMap (DebugInfoDerivedType dt)
   | didtTag dt == dwarfPointer  = Pointer (valMdToInfo' mdMap (didtBaseType dt))
-  | didtTag dt == dwarfTypedef  =          valMdToInfo' mdMap (didtBaseType dt)
-  | didtTag dt == dwarfConst    =          valMdToInfo' mdMap (didtBaseType dt)
+  | didtTag dt == dwarfTypedef  = case didtName dt of
+                                    Nothing -> valMdToInfo' mdMap (didtBaseType dt)
+                                    Just nm -> Typedef nm (valMdToInfo' mdMap (didtBaseType dt))
+  | didtTag dt == dwarfConst    = valMdToInfo' mdMap (didtBaseType dt)
 debugInfoToInfo _     (DebugInfoBasicType bt)
-  | dibtTag bt == dwarfBasetype = BaseType (dibtName bt)
+  | dibtTag bt == dwarfBasetype = BaseType (dibtName bt) bt
 debugInfoToInfo mdMap (DebugInfoCompositeType ct)
-  | dictTag ct == dwarfStruct   = maybe Unknown Structure (getStructFields mdMap ct)
-  | dictTag ct == dwarfUnion    = maybe Unknown Union     (getUnionFields mdMap ct)
+  | dictTag ct == dwarfStruct   = maybe Unknown (Structure (dictName ct)) (getStructFields mdMap ct)
+  | dictTag ct == dwarfUnion    = maybe Unknown (Union     (dictName ct)) (getUnionFields mdMap ct)
   | dictTag ct == dwarfArray    = ArrInfo (valMdToInfo' mdMap (dictBaseType ct))
 debugInfoToInfo _ _             = Unknown
 
@@ -215,7 +219,6 @@ debugInfoToInfo _ _             = Unknown
 getFieldDIs :: MdMap -> DICompositeType -> Maybe [DebugInfo]
 getFieldDIs mdMap =
   traverse (getDebugInfo mdMap) <=< sequence <=< getList mdMap <=< dictElements
-
 
 getStructFields :: MdMap -> DICompositeType -> Maybe [StructFieldInfo]
 getStructFields mdMap = traverse (debugInfoToStructField mdMap) <=< getFieldDIs mdMap
@@ -268,9 +271,9 @@ debugInfoToUnionField mdMap di =
 computeFunctionTypes ::
   Module       {- ^ module to search                     -} ->
   Symbol       {- ^ function symbol                      -} ->
-  Maybe [Info] {- ^ return and argument type information -}
+  Maybe [Maybe Info] {- ^ return and argument type information -}
 computeFunctionTypes m sym =
-  [ maybe (BaseType "void") (valMdToInfo mdMap) <$> types
+  [ fmap (valMdToInfo mdMap) <$> types
      | let mdMap = mkMdMap m
      , sp <- findSubprogramViaDefine mdMap m sym
          <|> findSubprogramViaCu     mdMap m sym
@@ -333,9 +336,10 @@ fieldIndexByPosition ::
   Info {- ^ type information for specified field -}
 fieldIndexByPosition i info =
   case info of
-    Structure xs -> go [ x | StructFieldInfo{sfiInfo = x} <- xs ]
-    Union     xs -> go [ x | UnionFieldInfo{ufiInfo = x}  <- xs ]
-    _            -> Unknown
+    Typedef _ info' -> fieldIndexByPosition i info'
+    Structure _ xs  -> go [ x | StructFieldInfo{sfiInfo = x} <- xs ]
+    Union     _ xs  -> go [ x | UnionFieldInfo{ufiInfo = x}  <- xs ]
+    _               -> Unknown
   where
     go xs = case drop i xs of
               []  -> Unknown
@@ -349,9 +353,10 @@ fieldIndexByName ::
   Maybe Int {- ^ zero-based index of field matching the name -}
 fieldIndexByName n info =
   case info of
-    Structure xs -> go [ x | StructFieldInfo{sfiName = x} <- xs ]
-    Union     xs -> go [ x | UnionFieldInfo{ufiName = x}  <- xs ]
-    _            -> Nothing
+    Typedef _ info' -> fieldIndexByName n info'
+    Structure _ xs  -> go [ x | StructFieldInfo{sfiName = x} <- xs ]
+    Union     _ xs  -> go [ x | UnionFieldInfo{ufiName = x}  <- xs ]
+    _               -> Nothing
   where
     go = elemIndex n
 
@@ -405,21 +410,29 @@ localVariableNameDeclarations mdMap def =
 -- because there's no direct mapping between type aliases
 -- and debug info. The debug information must be search
 -- for a textual match.
+--
+-- Compared to @guessTypeInfo@, this function first tries
+-- to strip the \"struct.\" and \"union.\" prefixes that are
+-- commonly added by clang before searching for the type information.
 guessAliasInfo ::
   IntMap ValMd    {- ^ unnamed metadata      -} ->
   Ident           {- ^ alias                 -} ->
   Info
-guessAliasInfo mdMap (Ident name) =
-     -- TODO: Support more categories than struct
-  case stripPrefix "struct." name of
-    Nothing  -> Unknown
-    Just pfx -> guessStructInfo mdMap pfx
+guessAliasInfo mdMap (Ident name)
+  | Just pfx <- stripPrefix "struct." name = guessTypeInfo mdMap pfx
+  | Just pfx <- stripPrefix "union."  name = guessTypeInfo mdMap pfx
+  | otherwise = guessTypeInfo mdMap name
 
-guessStructInfo ::
+-- | Search the metadata for debug info corresponding
+-- to a given type alias. This is considered a heuristic
+-- because there's no direct mapping between type aliases
+-- and debug info. The debug information must be search
+-- for a textual match.
+guessTypeInfo ::
   IntMap ValMd    {- ^ unnamed metadata      -} ->
   String          {- ^ struct alias          -} ->
   Info
-guessStructInfo mdMap name =
+guessTypeInfo mdMap name =
   case mapMaybe (go <=< getDebugInfo mdMap) (IntMap.elems mdMap) of
     []  -> Unknown
     x:_ -> x
