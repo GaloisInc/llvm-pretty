@@ -506,6 +506,7 @@ ppInstr instr = case instr of
   Conv op a ty           -> ppConvOp op <+> ppTyped ppValue a
                         <+> "to" <+> ppType ty
   Call tc ty f args      -> ppCall tc ty f args
+  CallBr ty f args u es  -> ppCallBr ty f args u es
   Alloca ty len align    -> ppAlloca ty len align
   Load ptr mo ma         -> ppLoad ptr mo ma
   Store a ptr mo ma      -> ppStore a ptr mo ma
@@ -666,6 +667,20 @@ ppCall tc ty f args
   where
   body = "call" <+> ppCallSym ty f
       <> parens (commas (map (ppTyped ppValue) args))
+
+-- | Note that the textual syntax changed in LLVM 10 (@callbr@ was introduced in
+-- LLVM 9).
+ppCallBr :: LLVM => Type -> Value -> [Typed Value] -> BlockLabel -> [BlockLabel] -> Doc
+ppCallBr ty f args to indirectDests =
+  "callbr"
+     <+> ppType res <+> ppValue f <> parens (commas (map (ppTyped ppValue) args))
+     <+> "to" <+> ppLab to <+> brackets (commas (map ppLab indirectDests))
+  where
+    ppLab l = ppType (PrimType Label) <+> ppLabel l
+    res =
+      case ty of
+        PtrTo (FunTy r _ _) -> r
+        _ -> PrimType Void
 
 ppCallSym :: LLVM => Type -> Value -> Doc
 ppCallSym (PtrTo (FunTy res args va))   val        = ppType res <+> ppArgList va (map ppType args) <+> ppValue val
@@ -836,7 +851,7 @@ ppConstExpr' pp expr =
     ConstConv op tv t  -> ppConvOp op <+> parens (ppTyp' tv <+> "to" <+> ppType t)
     ConstSelect c l r  ->
       "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])
-    ConstBlockAddr t l -> "blockaddress" <+> parens (ppTyped (ppValue' pp) t <> comma <+> pp l)
+    ConstBlockAddr t l -> "blockaddress" <+> parens (ppVal' (typedValue t) <> comma <+> pp l)
     ConstFCmp       op a b -> "fcmp" <+> ppFCmpOp op <+> ppTupleT a b
     ConstICmp       op a b -> "icmp" <+> ppICmpOp op <+> ppTupleT a b
     ConstArith      op a b -> ppArithOp op <+> ppTuple a b

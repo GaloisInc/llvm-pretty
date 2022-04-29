@@ -764,6 +764,17 @@ data Instr' lab
          * Middle of basic block.
          * The result is as indicated by the provided type. -}
 
+  | CallBr Type (Value' lab) [Typed (Value' lab)] lab [lab]
+    {- ^ * Call a function in asm-goto style:
+             return type;
+             function operand;
+             arguments;
+             default basic block destination;
+             other basic block destinations.
+         * Middle of basic block.
+         * The result is as indicated by the provided type.
+         * Introduced in LLVM 9. -}
+
   | Alloca Type (Maybe (Typed (Value' lab))) (Maybe Int)
     {- ^ * Allocated space on the stack:
            type of elements;
@@ -943,6 +954,7 @@ isTerminator instr = case instr of
   Ret{}        -> True
   RetVoid      -> True
   Jump{}       -> True
+  CallBr{}     -> True
   Br{}         -> True
   Unreachable  -> True
   Unwind       -> True

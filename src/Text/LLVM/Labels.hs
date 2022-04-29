@@ -28,6 +28,11 @@ instance HasLabel Instr' where
   relabel f (Call t r n as)       = Call t r
                                 <$> relabel f n
                                 <*> traverse (traverse (relabel f)) as
+  relabel f (CallBr r n as u es)  = CallBr r
+                                <$> relabel f n
+                                <*> traverse (traverse (relabel f)) as
+                                <*> f Nothing u
+                                <*> traverse (f Nothing) es
   relabel f (Alloca t n a)        = Alloca t
                                 <$> traverse (traverse (relabel f)) n
                                 <*> pure a
