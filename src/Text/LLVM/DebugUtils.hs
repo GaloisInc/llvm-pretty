@@ -25,6 +25,9 @@ module Text.LLVM.DebugUtils
   -- * Info hueristics
   , guessAliasInfo
   , guessTypeInfo
+
+  -- * Function arguments
+  , debugInfoArgNames
   ) where
 
 import           Control.Applicative    ((<|>))
@@ -432,3 +435,34 @@ guessTypeInfo mdMap name =
           = Just (debugInfoToInfo mdMap di)
 
     go _ = Nothing
+
+------------------------------------------------------------------------
+
+-- | Find source-level names of function arguments
+debugInfoArgNames :: Module -> Define -> IntMap String
+debugInfoArgNames m d =
+  case Map.lookup "dbg" $ defMetadata d of
+    Just (ValMdRef s) -> scopeArgs s
+    _ -> IntMap.empty
+  where
+    scopeArgs :: Int -> IntMap String
+    scopeArgs s = go $ modUnnamedMd m
+      where
+        go :: [UnnamedMd] -> IntMap String
+        go [] = IntMap.empty
+        go
+          ( UnnamedMd
+              { umValues =
+                  ValMdDebugInfo
+                    ( DebugInfoLocalVariable
+                        DILocalVariable
+                          { dilvScope = Just (ValMdRef s'),
+                            dilvArg = a,
+                            dilvName = Just n
+                          }
+                      )
+              }
+              : xs
+            ) =
+            if s == s' then IntMap.insert (fromIntegral a - 1) n $ go xs else go xs
+        go (_ : xs) = go xs
