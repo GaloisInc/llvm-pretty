@@ -1,12 +1,12 @@
 {-# Language TransformListComp, MonadComprehensions #-}
 {- |
-Module           : $Header$
+Module           : Text.LLVM.DebugUtils
 Description      : This module interprets the DWARF information associated
                    with a function's argument and return types in order to
                    interpret field name references.
 License          : BSD3
 Stability        : provisional
-Point-of-contact : emertens
+Maintainer       : emertens@galois.com
 -}
 module Text.LLVM.DebugUtils
   ( -- * Definition type analyzer
@@ -25,6 +25,13 @@ module Text.LLVM.DebugUtils
   -- * Info hueristics
   , guessAliasInfo
   , guessTypeInfo
+
+  -- * Function arguments
+  , debugInfoArgNames
+
+  -- * Line numbers of definitions
+  , debugInfoGlobalLines
+  , debugInfoDefineLines
   ) where
 
 import           Control.Applicative    ((<|>))
@@ -152,21 +159,6 @@ data UnionFieldInfo = UnionFieldInfo
   , ufiInfo :: Info
     -- ^ The debug 'Info' associated with the field's type.
   } deriving Show
-
-{-
-import Text.Show.Pretty
-import Data.Foldable
-
-test =
-  do test' "/Users/emertens/Source/saw/saw-script\
-           \/examples/llvm/dotprod_struct.bc"
-     test' "/Users/emertens/Desktop/temp.bc"
-
-test' fn =
-  do Right bc <- parseBitCodeFromFile fn
-     let mdMap = mkMdMap bc
-     traverse_ (putStrLn . ppShow . analyzeDefine mdMap) (modDefines bc)
--}
 
 -- | Compute an 'IntMap' of the unnamed metadata in a module
 mkMdMap :: Module -> IntMap ValMd
@@ -446,4 +438,67 @@ guessTypeInfo mdMap name =
           , Just name == dictName dict
           = Just (debugInfoToInfo mdMap di)
 
+    go _ = Nothing
+
+------------------------------------------------------------------------
+
+-- | Find source-level names of function arguments
+debugInfoArgNames :: Module -> Define -> IntMap String
+debugInfoArgNames m d =
+  case Map.lookup dbgKind $ defMetadata d of
+    Just (ValMdRef s) -> scopeArgs s
+    _ -> IntMap.empty
+  where
+    scopeArgs :: Int -> IntMap String
+    scopeArgs s = IntMap.fromList . mapMaybe go $ modUnnamedMd m
+      where
+        go :: UnnamedMd -> Maybe (Int, String)
+        go
+          ( UnnamedMd
+              { umValues =
+                  ValMdDebugInfo
+                    ( DebugInfoLocalVariable
+                        DILocalVariable
+                          { dilvScope = Just (ValMdRef s'),
+                            dilvArg = a,
+                            dilvName = Just n
+                          }
+                      )
+              }) =
+            if s == s'
+            then Just (fromIntegral a - 1, n)
+            else Nothing
+        go _ = Nothing
+
+------------------------------------------------------------------------
+
+-- | Map global variable names to the line on which the global is defined
+debugInfoGlobalLines :: Module -> Map String Int
+debugInfoGlobalLines = Map.fromList . mapMaybe go . modUnnamedMd
+  where
+    go :: UnnamedMd -> Maybe (String, Int)
+    go (UnnamedMd
+         { umValues = ValMdDebugInfo
+           (DebugInfoGlobalVariable DIGlobalVariable
+             { digvName = Just n
+             , digvLine = l
+             }
+           )
+         }) = Just (n, (fromIntegral l))
+    go _ = Nothing
+
+-- | Map function names to the line on which the function is defined
+debugInfoDefineLines :: Module -> Map String Int
+debugInfoDefineLines = Map.fromList . mapMaybe go . modUnnamedMd
+  where
+    go :: UnnamedMd -> Maybe (String, Int)
+    go (UnnamedMd
+         { umValues = ValMdDebugInfo
+           (DebugInfoSubprogram DISubprogram
+             { dispName = Just n
+             , dispIsDefinition = True
+             , dispLine = l
+             }
+           )
+         }) = Just (n, (fromIntegral l))
     go _ = Nothing
