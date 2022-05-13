@@ -1,12 +1,12 @@
 {-# Language TransformListComp, MonadComprehensions #-}
 {- |
-Module           : $Header$
+Module           : Text.LLVM.DebugUtils
 Description      : This module interprets the DWARF information associated
                    with a function's argument and return types in order to
                    interpret field name references.
 License          : BSD3
 Stability        : provisional
-Point-of-contact : emertens
+Maintainer       : emertens@galois.com
 -}
 module Text.LLVM.DebugUtils
   ( -- * Definition type analyzer
@@ -152,21 +152,6 @@ data UnionFieldInfo = UnionFieldInfo
   , ufiInfo :: Info
     -- ^ The debug 'Info' associated with the field's type.
   } deriving Show
-
-{-
-import Text.Show.Pretty
-import Data.Foldable
-
-test =
-  do test' "/Users/emertens/Source/saw/saw-script\
-           \/examples/llvm/dotprod_struct.bc"
-     test' "/Users/emertens/Desktop/temp.bc"
-
-test' fn =
-  do Right bc <- parseBitCodeFromFile fn
-     let mdMap = mkMdMap bc
-     traverse_ (putStrLn . ppShow . analyzeDefine mdMap) (modDefines bc)
--}
 
 -- | Compute an 'IntMap' of the unnamed metadata in a module
 mkMdMap :: Module -> IntMap ValMd
