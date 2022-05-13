@@ -28,6 +28,10 @@ module Text.LLVM.DebugUtils
 
   -- * Function arguments
   , debugInfoArgNames
+
+  -- * Line numbers of definitions
+  , debugInfoGlobalLines
+  , debugInfoDefineLines
   ) where
 
 import           Control.Applicative    ((<|>))
@@ -441,15 +445,14 @@ guessTypeInfo mdMap name =
 -- | Find source-level names of function arguments
 debugInfoArgNames :: Module -> Define -> IntMap String
 debugInfoArgNames m d =
-  case Map.lookup "dbg" $ defMetadata d of
+  case Map.lookup dbgKind $ defMetadata d of
     Just (ValMdRef s) -> scopeArgs s
     _ -> IntMap.empty
   where
     scopeArgs :: Int -> IntMap String
-    scopeArgs s = go $ modUnnamedMd m
+    scopeArgs s = IntMap.fromList . mapMaybe go $ modUnnamedMd m
       where
-        go :: [UnnamedMd] -> IntMap String
-        go [] = IntMap.empty
+        go :: UnnamedMd -> Maybe (Int, String)
         go
           ( UnnamedMd
               { umValues =
@@ -461,8 +464,41 @@ debugInfoArgNames m d =
                             dilvName = Just n
                           }
                       )
-              }
-              : xs
-            ) =
-            if s == s' then IntMap.insert (fromIntegral a - 1) n $ go xs else go xs
-        go (_ : xs) = go xs
+              }) =
+            if s == s'
+            then Just (fromIntegral a - 1, n)
+            else Nothing
+        go _ = Nothing
+
+------------------------------------------------------------------------
+
+-- | Map global variable names to the line on which the global is defined
+debugInfoGlobalLines :: Module -> Map String Int
+debugInfoGlobalLines = Map.fromList . mapMaybe go . modUnnamedMd
+  where
+    go :: UnnamedMd -> Maybe (String, Int)
+    go (UnnamedMd
+         { umValues = ValMdDebugInfo
+           (DebugInfoGlobalVariable DIGlobalVariable
+             { digvName = Just n
+             , digvLine = l
+             }
+           )
+         }) = Just (n, (fromIntegral l))
+    go _ = Nothing
+
+-- | Map function names to the line on which the function is defined
+debugInfoDefineLines :: Module -> Map String Int
+debugInfoDefineLines = Map.fromList . mapMaybe go . modUnnamedMd
+  where
+    go :: UnnamedMd -> Maybe (String, Int)
+    go (UnnamedMd
+         { umValues = ValMdDebugInfo
+           (DebugInfoSubprogram DISubprogram
+             { dispName = Just n
+             , dispIsDefinition = True
+             , dispLine = l
+             }
+           )
+         }) = Just (n, (fromIntegral l))
+    go _ = Nothing
