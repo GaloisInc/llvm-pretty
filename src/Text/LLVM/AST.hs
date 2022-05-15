@@ -1353,6 +1353,8 @@ data DILocalVariable' lab = DILocalVariable
   , dilvType :: Maybe (ValMd' lab)
   , dilvArg :: Word16
   , dilvFlags :: DIFlags
+  , dilvAlignment :: Maybe Word32
+    -- ^ Introduced in LLVM 4.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DILocalVariable = DILocalVariable' BlockLabel

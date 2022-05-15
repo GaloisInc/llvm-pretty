@@ -1156,6 +1156,7 @@ ppDILocalVariable' pp lv = "!DILocalVariable"
        ,      (("type:"  <+>) . ppValMd' pp) <$> (dilvType lv)
        , pure ("arg:"    <+> integral (dilvArg lv))
        , pure ("flags:"  <+> integral (dilvFlags lv))
+       ,      (("align:" <+>) . integral) <$> dilvAlignment lv
        ])
 
 ppDILocalVariable :: LLVM => DILocalVariable -> Doc
