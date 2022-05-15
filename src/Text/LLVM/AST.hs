@@ -1271,6 +1271,8 @@ data DICompositeType' lab = DICompositeType
   , dictAssociated     :: Maybe (ValMd' lab)
   , dictAllocated      :: Maybe (ValMd' lab)
   , dictRank           :: Maybe (ValMd' lab)
+  , dictAnnotations    :: Maybe (ValMd' lab)
+    -- ^ Introduced in LLVM 14.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DICompositeType = DICompositeType' BlockLabel
@@ -1292,6 +1294,8 @@ data DIDerivedType' lab = DIDerivedType
   --
   -- The 'Maybe' encodes the possibility that there is no associated address
   -- space (in LLVM, the sentinel value @0@ is used for this).
+  , didtAnnotations :: Maybe (ValMd' lab)
+  -- ^ Introduced in LLVM 14
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DIDerivedType = DIDerivedType' BlockLabel
@@ -1317,6 +1321,8 @@ data DIGlobalVariable' lab = DIGlobalVariable
   , digvVariable             :: Maybe (ValMd' lab)
   , digvDeclaration          :: Maybe (ValMd' lab)
   , digvAlignment            :: Maybe Word32
+  , digvAnnotations          :: Maybe (ValMd' lab)
+    -- ^ Introduced in LLVM 14.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DIGlobalVariable = DIGlobalVariable' BlockLabel
@@ -1355,6 +1361,8 @@ data DILocalVariable' lab = DILocalVariable
   , dilvFlags :: DIFlags
   , dilvAlignment :: Maybe Word32
     -- ^ Introduced in LLVM 4.
+  , dilvAnnotations :: Maybe (ValMd' lab)
+    -- ^ Introduced in LLVM 14.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DILocalVariable = DILocalVariable' BlockLabel
@@ -1380,6 +1388,8 @@ data DISubprogram' lab = DISubprogram
   , dispDeclaration    :: Maybe (ValMd' lab)
   , dispRetainedNodes  :: Maybe (ValMd' lab)
   , dispThrownTypes    :: Maybe (ValMd' lab)
+  , dispAnnotations    :: Maybe (ValMd' lab)
+    -- ^ Introduced in LLVM 14.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DISubprogram = DISubprogram' BlockLabel
