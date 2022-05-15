@@ -1052,6 +1052,7 @@ ppDICompositeType' pp ct = "!DICompositeType"
        ,     (("associated:"     <+>) . ppValMd' pp) <$> (dictAssociated ct)
        ,     (("allocated:"      <+>) . ppValMd' pp) <$> (dictAllocated ct)
        ,     (("rank:"           <+>) . ppValMd' pp) <$> (dictRank ct)
+       ,     (("annotations:"    <+>) . ppValMd' pp) <$> (dictAnnotations ct)
        ])
 
 ppDICompositeType :: LLVM => DICompositeType -> Doc
@@ -1071,6 +1072,7 @@ ppDIDerivedType' pp dt = "!DIDerivedType"
        , pure ("flags:"     <+> integral (didtFlags dt))
        ,     (("extraData:" <+>) . ppValMd' pp) <$> (didtExtraData dt)
        ,     (("dwarfAddressSpace:" <+>) . integral) <$> didtDwarfAddressSpace dt
+       ,     (("annotations:" <+>) . ppValMd' pp) <$> (didtAnnotations dt)
        ])
 
 ppDIDerivedType :: LLVM => DIDerivedType -> Doc
@@ -1108,6 +1110,7 @@ ppDIGlobalVariable' pp gv = "!DIGlobalVariable"
        ,      (("variable:"    <+>) . ppValMd' pp) <$> (digvVariable gv)
        ,      (("declaration:" <+>) . ppValMd' pp) <$> (digvDeclaration gv)
        ,      (("align:"       <+>) . integral) <$> digvAlignment gv
+       ,      (("annotations:" <+>) . ppValMd' pp) <$> (digvAnnotations gv)
        ])
 
 ppDIGlobalVariable :: LLVM => DIGlobalVariable -> Doc
@@ -1157,6 +1160,7 @@ ppDILocalVariable' pp lv = "!DILocalVariable"
        , pure ("arg:"    <+> integral (dilvArg lv))
        , pure ("flags:"  <+> integral (dilvFlags lv))
        ,      (("align:" <+>) . integral) <$> dilvAlignment lv
+       ,      (("annotations:" <+>) . ppValMd' pp) <$> (dilvAnnotations lv)
        ])
 
 ppDILocalVariable :: LLVM => DILocalVariable -> Doc
@@ -1189,6 +1193,7 @@ ppDISubprogram' pp sp = "!DISubprogram"
        ,      (("declaration:"    <+>) . ppValMd' pp) <$> (dispDeclaration sp)
        ,      (("retainedNodes:"  <+>) . ppValMd' pp) <$> (dispRetainedNodes sp)
        ,      (("thrownTypes:"    <+>) . ppValMd' pp) <$> (dispThrownTypes sp)
+       ,      (("annotations:"    <+>) . ppValMd' pp) <$> (dispAnnotations sp)
        ])
 
 ppDISubprogram :: LLVM => DISubprogram -> Doc
