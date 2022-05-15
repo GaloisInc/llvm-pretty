@@ -1070,6 +1070,7 @@ ppDIDerivedType' pp dt = "!DIDerivedType"
        , pure ("offset:"    <+> integral (didtOffset dt))
        , pure ("flags:"     <+> integral (didtFlags dt))
        ,     (("extraData:" <+>) . ppValMd' pp) <$> (didtExtraData dt)
+       ,     (("dwarfAddressSpace:" <+>) . integral) <$> didtDwarfAddressSpace dt
        ])
 
 ppDIDerivedType :: LLVM => DIDerivedType -> Doc

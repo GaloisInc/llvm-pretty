@@ -1287,6 +1287,11 @@ data DIDerivedType' lab = DIDerivedType
   , didtOffset :: Word64
   , didtFlags :: DIFlags
   , didtExtraData :: Maybe (ValMd' lab)
+  , didtDwarfAddressSpace :: Maybe Word32
+  -- ^ Introduced in LLVM 5.
+  --
+  -- The 'Maybe' encodes the possibility that there is no associated address
+  -- space (in LLVM, the sentinel value @0@ is used for this).
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DIDerivedType = DIDerivedType' BlockLabel
