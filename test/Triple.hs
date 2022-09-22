@@ -1,5 +1,7 @@
 module Triple (tests) where
 
+import           Control.Monad (forM_)
+
 import qualified Text.LLVM.Triple.AST ()
 import qualified Text.LLVM.Triple.Parse as Parse
 import qualified Text.LLVM.Triple.Print as Print
@@ -7,26 +9,33 @@ import qualified Text.LLVM.Triple.Print as Print
 import qualified Test.Tasty as Tasty
 import qualified Test.Tasty.HUnit as TastyH
 
-each :: Bounded a => Enum a => (a -> Bool) -> Bool
-each f = all f (enumFrom minBound)
+each :: Bounded a => Enum a => (a -> String) -> (a -> Bool) -> IO ()
+each name test =
+  forM_ (enumFrom minBound) $ \e ->
+    TastyH.assertBool (name e) (test e)
 
 tests :: Tasty.TestTree
 tests =
   Tasty.testGroup
     "Triple parse/print"
-    [ assert
+    [ TastyH.testCase
+        "parse . print == id :: Arch -> Arch"
+        (roundtrip Parse.parseArch Print.archName)
+    , TastyH.testCase
         "parse . print == id :: Vendor -> Vendor"
         (roundtrip Parse.parseVendor Print.vendorName)
-    , assert
+    , TastyH.testCase
         "parse . print == id :: OS -> OS"
         (roundtrip Parse.parseOS Print.osName)
-    , assert
+    , TastyH.testCase
         "parse . print == id :: Environment -> Environment"
         (roundtrip Parse.parseEnv Print.envName)
-    , assert
+    , TastyH.testCase
         "parse . print == id :: ObjectFormat -> ObjectFormat"
         (roundtrip Parse.parseObjFmt Print.objFmtName)
     ]
   where
-    assert s b = TastyH.testCase s (TastyH.assertBool s b)
-    roundtrip pars prnt = each (\a -> a == pars (prnt a))
+    roundtrip pars prnt =
+      each
+        (\a -> "parse (print " ++ prnt a ++ ") == " ++ prnt a)
+        (\a -> a == pars (prnt a))

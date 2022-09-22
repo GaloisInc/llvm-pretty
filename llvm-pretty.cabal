@@ -41,7 +41,9 @@ Library
                        Text.LLVM.Triple.AST
                        Text.LLVM.Triple.Parse
                        Text.LLVM.Triple.Print
-  Other-modules:       Text.LLVM.Util
+  Other-modules:       Text.LLVM.Triple.Parse.ARM
+                       Text.LLVM.Triple.Parse.LookupTable
+                       Text.LLVM.Util
 
   Build-depends:       base             >= 4.9 && < 5,
                        containers       >= 0.4,
