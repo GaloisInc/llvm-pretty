@@ -10,8 +10,10 @@ Stability   : experimental
 
 module Text.LLVM.Triple.Print
   ( archName
+  , vendorName
   , osName
   , envName
+  , objFmtName
   ) where
 
 import Text.LLVM.Triple.AST
@@ -83,6 +85,28 @@ archName =
     X86 -> "i386"
     X86_64 -> "x86_64"
     XCore -> "xcore"
+
+-- | @llvm::Triple::getVendorTypeName@.
+--
+-- Retained in the order in which they appear in the LLVM source.
+vendorName :: Vendor -> String
+vendorName =
+  \case
+    UnknownVendor -> "unknown"
+    AMD -> "amd"
+    Apple -> "apple"
+    CSR -> "csr"
+    Freescale -> "fsl"
+    IBM -> "ibm"
+    ImaginationTechnologies -> "img"
+    Mesa -> "mesa"
+    MipsTechnologies -> "mti"
+    Myriad -> "myriad"
+    NVIDIA -> "nvidia"
+    OpenEmbedded -> "oe"
+    PC -> "pc"
+    SCEI -> "scei"
+    SUSE -> "suse"
 
 -- | @llvm::Triple::getOSTypeName@.
 --
@@ -173,3 +197,19 @@ envName =
   Callable -> "callable"
   Mesh -> "mesh"
   Amplification -> "amplification"
+
+-- | @llvm::Triple::getObjectFormatTypeName@
+--
+-- Retained in the order in which they appear in the LLVM source.
+objFmtName :: ObjectFormat -> String
+objFmtName =
+  \case
+    UnknownObjectFormat -> ""  -- NB: Not "unknown"
+    COFF -> "coff"
+    ELF -> "elf"
+    GOFF -> "goff"
+    MachO -> "macho"
+    Wasm -> "wasm"
+    XCOFF -> "xcoff"
+    DXContainer -> "dxcontainer"
+    SPIRV -> "spirv"
