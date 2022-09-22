@@ -20,6 +20,9 @@ tests =
     , assert
         "parse . print == id :: OS -> OS"
         (roundtrip Parse.parseOS Print.osName)
+    , assert
+        "parse . print == id :: Environment -> Environment"
+        (roundtrip Parse.parseEnv Print.envName)
     ]
   where
     assert s b = TastyH.testCase s (TastyH.assertBool s b)

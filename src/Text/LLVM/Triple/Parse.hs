@@ -11,6 +11,7 @@ The declarations appear in this module in the same order as in the LLVM source.
 module Text.LLVM.Triple.Parse
   ( parseVendor
   , parseOS
+  , parseEnv
   ) where
 
 import qualified Data.Maybe as Maybe
@@ -51,3 +52,10 @@ parseVendor = lookupWithDefault table UnknownVendor
 parseOS :: String -> OS
 parseOS = lookupByPrefixWithDefault table UnknownOS
   where table = enumLookupTable Print.osName
+
+-- | @llvm::parseEnvironment@
+--
+-- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/lib/Support/Triple.cpp#L593
+parseEnv :: String -> Environment
+parseEnv = lookupByPrefixWithDefault table UnknownEnvironment
+  where table = enumLookupTable Print.envName
