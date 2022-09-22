@@ -21,6 +21,10 @@ import qualified Data.List as List
 import Text.LLVM.Triple.AST
 import qualified Text.LLVM.Triple.Print as Print
 
+--------------------------------------------------------------------------------
+-- LookupTable
+
+-- | Helper, not exported
 newtype LookupTable a = LookupTable { getLookupTable :: [(String, a)] }
 
 -- | Helper, not exported
@@ -33,16 +37,22 @@ enumLookupTable prnt = LookupTable [(prnt a, a) | a <- enumFrom minBound]
 lookupBy :: (String -> Bool) -> LookupTable a -> Maybe a
 lookupBy p = Maybe.listToMaybe . map snd . filter (p . fst) . getLookupTable
 
+-- | Helper, not exported.
 lookupWithDefault :: LookupTable a -> a -> String -> a
 lookupWithDefault table def val = Maybe.fromMaybe def (lookupBy (== val) table)
 
+-- | Helper, not exported.
 lookupByPrefixWithDefault :: LookupTable a -> a -> String -> a
 lookupByPrefixWithDefault table def pfx =
   Maybe.fromMaybe def (lookupBy (pfx `List.isPrefixOf`) table)
 
+-- | Helper, not exported.
 lookupBySuffixWithDefault :: LookupTable a -> a -> String -> a
 lookupBySuffixWithDefault table def sfx =
   Maybe.fromMaybe def (lookupBy (sfx `List.isSuffixOf`) table)
+
+--------------------------------------------------------------------------------
+-- Parsing
 
 -- | @llvm::parseVendor@
 --
