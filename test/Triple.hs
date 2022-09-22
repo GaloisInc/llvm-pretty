@@ -23,6 +23,9 @@ tests =
     , assert
         "parse . print == id :: Environment -> Environment"
         (roundtrip Parse.parseEnv Print.envName)
+    , assert
+        "parse . print == id :: ObjectFormat -> ObjectFormat"
+        (roundtrip Parse.parseObjFmt Print.objFmtName)
     ]
   where
     assert s b = TastyH.testCase s (TastyH.assertBool s b)

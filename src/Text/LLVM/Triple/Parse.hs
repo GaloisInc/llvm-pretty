@@ -12,6 +12,7 @@ module Text.LLVM.Triple.Parse
   ( parseVendor
   , parseOS
   , parseEnv
+  , parseObjFmt
   ) where
 
 import qualified Data.Maybe as Maybe
@@ -39,6 +40,10 @@ lookupByPrefixWithDefault :: LookupTable a -> a -> String -> a
 lookupByPrefixWithDefault table def pfx =
   Maybe.fromMaybe def (lookupBy (pfx `List.isPrefixOf`) table)
 
+lookupBySuffixWithDefault :: LookupTable a -> a -> String -> a
+lookupBySuffixWithDefault table def sfx =
+  Maybe.fromMaybe def (lookupBy (sfx `List.isSuffixOf`) table)
+
 -- | @llvm::parseVendor@
 --
 -- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/lib/Support/Triple.cpp#L529
@@ -59,3 +64,10 @@ parseOS = lookupByPrefixWithDefault table UnknownOS
 parseEnv :: String -> Environment
 parseEnv = lookupByPrefixWithDefault table UnknownEnvironment
   where table = enumLookupTable Print.envName
+
+-- | @llvm::parseFormat@
+--
+-- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/lib/Support/Triple.cpp#L634
+parseObjFmt :: String -> ObjectFormat
+parseObjFmt = lookupBySuffixWithDefault table UnknownObjectFormat
+  where table = enumLookupTable Print.objFmtName
