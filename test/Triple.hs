@@ -20,4 +20,4 @@ tests =
     ]
   where
     assert s b = TastyH.testCase s (TastyH.assertBool s b)
-    roundtrip pars prnt = each (\a -> Just a == pars (prnt a))
+    roundtrip pars prnt = each (\a -> a == pars (prnt a))

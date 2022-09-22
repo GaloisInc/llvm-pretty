@@ -10,11 +10,13 @@ module Text.LLVM.Triple.Parse
   ( parseVendor
   ) where
 
+import Data.Maybe (fromMaybe)
+
 import Text.LLVM.Triple.AST
 import qualified Text.LLVM.Triple.Print as Print
 
 enumTable :: Bounded a => Enum a => (a -> String) -> [(String, a)]
 enumTable prnt = [(prnt a, a) | a <- enumFrom minBound]
 
-parseVendor :: String -> Maybe Vendor
-parseVendor s = lookup s (enumTable Print.vendorName)
+parseVendor :: String -> Vendor
+parseVendor s = fromMaybe UnknownVendor (lookup s (enumTable Print.vendorName))
