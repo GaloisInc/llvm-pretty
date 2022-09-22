@@ -38,18 +38,22 @@ lookupBy :: (String -> Bool) -> LookupTable a -> Maybe a
 lookupBy p = Maybe.listToMaybe . map snd . filter (p . fst) . getLookupTable
 
 -- | Helper, not exported.
+lookupByWithDefault :: a -> (String -> Bool) -> LookupTable a -> a
+lookupByWithDefault def p = Maybe.fromMaybe def . lookupBy p
+
+-- | Helper, not exported.
 lookupWithDefault :: LookupTable a -> a -> String -> a
-lookupWithDefault table def val = Maybe.fromMaybe def (lookupBy (== val) table)
+lookupWithDefault table def val = lookupByWithDefault def (== val) table
 
 -- | Helper, not exported.
 lookupByPrefixWithDefault :: LookupTable a -> a -> String -> a
 lookupByPrefixWithDefault table def pfx =
-  Maybe.fromMaybe def (lookupBy (pfx `List.isPrefixOf`) table)
+  lookupByWithDefault def (pfx `List.isPrefixOf`) table
 
 -- | Helper, not exported.
 lookupBySuffixWithDefault :: LookupTable a -> a -> String -> a
 lookupBySuffixWithDefault table def sfx =
-  Maybe.fromMaybe def (lookupBy (sfx `List.isSuffixOf`) table)
+  lookupByWithDefault def (sfx `List.isSuffixOf`) table
 
 --------------------------------------------------------------------------------
 -- Parsing
