@@ -32,6 +32,8 @@ Library
                        Text.LLVM.Parser
                        Text.LLVM.PP
                        Text.LLVM.DebugUtils
+                       Text.LLVM.Triple
+                       Text.LLVM.Triple.AST
   Other-modules:       Text.LLVM.Util
 
   Build-depends:       base             >= 4.9 && < 5,

@@ -23,11 +23,14 @@ import Language.Haskell.TH.Syntax (Lift)
 import Text.Parsec
 import Text.Parsec.String
 
+import Text.LLVM.Triple.AST (TargetTriple)
+
 
 -- Modules ---------------------------------------------------------------------
 
 data Module = Module
   { modSourceName :: Maybe String
+  , modTriple     :: TargetTriple  -- ^ target triple
   , modDataLayout :: DataLayout    -- ^ type size and alignment information
   , modTypes      :: [TypeDecl]    -- ^ top-level type aliases
   , modNamedMd    :: [NamedMd]
@@ -40,9 +43,11 @@ data Module = Module
   , modAliases    :: [GlobalAlias]
   } deriving (Data, Eq, Ord, Generic, Show, Typeable)
 
+-- | Combines fields pointwise.
 instance Sem.Semigroup Module where
   m1 <> m2 = Module
     { modSourceName = modSourceName m1 `mplus`   modSourceName m2
+    , modTriple     = modTriple m1
     , modDataLayout = modDataLayout m1 <> modDataLayout m2
     , modTypes      = modTypes      m1 <> modTypes      m2
     , modUnnamedMd  = modUnnamedMd  m1 <> modUnnamedMd  m2
@@ -62,6 +67,7 @@ instance Monoid Module where
 emptyModule :: Module
 emptyModule  = Module
   { modSourceName = mempty
+  , modTriple     = mempty
   , modDataLayout = mempty
   , modTypes      = mempty
   , modNamedMd    = mempty
