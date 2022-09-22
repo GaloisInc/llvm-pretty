@@ -1,12 +1,12 @@
+Cabal-version:       2.2
 Name:                llvm-pretty
 Version:             0.11.0
-License:             BSD3
+License:             BSD-3-Clause
 License-file:        LICENSE
 Author:              Trevor Elliott
 Maintainer:          awesomelyawesome@gmail.com
 Category:            Text
 Build-type:          Simple
-Cabal-version:       >=1.16
 Synopsis:            A pretty printing library inspired by the llvm binding.
 Description:
   A pretty printing library that was inspired by the LLVM binding by Lennart
@@ -20,8 +20,13 @@ source-repository head
   type:                 git
   location:             http://github.com/elliottt/llvm-pretty
 
-Library
+common common
   Default-language:    Haskell2010
+  Ghc-options:
+    -Wall
+
+Library
+  Import:              common
 
   Hs-source-dirs:      src
   Exposed-modules:     Text.LLVM
@@ -48,4 +53,13 @@ Library
                        template-haskell >= 2.7,
                        th-abstraction   >= 0.3.1 && <0.5
 
-  Ghc-options:         -Wall
+Test-suite llvm-pretty-test
+  Import: common
+  Type: exitcode-stdio-1.0
+  Main-is: Main.hs
+  Hs-source-dirs: test
+  Ghc-options:
+    -threaded
+  Build-depends:
+    llvm-pretty,
+    base
