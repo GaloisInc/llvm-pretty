@@ -57,9 +57,13 @@ Test-suite llvm-pretty-test
   Import: common
   Type: exitcode-stdio-1.0
   Main-is: Main.hs
+  Other-modules:
+    Triple
   Hs-source-dirs: test
   Ghc-options:
     -threaded
   Build-depends:
     llvm-pretty,
-    base
+    base,
+    tasty,
+    tasty-hunit
