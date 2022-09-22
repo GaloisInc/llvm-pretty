@@ -11,6 +11,7 @@ Stability   : experimental
 module Text.LLVM.Triple.Print
   ( archName
   , osName
+  , envName
   ) where
 
 import Text.LLVM.Triple.AST
@@ -83,7 +84,6 @@ archName =
     X86_64 -> "x86_64"
     XCore -> "xcore"
 
-
 -- | @llvm::Triple::getOSTypeName@.
 --
 -- Retained in the order in which they appear in the LLVM source.
@@ -129,3 +129,47 @@ osName =
     Win32 -> "windows"
     ZOS -> "zos"
     ShaderModel -> "shadermodel"
+
+-- | @llvm::Triple::getEnvironmentName@.
+--
+-- Retained in the order in which they appear in the LLVM source.
+envName :: Environment -> String
+envName =
+  \case
+  UnknownEnvironment -> "unknown"
+  Android -> "android"
+  CODE16 -> "code16"
+  CoreCLR -> "coreclr"
+  Cygnus -> "cygnus"
+  EABI -> "eabi"
+  EABIHF -> "eabihf"
+  GNU -> "gnu"
+  GNUABI64 -> "gnuabi64"
+  GNUABIN32 -> "gnuabin32"
+  GNUEABI -> "gnueabi"
+  GNUEABIHF -> "gnueabihf"
+  GNUX32 -> "gnux32"
+  GNUILP32 -> "gnu_ilp32"
+  Itanium -> "itanium"
+  MSVC -> "msvc"
+  MacABI -> "macabi"
+  Musl -> "musl"
+  MuslEABI -> "musleabi"
+  MuslEABIHF -> "musleabihf"
+  MuslX32 -> "muslx32"
+  Simulator -> "simulator"
+  Pixel -> "pixel"
+  Vertex -> "vertex"
+  Geometry -> "geometry"
+  Hull -> "hull"
+  Domain -> "domain"
+  Compute -> "compute"
+  Library -> "library"
+  RayGeneration -> "raygeneration"
+  Intersection -> "intersection"
+  AnyHit -> "anyhit"
+  ClosestHit -> "closesthit"
+  Miss -> "miss"
+  Callable -> "callable"
+  Mesh -> "mesh"
+  Amplification -> "amplification"
