@@ -8,6 +8,8 @@ Stability   : experimental
 The declarations appear in this module in the same order as in the LLVM source.
 -}
 
+{-# LANGUAGE TupleSections #-}
+
 module Text.LLVM.Triple.Parse
   ( parseVendor
   , parseOS
@@ -24,12 +26,36 @@ import qualified Text.LLVM.Triple.Print as Print
 --------------------------------------------------------------------------------
 -- LookupTable
 
+-- | All the different ways of representing a value as strings.
+--
+-- Helper, not exported
+data Variants a
+  = Variants
+    { value :: a
+    , canonical :: String
+    , other :: [String]
+    }
+
+-- | An item with only one string representation.
+noVariants :: a -> String -> Variants a
+noVariants val can =
+  Variants
+  { value = val
+  , canonical = can
+  , other = []
+  }
+
 -- | Helper, not exported
 newtype LookupTable a = LookupTable { getLookupTable :: [(String, a)] }
 
 -- | Helper, not exported
-enumLookupTable :: Bounded a => Enum a => (a -> String) -> LookupTable a
-enumLookupTable prnt = LookupTable [(prnt a, a) | a <- enumFrom minBound]
+makeTable :: [Variants a] -> LookupTable a
+makeTable = LookupTable . foldMap go
+  where go v = (canonical v, value v):map (,value v) (other v)
+
+-- | Helper, not exported
+enumTable :: Bounded a => Enum a => (a -> String) -> LookupTable a
+enumTable prnt = makeTable [noVariants a (prnt a)| a <- enumFrom minBound]
 
 -- | Helper, not exported.
 --
@@ -63,25 +89,25 @@ lookupBySuffixWithDefault table def sfx =
 -- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/lib/Support/Triple.cpp#L529
 parseVendor :: String -> Vendor
 parseVendor = lookupWithDefault table UnknownVendor
-  where table = enumLookupTable Print.vendorName
+  where table = enumTable Print.vendorName
 
 -- | @llvm::parseOS@
 --
 -- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/lib/Support/Triple.cpp#L549
 parseOS :: String -> OS
 parseOS = lookupByPrefixWithDefault table UnknownOS
-  where table = enumLookupTable Print.osName
+  where table = enumTable Print.osName
 
 -- | @llvm::parseEnvironment@
 --
 -- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/lib/Support/Triple.cpp#L593
 parseEnv :: String -> Environment
 parseEnv = lookupByPrefixWithDefault table UnknownEnvironment
-  where table = enumLookupTable Print.envName
+  where table = enumTable Print.envName
 
 -- | @llvm::parseFormat@
 --
 -- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/lib/Support/Triple.cpp#L634
 parseObjFmt :: String -> ObjectFormat
 parseObjFmt = lookupBySuffixWithDefault table UnknownObjectFormat
-  where table = enumLookupTable Print.objFmtName
+  where table = enumTable Print.objFmtName
