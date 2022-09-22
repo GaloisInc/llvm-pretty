@@ -10,6 +10,7 @@ Stability   : experimental
 
 module Text.LLVM.Triple.Print
   ( archName
+  , osName
   ) where
 
 import Text.LLVM.Triple.AST
@@ -81,3 +82,50 @@ archName =
     X86 -> "i386"
     X86_64 -> "x86_64"
     XCore -> "xcore"
+
+
+-- | @llvm::Triple::getOSTypeName@.
+--
+-- Retained in the order in which they appear in the LLVM source.
+osName :: OS -> String
+osName =
+  \case
+    UnknownOS -> "unknown"
+    AIX -> "aix"
+    AMDHSA -> "amdhsa"
+    AMDPAL -> "amdpal"
+    Ananas -> "ananas"
+    CUDA -> "cuda"
+    CloudABI -> "cloudabi"
+    Contiki -> "contiki"
+    Darwin -> "darwin"
+    DragonFly -> "dragonfly"
+    DriverKit -> "driverkit"
+    ELFIAMCU -> "elfiamcu"
+    Emscripten -> "emscripten"
+    FreeBSD -> "freebsd"
+    Fuchsia -> "fuchsia"
+    Haiku -> "haiku"
+    HermitCore -> "hermit"
+    Hurd -> "hurd"
+    IOS -> "ios"
+    KFreeBSD -> "kfreebsd"
+    Linux -> "linux"
+    Lv2 -> "lv2"
+    MacOSX -> "macosx"
+    Mesa3D -> "mesa3d"
+    Minix -> "minix"
+    NVCL -> "nvcl"
+    NaCl -> "nacl"
+    NetBSD -> "netbsd"
+    OpenBSD -> "openbsd"
+    PS4 -> "ps4"
+    PS5 -> "ps5"
+    RTEMS -> "rtems"
+    Solaris -> "solaris"
+    TvOS -> "tvos"
+    WASI -> "wasi"
+    WatchOS -> "watchos"
+    Win32 -> "windows"
+    ZOS -> "zos"
+    ShaderModel -> "shadermodel"
