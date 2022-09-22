@@ -428,6 +428,9 @@ instance Monoid ObjectFormat where
   mempty = UnknownObjectFormat
 
 -- | More like a sextuple than a triple, if you think about it.
+--
+-- The LLVM version of this holds onto the un-normalized string representation.
+-- We discard it.
 data TargetTriple
   = TargetTriple
     { ttArch :: Arch

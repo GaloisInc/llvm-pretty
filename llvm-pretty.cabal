@@ -34,6 +34,7 @@ Library
                        Text.LLVM.DebugUtils
                        Text.LLVM.Triple
                        Text.LLVM.Triple.AST
+                       Text.LLVM.Triple.Parse
                        Text.LLVM.Triple.Print
   Other-modules:       Text.LLVM.Util
 

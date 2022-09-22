@@ -8,8 +8,10 @@ Stability   : experimental
 
 module Text.LLVM.Triple
   ( module Text.LLVM.Triple.AST
+  , module Text.LLVM.Triple.Parse
   , module Text.LLVM.Triple.Print
   ) where
 
 import Text.LLVM.Triple.AST
+import Text.LLVM.Triple.Parse
 import Text.LLVM.Triple.Print
