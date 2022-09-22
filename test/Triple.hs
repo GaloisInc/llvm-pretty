@@ -17,6 +17,9 @@ tests =
     [ assert
         "parse . print == id :: Vendor -> Vendor"
         (roundtrip Parse.parseVendor Print.vendorName)
+    , assert
+        "parse . print == id :: OS -> OS"
+        (roundtrip Parse.parseOS Print.osName)
     ]
   where
     assert s b = TastyH.testCase s (TastyH.assertBool s b)
