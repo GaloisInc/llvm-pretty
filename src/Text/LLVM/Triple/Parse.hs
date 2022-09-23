@@ -188,8 +188,52 @@ parseSubArch subArchName =
             | endsWith "v1.5" -> SPIRVSubArch_v15
             | otherwise -> NoSubArch
      | otherwise ->
-       -- TODO(lb): Big ARM case goes here
-       NoSubArch
+         case ARM.parseArch <$> armSubArch of
+           Nothing ->
+             if | endsWith "kalimba3" -> KalimbaSubArch_v3
+                | endsWith "kalimba4" -> KalimbaSubArch_v4
+                | endsWith "kalimba5" -> KalimbaSubArch_v5
+                | otherwise -> NoSubArch
+           Just armArch ->
+             if | armArch == ARM.ARMV4 -> NoSubArch
+                | armArch == ARM.ARMV4T -> ARMSubArch_v4t
+                | armArch == ARM.ARMV5T -> ARMSubArch_v5
+                | armArch == ARM.ARMV5TE ||
+                  armArch == ARM.IWMMXT ||
+                  armArch == ARM.IWMMXT2 ||
+                  armArch == ARM.XSCALE ||
+                  armArch == ARM.ARMV5TEJ -> ARMSubArch_v5te
+                | armArch == ARM.ARMV6 ->  ARMSubArch_v6
+                | armArch == ARM.ARMV6K ||
+                  armArch == ARM.ARMV6KZ -> ARMSubArch_v6k
+                | armArch == ARM.ARMV6T2 ->  ARMSubArch_v6t2
+                | armArch == ARM.ARMV6M ->  ARMSubArch_v6m
+                | armArch == ARM.ARMV7A ||
+                  armArch == ARM.ARMV7R -> ARMSubArch_v7
+                | armArch == ARM.ARMV7VE -> ARMSubArch_v7ve
+                | armArch == ARM.ARMV7K -> ARMSubArch_v7k
+                | armArch == ARM.ARMV7M -> ARMSubArch_v7m
+                | armArch == ARM.ARMV7S -> ARMSubArch_v7s
+                | armArch == ARM.ARMV7EM -> ARMSubArch_v7em
+                | armArch == ARM.ARMV8A -> ARMSubArch_v8
+                | armArch == ARM.ARMV8_1A -> ARMSubArch_v8_1a
+                | armArch == ARM.ARMV8_2A -> ARMSubArch_v8_2a
+                | armArch == ARM.ARMV8_3A -> ARMSubArch_v8_3a
+                | armArch == ARM.ARMV8_4A -> ARMSubArch_v8_4a
+                | armArch == ARM.ARMV8_5A -> ARMSubArch_v8_5a
+                | armArch == ARM.ARMV8_6A -> ARMSubArch_v8_6a
+                | armArch == ARM.ARMV8_7A -> ARMSubArch_v8_7a
+                | armArch == ARM.ARMV8_8A -> ARMSubArch_v8_8a
+                | armArch == ARM.ARMV9A -> ARMSubArch_v9
+                | armArch == ARM.ARMV9_1A -> ARMSubArch_v9_1a
+                | armArch == ARM.ARMV9_2A -> ARMSubArch_v9_2a
+                | armArch == ARM.ARMV9_3A -> ARMSubArch_v9_3a
+                | armArch == ARM.ARMV8R -> ARMSubArch_v8r
+                | armArch == ARM.ARMV8MBaseline -> ARMSubArch_v8m_baseline
+                | armArch == ARM.ARMV8MMainline -> ARMSubArch_v8m_mainline
+                | armArch == ARM.ARMV8_1MMainline -> ARMSubArch_v8_1m_mainline
+                | otherwise -> NoSubArch
   where
     startsWith = (`List.isPrefixOf` subArchName)
     endsWith = (`List.isSuffixOf` subArchName)
+    armSubArch = ARM.getCanonicalArchName (ARM.ArchName subArchName)
