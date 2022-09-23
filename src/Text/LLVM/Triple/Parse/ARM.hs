@@ -103,7 +103,6 @@ getArchSynonym (ArchName arch) =
   ArchName $
     if | cases ["v5"] -> "v5t"
        | cases ["v5e"] -> "v5te"
-       | cases ["v5e"] -> "v5te"
        | cases ["v6j"] -> "v6"
        | cases ["v6hl"] -> "v6k"
        | cases ["v6m", "v6sm", "v6s-m"] -> "v6-m"
