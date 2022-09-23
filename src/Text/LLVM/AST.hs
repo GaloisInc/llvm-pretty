@@ -47,7 +47,7 @@ data Module = Module
 instance Sem.Semigroup Module where
   m1 <> m2 = Module
     { modSourceName = modSourceName m1 `mplus`   modSourceName m2
-    , modTriple     = modTriple m1
+    , modTriple     = modTriple m1     <> modTriple     m2
     , modDataLayout = modDataLayout m1 <> modDataLayout m2
     , modTypes      = modTypes      m1 <> modTypes      m2
     , modUnnamedMd  = modUnnamedMd  m1 <> modUnnamedMd  m2
