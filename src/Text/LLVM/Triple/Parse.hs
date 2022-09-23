@@ -264,7 +264,8 @@ parseTriple str =
       pop (UnknownArch, NoSubArch) (\s -> (parseArch s, parseSubArch s))
     vendor <- pop UnknownVendor parseVendor
     os <- pop UnknownOS parseOS
-    env <- pop UnknownEnvironment parseEnv
+    (env, objFmt) <-
+      pop (UnknownEnvironment, UnknownObjectFormat) (\s -> (parseEnv s, parseObjFmt s))
     let tt =
           TargetTriple
           { ttArch = arch
@@ -272,11 +273,13 @@ parseTriple str =
           , ttVendor = vendor
           , ttOS = os
           , ttEnv = env
-          , ttObjFmt = UnknownObjectFormat
+          , ttObjFmt = objFmt
           }
-    let defObjFmt = defaultObjFmt tt
-    objFmt <- pop defObjFmt parseObjFmt
-    return (tt { ttObjFmt = objFmt })
+    return (tt { ttObjFmt =
+                   if ttObjFmt tt == UnknownObjectFormat
+                   then defaultObjFmt tt
+                   else ttObjFmt tt
+               })
   where
 
     -- > split '-' "foo-bar" == ["foo", "bar"]

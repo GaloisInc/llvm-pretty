@@ -51,6 +51,15 @@ tests =
         , AST.ttEnv = AST.GNU
         , AST.ttObjFmt = AST.UnknownObjectFormat
         }
+    , triple "i386-unknown-linux-elf" $
+        AST.TargetTriple
+        { AST.ttArch = AST.X86
+        , AST.ttSubArch = AST.NoSubArch
+        , AST.ttVendor = AST.UnknownVendor
+        , AST.ttOS = AST.Linux
+        , AST.ttEnv = AST.UnknownEnvironment
+        , AST.ttObjFmt = AST.ELF
+        }
     ]
   where
     triple s t =
