@@ -2,7 +2,7 @@ module Triple (tests) where
 
 import           Control.Monad (forM_)
 
-import qualified Text.LLVM.Triple.AST ()
+import qualified Text.LLVM.Triple.AST as AST
 import qualified Text.LLVM.Triple.Parse as Parse
 import qualified Text.LLVM.Triple.Print as Print
 
@@ -33,8 +33,30 @@ tests =
     , TastyH.testCase
         "parse . print == id :: ObjectFormat -> ObjectFormat"
         (roundtrip Parse.parseObjFmt Print.objFmtName)
+    , triple "aarch64-unknown-linux-gnu" $
+        AST.TargetTriple
+        { AST.ttArch = AST.AArch64
+        , AST.ttSubArch = AST.NoSubArch
+        , AST.ttVendor = AST.UnknownVendor
+        , AST.ttOS = AST.Linux
+        , AST.ttEnv = AST.GNU
+        , AST.ttObjFmt = AST.UnknownObjectFormat
+        }
+    , triple "x86_64-unknown-linux-gnu" $
+        AST.TargetTriple
+        { AST.ttArch = AST.X86_64
+        , AST.ttSubArch = AST.NoSubArch
+        , AST.ttVendor = AST.UnknownVendor
+        , AST.ttOS = AST.Linux
+        , AST.ttEnv = AST.GNU
+        , AST.ttObjFmt = AST.UnknownObjectFormat
+        }
     ]
   where
+    triple s t =
+      TastyH.testCase
+        ("parse '" ++ s ++ "'")
+        (t TastyH.@=? Parse.parseTriple s)
     roundtrip pars prnt =
       each
         (\a -> "parse (print " ++ prnt a ++ ") == " ++ prnt a)

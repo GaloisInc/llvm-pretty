@@ -17,6 +17,7 @@ when updating to newer versions of LLVM.
 
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 
@@ -27,9 +28,13 @@ module Text.LLVM.Triple.Parse
   , parseEnv
   , parseObjFmt
   , parseSubArch
+  , parseTriple
   ) where
 
 import qualified Data.List as List
+
+import qualified MonadLib as M
+import qualified MonadLib.Monads as M
 
 import Text.LLVM.Triple.AST
 import qualified Text.LLVM.Triple.Print as Print
@@ -237,3 +242,50 @@ parseSubArch subArchName =
     startsWith = (`List.isPrefixOf` subArchName)
     endsWith = (`List.isSuffixOf` subArchName)
     armSubArch = ARM.getCanonicalArchName (ARM.ArchName subArchName)
+
+-- | @llvm::Triple::getDefaultFormat@
+--
+-- TODO(lb): Implement me!
+defaultObjFmt :: TargetTriple -> ObjectFormat
+defaultObjFmt _tt = UnknownObjectFormat
+
+-- | @llvm::Triple::Triple@
+--
+-- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/lib/Support/Triple.cpp#L869
+parseTriple :: String -> TargetTriple
+parseTriple str =
+  execState (split '-' str) $ do
+    let pop def f =
+          M.sets $
+            \case
+              (hd:rest) -> (f hd, rest)
+              [] -> (def, [])
+    (arch, subArch) <-
+      pop (UnknownArch, NoSubArch) (\s -> (parseArch s, parseSubArch s))
+    vendor <- pop UnknownVendor parseVendor
+    os <- pop UnknownOS parseOS
+    env <- pop UnknownEnvironment parseEnv
+    let tt =
+          TargetTriple
+          { ttArch = arch
+          , ttSubArch = subArch
+          , ttVendor = vendor
+          , ttOS = os
+          , ttEnv = env
+          , ttObjFmt = UnknownObjectFormat
+          }
+    let defObjFmt = defaultObjFmt tt
+    objFmt <- pop defObjFmt parseObjFmt
+    return (tt { ttObjFmt = objFmt })
+  where
+
+    -- > split '-' "foo-bar" == ["foo", "bar"]
+    split :: Char -> String -> [String]
+    split splitter =
+      foldr (\c strs -> if c == splitter then ([]:strs) else push c strs) [[]]
+      where
+        push c [] = [[c]]
+        push c (s:strs) = (c:s):strs
+
+    -- Not in MonadLib...
+    execState s = fst . M.runState s

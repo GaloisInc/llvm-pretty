@@ -14,7 +14,10 @@ module Text.LLVM.Triple.Print
   , osName
   , envName
   , objFmtName
+  , printTriple
   ) where
+
+import qualified Data.List as List
 
 import Text.LLVM.Triple.AST
 
@@ -213,3 +216,14 @@ objFmtName =
     XCOFF -> "xcoff"
     DXContainer -> "dxcontainer"
     SPIRV -> "spirv"
+
+printTriple :: TargetTriple -> String
+printTriple tt =
+  List.intercalate
+    "-"
+    [ archName (ttArch tt)
+    , vendorName (ttVendor tt)
+    , osName (ttOS tt)
+    , envName (ttEnv tt)
+    , objFmtName (ttObjFmt tt)
+    ]
