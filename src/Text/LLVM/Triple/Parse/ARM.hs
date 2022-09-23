@@ -24,6 +24,9 @@ module Text.LLVM.Triple.Parse.ARM
     -- * Arch
   , getCanonicalArchName
   , parseARMArch
+  , ARMArch(..)
+  , armArchName
+  , parseArch
   ) where
 
 import qualified Data.Char as Char
@@ -93,6 +96,42 @@ parseISAKind (ArchName arch) = Lookup.lookupByPrefix arch table
 
 --------------------------------------------------------------------------------
 -- Arch
+
+-- | @llvm::ARM::getArchSynonym@
+getArchSynonym :: ArchName -> ArchName
+getArchSynonym (ArchName arch) =
+  ArchName $
+    if | cases ["v5"] -> "v5t"
+       | cases ["v5e"] -> "v5te"
+       | cases ["v5e"] -> "v5te"
+       | cases ["v6j"] -> "v6"
+       | cases ["v6hl"] -> "v6k"
+       | cases ["v6m", "v6sm", "v6s-m"] -> "v6-m"
+       | cases ["v6z", "v6zk"] -> "v6kz"
+       | cases ["v7", "v7a", "v7hl", "v7l"] -> "v7-a"
+       | cases ["v7r"] -> "v7-r"
+       | cases ["v7m"] -> "v7-m"
+       | cases ["v7em"] -> "v7e-m"
+       | cases ["v8", "v8a", "v8l", "aarch64", "arm64"] -> "v8-a"
+       | cases ["v8.1a"] -> "v8.1-a"
+       | cases ["v8.2a"] -> "v8.2-a"
+       | cases ["v8.3a"] -> "v8.3-a"
+       | cases ["v8.4a"] -> "v8.4-a"
+       | cases ["v8.5a"] -> "v8.5-a"
+       | cases ["v8.6a"] -> "v8.6-a"
+       | cases ["v8.7a"] -> "v8.7-a"
+       | cases ["v8.8a"] -> "v8.8-a"
+       | cases ["v8r"] -> "v8-r"
+       | cases ["v9", "v9a"] -> "v9-a"
+       | cases ["v9.1a"] -> "v9.1-a"
+       | cases ["v9.2a"] -> "v9.2-a"
+       | cases ["v9.3a"] -> "v9.3-a"
+       | cases ["v8m.base"] -> "v8-m.base"
+       | cases ["v8m.main"] -> "v8-m.main"
+       | cases ["v8.1m.main"] -> "v8.1-m.main"
+       | otherwise -> arch
+  where
+    cases = any (== arch)
 
 data CanonicalArchNameState
   = CanonicalArchNameState
@@ -206,3 +245,104 @@ parseARMArch archName =
             -- doesn't match the "canonical" versions like "arm", "thumb", and
             -- "aarch64".
            | otherwise -> arch
+
+-- | See LLVM's @ARMTargetParser.def@
+--
+-- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/include/llvm/Support/ARMTargetParser.def#L48
+data ARMArch
+  = ARMArchInvalid
+  | ARMV2
+  | ARMV2A
+  | ARMV3
+  | ARMV3M
+  | ARMV4
+  | ARMV4T
+  | ARMV5T
+  | ARMV5TE
+  | ARMV5TEJ
+  | ARMV6
+  | ARMV6K
+  | ARMV6T2
+  | ARMV6KZ
+  | ARMV6M
+  | ARMV7A
+  | ARMV7VE
+  | ARMV7R
+  | ARMV7M
+  | ARMV7EM
+  | ARMV8A
+  | ARMV8_1A
+  | ARMV8_2A
+  | ARMV8_3A
+  | ARMV8_4A
+  | ARMV8_5A
+  | ARMV8_6A
+  | ARMV8_7A
+  | ARMV8_8A
+  | ARMV9A
+  | ARMV9_1A
+  | ARMV9_2A
+  | ARMV9_3A
+  | ARMV8R
+  | ARMV8MBaseline
+  | ARMV8MMainline
+  | ARMV8_1MMainline
+  | IWMMXT
+  | IWMMXT2
+  | XSCALE
+  | ARMV7S
+  | ARMV7K
+  deriving (Bounded, Enum, Eq, Ord)
+
+armArchName :: ARMArch -> String
+armArchName =
+  \case
+    ARMArchInvalid -> "invalid"
+    ARMV2 -> "armv2"
+    ARMV2A -> "armv2a"
+    ARMV3 -> "armv3"
+    ARMV3M -> "armv3m"
+    ARMV4 -> "armv4"
+    ARMV4T -> "armv4t"
+    ARMV5T -> "armv5t"
+    ARMV5TE -> "armv5te"
+    ARMV5TEJ -> "armv5tej"
+    ARMV6 -> "armv6"
+    ARMV6K -> "armv6k"
+    ARMV6T2 -> "armv6t2"
+    ARMV6KZ -> "armv6kz"
+    ARMV6M -> "armv6-m"
+    ARMV7A -> "armv7-a"
+    ARMV7VE -> "armv7ve"
+    ARMV7R -> "armv7-r"
+    ARMV7M -> "armv7-m"
+    ARMV7EM -> "armv7e-m"
+    ARMV8A -> "armv8-a"
+    ARMV8_1A -> "armv8.1-a"
+    ARMV8_2A -> "armv8.2-a"
+    ARMV8_3A -> "armv8.3-a"
+    ARMV8_4A -> "armv8.4-a"
+    ARMV8_5A -> "armv8.5-a"
+    ARMV8_6A -> "armv8.6-a"
+    ARMV8_7A -> "armv8.7-a"
+    ARMV8_8A -> "armv8.8-a"
+    ARMV9A -> "armv9-a"
+    ARMV9_1A -> "armv9.1-a"
+    ARMV9_2A -> "armv9.2-a"
+    ARMV9_3A -> "armv9.3-a"
+    ARMV8R -> "armv8-r"
+    ARMV8MBaseline -> "armv8-m.base"
+    ARMV8MMainline -> "armv8-m.main"
+    ARMV8_1MMainline -> "armv8.1-m.main"
+    IWMMXT -> "iwmmxt"
+    IWMMXT2 -> "iwmmxt2"
+    XSCALE -> "xscale"
+    ARMV7S -> "armv7s"
+    ARMV7K -> "armv7k"
+
+-- | @llvm::ARM::parseArch@
+parseArch :: ArchName -> ARMArch
+parseArch arch =
+  let ArchName syn = getArchSynonym arch
+      table = Lookup.enumTable armArchName
+  in Lookup.lookupBySuffixWithDefault table ARMArchInvalid syn
