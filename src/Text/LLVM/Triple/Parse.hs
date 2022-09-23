@@ -26,9 +26,9 @@ module Text.LLVM.Triple.Parse
   , parseOS
   , parseEnv
   , parseObjFmt
+  , parseSubArch
   ) where
 
-import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 
 import Text.LLVM.Triple.AST
@@ -119,7 +119,7 @@ parseArch s =
   in case mArch of
         UnknownArch ->
           if | archPfx ARM || archPfx Thumb || archPfx AArch64 ->
-                 Maybe.fromMaybe UnknownArch (ARM.parseARMArch (ARM.ArchName s))
+                 ARM.parseARMArch (ARM.ArchName s)
              | "bpf" `List.isPrefixOf` s -> parseBPFArch s
              | otherwise -> UnknownArch
         arch -> arch
@@ -165,3 +165,31 @@ parseEnv = lookupByPrefixWithDefault table UnknownEnvironment
 parseObjFmt :: String -> ObjectFormat
 parseObjFmt = lookupBySuffixWithDefault table UnknownObjectFormat
   where table = enumTable Print.objFmtName
+
+-- | @llvm::parseSubArch@
+--
+-- https://github.com/llvm/llvm-project/blob/llvmorg-15.0.1/llvm/lib/Support/Triple.cpp#L648
+parseSubArch :: String -> SubArch
+parseSubArch subArchName =
+  if | startsWith "mips" && (endsWith "r6el" || endsWith "r6") -> MipsSubArch_r6
+
+     | subArchName == "powerpcspe" -> PPCSubArch_spe
+
+     | subArchName == "arm64e" -> AArch64SubArch_arm64e
+
+     | startsWith "arm64e" -> AArch64SubArch_arm64e
+
+     | startsWith "spirv" ->
+         if | endsWith "v1.0" -> SPIRVSubArch_v10
+            | endsWith "v1.1" -> SPIRVSubArch_v11
+            | endsWith "v1.2" -> SPIRVSubArch_v12
+            | endsWith "v1.3" -> SPIRVSubArch_v13
+            | endsWith "v1.4" -> SPIRVSubArch_v14
+            | endsWith "v1.5" -> SPIRVSubArch_v15
+            | otherwise -> NoSubArch
+     | otherwise ->
+       -- TODO(lb): Big ARM case goes here
+       NoSubArch
+  where
+    startsWith = (`List.isPrefixOf` subArchName)
+    endsWith = (`List.isSuffixOf` subArchName)
