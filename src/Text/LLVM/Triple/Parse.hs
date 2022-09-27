@@ -245,7 +245,7 @@ parseSubArch subArchName =
 
 -- | @llvm::Triple::getDefaultFormat@
 --
--- TODO(lb): Implement me!
+-- TODO(#97): Implement me!
 defaultObjFmt :: TargetTriple -> ObjectFormat
 defaultObjFmt _tt = UnknownObjectFormat
 

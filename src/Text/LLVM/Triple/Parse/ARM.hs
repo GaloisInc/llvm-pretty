@@ -238,7 +238,7 @@ parseARMArch archName =
       Just (ArchName archNm) ->
         if | isa == Just ISAThumb &&
              ("v2" `List.isPrefixOf` archNm || "v3" `List.isPrefixOf` archNm) -> UnknownArch
-            -- TODO(lb): LLVM has one more check here involving the "arch
+            -- TODO(#98): LLVM has one more check here involving the "arch
             -- profile" that's not yet implemented here... Probably not a big
             -- deal because this case is only executed when the target arch
             -- doesn't match the "canonical" versions like "arm", "thumb", and
