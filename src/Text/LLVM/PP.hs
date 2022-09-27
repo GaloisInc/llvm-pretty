@@ -17,6 +17,8 @@
 module Text.LLVM.PP where
 
 import Text.LLVM.AST
+import Text.LLVM.Triple.AST (TargetTriple)
+import Text.LLVM.Triple.Print (printTriple)
 
 import Control.Applicative ((<|>))
 import Data.Bits ( shiftR, (.&.) )
@@ -79,6 +81,7 @@ checkConfig p = p ?config
 ppModule :: LLVM => Module -> Doc
 ppModule m = foldr ($+$) empty
   $ ppSourceName (modSourceName m)
+  : ppTargetTriple (modTriple m)
   : ppDataLayout (modDataLayout m)
   : ppInlineAsm  (modInlineAsm m)
   : concat [ map ppTypeDecl    (modTypes m)
@@ -128,6 +131,13 @@ ppGlobalAlias g = ppSymbol (aliasName g)
     ValSymbol _sym -> ppType (aliasType g) <+> ppValue val
     _              -> ppValue val
 
+
+-- Target triple ---------------------------------------------------------------
+
+-- | Pretty print a 'TargetTriple'
+ppTargetTriple :: TargetTriple -> Doc
+ppTargetTriple triple = "target" <+> "triple" <+> char '='
+    <+> doubleQuotes (text (printTriple triple))
 
 -- Data Layout -----------------------------------------------------------------
 
