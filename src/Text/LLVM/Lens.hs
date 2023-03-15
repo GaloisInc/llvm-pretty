@@ -43,6 +43,7 @@ concat <$> mapM (makeLensesWith (lensRules & lensField .~ (\_ _ n -> [TopName $ 
     , ''DIDerivedType'
     , ''DILexicalBlock'
     , ''DILexicalBlockFile'
+    , ''DIArgList'
     , ''Instr'
     , ''ValMd'
     , ''ConvOp
