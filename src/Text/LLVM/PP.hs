@@ -241,6 +241,7 @@ ppType (PrimType pt)     = ppPrimType pt
 ppType (Alias i)         = ppIdent i
 ppType (Array len ty)    = brackets (integral len <+> char 'x' <+> ppType ty)
 ppType (PtrTo ty)        = ppType ty <> char '*'
+ppType PtrOpaque         = "ptr"
 ppType (Struct ts)       = structBraces (commas (map ppType ts))
 ppType (PackedStruct ts) = angles (structBraces (commas (map ppType ts)))
 ppType (FunTy r as va)   = ppType r <> ppArgList va (map ppType as)

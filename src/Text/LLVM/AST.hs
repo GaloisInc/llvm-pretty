@@ -260,10 +260,32 @@ data Type' ident
   | Array Word64 (Type' ident)
   | FunTy (Type' ident) [Type' ident] Bool
   | PtrTo (Type' ident)
+    -- ^ A pointer to a memory location of a particular type. See also
+    -- 'PtrOpaque', which represents a pointer without a pointee type.
+    --
+    -- LLVM pointers can also have an optional address space attribute, but this
+    -- is not currently represented in the @llvm-pretty@ AST.
+  | PtrOpaque
+    -- ^ A pointer to a memory location. Unlike 'PtrTo', a 'PtrOpaque' does not
+    -- have a pointee type. Instead, instructions interacting through opaque
+    -- pointers specify the type of the underlying memory they are interacting
+    -- with.
+    --
+    -- LLVM pointers can also have an optional address space attribute, but this
+    -- is not currently represented in the @llvm-pretty@ AST.
+    --
+    -- 'PtrOpaque' should not be confused with 'Opaque', which is a completely
+    -- separate type with a similar-sounding name.
   | Struct [Type' ident]
   | PackedStruct [Type' ident]
   | Vector Word64 (Type' ident)
   | Opaque
+    -- ^ An opaque structure type, used to represent structure types that do not
+    -- have a body specified. This is similar to C's notion of a
+    -- forward-declared structure.
+    --
+    -- 'Opaque' should not be confused with 'PtrOpaque', which is a completely
+    -- separate type with a similar-sounding name.
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 -- | Applicatively traverse a type, updating or removing aliases.
@@ -274,6 +296,7 @@ updateAliasesA f = loop
     Array len ety    -> Array len    <$> (loop ety)
     FunTy res ps var -> FunTy        <$> (loop res) <*> (traverse loop ps) <*> pure var
     PtrTo pty        -> PtrTo        <$> (loop pty)
+    PtrOpaque        -> pure PtrOpaque
     Struct fs        -> Struct       <$> (traverse loop fs)
     PackedStruct fs  -> PackedStruct <$> (traverse loop fs)
     Vector len ety   -> Vector       <$> pure len <*> (loop ety)
@@ -320,6 +343,7 @@ isArray ty = case ty of
 
 isPointer :: Type -> Bool
 isPointer (PtrTo _) = True
+isPointer PtrOpaque = True
 isPointer _         = False
 
 
@@ -345,6 +369,7 @@ floatTypeNull _        = error "must be a float type"
 typeNull :: Type -> NullResult lab
 typeNull (PrimType pt) = HasNull (primTypeNull pt)
 typeNull PtrTo{}       = HasNull ValNull
+typeNull PtrOpaque     = HasNull ValNull
 typeNull (Alias i)     = ResolveNull i
 typeNull _             = HasNull ValZeroInit
 
