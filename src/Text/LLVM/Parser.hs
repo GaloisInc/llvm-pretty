@@ -73,6 +73,7 @@ pType = pType0 >>= pFunPtr
       , angles (braces (PackedStruct <$> pTypeList) <|> spaced (pNumType Vector))
       , string "opaque" >> return Opaque
       , PrimType <$> pPrimType
+      , string "ptr" >> return PtrOpaque
       ]
 
     pTypeList :: Parser [Type]
