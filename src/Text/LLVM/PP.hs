@@ -899,6 +899,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoTemplateValueParameter dtvp -> ppDITemplateValueParameter' pp dtvp
   DebugInfoImportedEntity diip         -> ppDIImportedEntity' pp diip
   DebugInfoLabel dil            -> ppDILabel' pp dil
+  DebugInfoArgList args         -> ppDIArgList' pp args
 
 ppDebugInfo :: LLVM => DebugInfo -> Doc
 ppDebugInfo = ppDebugInfo' ppLabel
@@ -1173,6 +1174,13 @@ ppDISubroutineType' pp st = "!DISubroutineType"
 
 ppDISubroutineType :: LLVM => DISubroutineType -> Doc
 ppDISubroutineType = ppDISubroutineType' ppLabel
+
+ppDIArgList' :: LLVM => (i -> Doc) -> DIArgList' i -> Doc
+ppDIArgList' pp args = "!DIArgList"
+  <> parens (commas (map (ppValMd' pp) (dialArgs args)))
+
+ppDIArgList :: LLVM => DIArgList -> Doc
+ppDIArgList = ppDIArgList' ppLabel
 
 -- Utilities -------------------------------------------------------------------
 

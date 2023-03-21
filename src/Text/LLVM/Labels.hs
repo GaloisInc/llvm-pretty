@@ -139,6 +139,7 @@ instance HasLabel DINameSpace'                where relabel = $(generateRelabel 
 instance HasLabel DITemplateTypeParameter'    where relabel = $(generateRelabel 'relabel ''DITemplateTypeParameter')
 instance HasLabel DITemplateValueParameter'   where relabel = $(generateRelabel 'relabel ''DITemplateValueParameter')
 instance HasLabel DIImportedEntity'           where relabel = $(generateRelabel 'relabel ''DIImportedEntity')
+instance HasLabel DIArgList'                  where relabel = $(generateRelabel 'relabel ''DIArgList')
 
 -- | Clever instance that actually uses the block name
 instance HasLabel ConstExpr' where
