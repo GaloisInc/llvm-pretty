@@ -684,7 +684,7 @@ ppCall tc ty f args
 ppCallBr :: LLVM => Type -> Value -> [Typed Value] -> BlockLabel -> [BlockLabel] -> Doc
 ppCallBr ty f args to indirectDests =
   "callbr"
-     <+> ppType res <+> ppValue f <> parens (commas (map (ppTyped ppValue) args))
+     <+> ppCallSym res f <> parens (commas (map (ppTyped ppValue) args))
      <+> "to" <+> ppLab to <+> brackets (commas (map ppLab indirectDests))
   where
     ppLab l = ppType (PrimType Label) <+> ppLabel l
@@ -693,9 +693,30 @@ ppCallBr ty f args to indirectDests =
         PtrTo (FunTy r _ _) -> r
         _ -> PrimType Void
 
+-- | Print out the @<ty>|<fnty> <fnptrval>@ portion of a @call@, @callbr@, or
+-- @invoke@ instruction, where:
+--
+-- * @<ty>@ is the return type.
+--
+-- * @<fnty>@ is the overall function type.
+--
+-- * @<fnptrval>@ is a pointer value, where the memory it points to is treated
+--   as a value of type @<fnty>@.
+--
+-- The LLVM Language Reference Manual indicates that either @<ty>@ or @<fnty>@
+-- can be used, but in practice, @<ty>@ is typically preferred unless the
+-- function type involves varargs. We adopt the same convention here.
 ppCallSym :: LLVM => Type -> Value -> Doc
-ppCallSym (PtrTo (FunTy res args va))   val        = ppType res <+> ppArgList va (map ppType args) <+> ppValue val
-ppCallSym ty              val                      = ppType ty  <+> ppValue val
+ppCallSym ty val = pp_ty <+> ppValue val
+  where
+    pp_ty =
+      case ty of
+        FunTy res args va
+          |  va
+          -> ppType res <+> ppArgList va (map ppType args)
+          |  otherwise
+          -> ppType res
+        _ -> ppType ty
 
 ppGEP :: LLVM => Bool -> Typed Value -> [Typed Value] -> Doc
 ppGEP ib ptr ixs = "getelementptr" <+> inbounds
@@ -715,7 +736,7 @@ ppGEP ib ptr ixs = "getelementptr" <+> inbounds
 ppInvoke :: LLVM => Type -> Value -> [Typed Value] -> BlockLabel -> BlockLabel -> Doc
 ppInvoke ty f args to uw = body
   where
-  body = "invoke" <+> ppType ty <+> ppValue f
+  body = "invoke" <+> ppCallSym ty f
       <> parens (commas (map (ppTyped ppValue) args))
      <+> "to" <+> ppType (PrimType Label) <+> ppLabel to
      <+> "unwind" <+> ppType (PrimType Label) <+> ppLabel uw
