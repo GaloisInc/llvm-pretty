@@ -1131,6 +1131,9 @@ ppDILocalVariable :: LLVM => DILocalVariable -> Doc
 ppDILocalVariable = ppDILocalVariable' ppLabel
 
 -- | See @writeDISubprogram@ in the LLVM source, in the file @AsmWriter.cpp@
+--
+-- Note that the textual syntax changed in LLVM 7, as the @retainedNodes@ field
+-- was called @variables@ in previous LLVM versions.
 ppDISubprogram' :: LLVM => (i -> Doc) -> DISubprogram' i -> Doc
 ppDISubprogram' pp sp = "!DISubprogram"
   <> parens (mcommas
@@ -1152,7 +1155,7 @@ ppDISubprogram' pp sp = "!DISubprogram"
        ,      (("unit:"           <+>) . ppValMd' pp) <$> (dispUnit sp)
        ,      (("templateParams:" <+>) . ppValMd' pp) <$> (dispTemplateParams sp)
        ,      (("declaration:"    <+>) . ppValMd' pp) <$> (dispDeclaration sp)
-       ,      (("variables:"      <+>) . ppValMd' pp) <$> (dispVariables sp)
+       ,      (("retainedNodes:"  <+>) . ppValMd' pp) <$> (dispRetainedNodes sp)
        ,      (("thrownTypes:"    <+>) . ppValMd' pp) <$> (dispThrownTypes sp)
        ])
 
