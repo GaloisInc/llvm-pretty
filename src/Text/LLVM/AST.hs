@@ -1346,7 +1346,7 @@ data DISubprogram' lab = DISubprogram
   , dispUnit           :: Maybe (ValMd' lab)
   , dispTemplateParams :: Maybe (ValMd' lab)
   , dispDeclaration    :: Maybe (ValMd' lab)
-  , dispVariables      :: Maybe (ValMd' lab)
+  , dispRetainedNodes  :: Maybe (ValMd' lab)
   , dispThrownTypes    :: Maybe (ValMd' lab)
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
