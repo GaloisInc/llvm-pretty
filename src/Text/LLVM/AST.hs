@@ -1218,7 +1218,7 @@ data DICompileUnit' lab = DICompileUnit
   , dicuSplitDebugInlining :: Bool
   , dicuDebugInfoForProf   :: Bool
   , dicuNameTableKind      :: Word64
-  , dicuRangesBaseAddress  :: Word64
+  , dicuRangesBaseAddress  :: Bool
   , dicuSysRoot            :: Maybe String
   , dicuSDK                :: Maybe String
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
