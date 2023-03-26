@@ -992,6 +992,14 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
        ,     (("imports:"            <+>) . ppValMd' pp) <$> (dicuImports cu)
        ,     (("macros:"             <+>) . ppValMd' pp) <$> (dicuMacros cu)
        , pure ("dwoId:"              <+> integral (dicuDWOId cu))
+       , pure ("splitDebugInlining:"    <+> ppBool (dicuSplitDebugInlining cu))
+       , pure ("debugInfoForProfiling:" <+> ppBool (dicuDebugInfoForProf cu))
+       , pure ("nameTableKind:"         <+> integral (dicuNameTableKind cu))
+       , pure ("rangesBaseAddress:"     <+> ppBool (dicuRangesBaseAddress cu))
+       ,     (("sysroot:"               <+>) . doubleQuotes . text)
+             <$> (dicuSysRoot cu)
+       ,     (("sdk:"                   <+>) . doubleQuotes . text)
+             <$> (dicuSDK cu)
        ])
 
 ppDICompileUnit :: LLVM => DICompileUnit -> Doc
