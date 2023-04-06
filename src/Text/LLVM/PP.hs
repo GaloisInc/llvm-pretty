@@ -519,7 +519,7 @@ ppInstr instr = case instr of
   Call tc ty f args      -> ppCall tc ty f args
   CallBr ty f args u es  -> ppCallBr ty f args u es
   Alloca ty len align    -> ppAlloca ty len align
-  Load ptr mo ma         -> ppLoad ptr mo ma
+  Load ty ptr mo ma      -> ppLoad ty ptr mo ma
   Store a ptr mo ma      -> ppStore a ptr mo ma
   Fence scope order      -> "fence" <+> ppScope scope <+> ppAtomicOrdering order
   CmpXchg w v p a n s o o' -> "cmpxchg" <+> opt w "weak"
@@ -597,8 +597,8 @@ ppInstr instr = case instr of
   Resume tv           -> "resume" <+> ppTyped ppValue tv
   Freeze tv           -> "freeze" <+> ppTyped ppValue tv
 
-ppLoad :: LLVM => Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Maybe Align -> Doc
-ppLoad ptr mo ma =
+ppLoad :: LLVM => Type -> Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Maybe Align -> Doc
+ppLoad ty ptr mo ma =
   "load" <+> (if isAtomic   then "atomic" else empty)
          <+> (if isImplicit then empty    else explicit)
          <+> ppTyped ppValue ptr
@@ -615,10 +615,7 @@ ppLoad ptr mo ma =
       Just ao -> ppAtomicOrdering ao
       _       -> empty
 
-  explicit =
-    case typedType ptr of
-      PtrTo ty -> ppType ty <> comma
-      ty       -> ppType ty <> comma
+  explicit = ppType ty <> comma
 
 ppStore :: LLVM
         => Typed (Value' BlockLabel)

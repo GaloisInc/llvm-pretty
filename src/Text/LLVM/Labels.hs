@@ -36,7 +36,10 @@ instance HasLabel Instr' where
   relabel f (Alloca t n a)        = Alloca t
                                 <$> traverse (traverse (relabel f)) n
                                 <*> pure a
-  relabel f (Load a mo ma)        = Load <$> traverse (relabel f) a <*> pure mo <*> pure ma
+  relabel f (Load t a mo ma)      = Load t
+                                <$> traverse (relabel f) a
+                                <*> pure mo
+                                <*> pure ma
   relabel f (Store d v mo ma)     = Store
                                 <$> traverse (relabel f) d
                                 <*> traverse (relabel f) v
