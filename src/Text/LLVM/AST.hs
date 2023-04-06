@@ -814,8 +814,9 @@ data Instr' lab
          * Middle of basic block.
          * Returns a pointer to hold the given number of elements. -}
 
-  | Load (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
+  | Load Type (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Read a value from the given address:
+           type being loaded;
            address to read from;
            atomic ordering;
            assumptions about alignment of the given pointer.

@@ -622,11 +622,8 @@ alloca ty mb align = observe (PtrTo ty) (Alloca ty es align)
   where
   es = fmap toValue `fmap` mb
 
-load :: IsValue a => Typed a -> Maybe Align -> BB (Typed Value)
-load tv ma =
-  case typedType tv of
-    PtrTo ty -> observe ty (Load (toValue `fmap` tv) Nothing ma)
-    _        -> error "load not given a pointer"
+load :: IsValue a => Type -> Typed a -> Maybe Align -> BB (Typed Value)
+load ty ptr ma = observe ty (Load ty (toValue `fmap` ptr) Nothing ma)
 
 store :: (IsValue a, IsValue b) => a -> Typed b -> Maybe Align -> BB ()
 store a ptr ma =
