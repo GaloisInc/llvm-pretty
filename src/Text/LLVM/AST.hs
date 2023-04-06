@@ -881,10 +881,11 @@ data Instr' lab
          * Middle of basic block.
          * Returns a value of the specified type. -}
 
-  | GEP Bool (Typed (Value' lab)) [Typed (Value' lab)]
+  | GEP Bool Type (Typed (Value' lab)) [Typed (Value' lab)]
     {- ^ * "Get element pointer",
             compute the address of a field in a structure:
             inbounds check (value poisoned if this fails);
+            type to use as a basis for calculations;
             pointer to parent structure;
             path to a sub-component of a structure.
          * Middle of basic block.
@@ -1118,8 +1119,11 @@ extendMetadata md stmt = case stmt of
 -- Constant Expressions --------------------------------------------------------
 
 data ConstExpr' lab
-  = ConstGEP Bool (Maybe Word64) (Maybe Type) [Typed (Value' lab)]
-  -- ^ Element type introduced in LLVM 3.7
+  = ConstGEP Bool (Maybe Word64) Type (Typed (Value' lab)) [Typed (Value' lab)]
+  -- ^ Since LLVM 3.7, constant @getelementptr@ expressions include an explicit
+  -- type to use as a basis for calculations. For older versions of LLVM, this
+  -- type can be reconstructed by inspecting the pointee type of the parent
+  -- pointer value.
   | ConstConv ConvOp (Typed (Value' lab)) Type
   | ConstSelect (Typed (Value' lab)) (Typed (Value' lab)) (Typed (Value' lab))
   | ConstBlockAddr (Typed (Value' lab)) lab
@@ -1432,10 +1436,11 @@ isInvalid ir = case ir of
 -- on unknown type aliases will return 'Nothing'
 resolveGepFull ::
   (Ident -> Maybe Type) {- ^ Type alias resolution -} ->
-  Type                  {- ^ Pointer type          -} ->
+  Type                  {- ^ Base type used for calculations -} ->
+  Typed (Value' lab)    {- ^ Pointer value         -} ->
   [Typed (Value' lab)]  {- ^ Path                  -} ->
   Maybe Type            {- ^ Type of result        -}
-resolveGepFull env t ixs = go (resolveGep t ixs)
+resolveGepFull env baseTy tv ixs = go (resolveGep baseTy tv ixs)
   where
   go Invalid                = Nothing
   go (HasType result)       = Just result
@@ -1444,16 +1449,32 @@ resolveGepFull env t ixs = go (resolveGep t ixs)
 
 -- | Resolve the type of a GEP instruction.  Note that the type produced is the
 -- type of the result, not necessarily a pointer.
-resolveGep :: Type -> [Typed (Value' lab)] -> IndexResult
-resolveGep (PtrTo ty0) (v:ixs0)
-  | isGepIndex v =
-    resolveGepBody ty0 ixs0
-resolveGep ty0@PtrTo{} (v:ixs0)
-  | Just i <- elimAlias (typedType v) =
-    Resolve i (\ty' -> resolveGep ty0 (Typed ty' (typedValue v):ixs0))
-resolveGep (Alias i) ixs =
-    Resolve i (\ty' -> resolveGep ty' ixs)
-resolveGep _ _ = Invalid
+resolveGep :: Type -> Typed (Value' lab) -> [Typed (Value' lab)] -> IndexResult
+resolveGep baseTy tv ixs =
+  case ixs of
+    v:ixs0
+      |  -- If headed by a pointer and the first index value has a valid GEP
+         -- index type, proceed to resolve the body of the GEP instruction.
+         isPointer t
+      ,  isGepIndex v
+      -> resolveGepBody baseTy ixs0
+
+      |  -- If headed by a pointer and the first index has an alias type,
+         -- resolve the alias and try again.
+         isPointer t
+      ,  Just i <- elimAlias (typedType v)
+      -> Resolve i (\ty' -> resolveGep baseTy tv (Typed ty' (typedValue v):ixs0))
+
+    _ |  -- If headed by a value with an alias type, resolve the alias and
+         -- try again.
+         Alias i <- t
+      -> Resolve i (\ty' -> resolveGep baseTy (Typed ty' (typedValue tv)) ixs)
+
+      |  -- Otherwise, the GEP instruction is invalid.
+         otherwise
+      -> Invalid
+  where
+    t = typedType tv
 
 -- | Resolve the type of a GEP instruction.  This assumes that the input has
 -- already been processed as a pointer.

@@ -695,7 +695,7 @@ select c t f = observe (typedType t)
 
 getelementptr :: IsValue a
               => Type -> Typed a -> [Typed Value] -> BB (Typed Value)
-getelementptr ty ptr ixs = observe ty (GEP False (toValue `fmap` ptr) ixs)
+getelementptr ty ptr ixs = observe ty (GEP False ty (toValue `fmap` ptr) ixs)
 
 -- | Emit a call instruction, and generate a new variable for its result.
 call :: IsValue a => Typed a -> [Typed Value] -> BB (Typed Value)
