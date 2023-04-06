@@ -684,14 +684,10 @@ ppCall tc ty f args
 ppCallBr :: LLVM => Type -> Value -> [Typed Value] -> BlockLabel -> [BlockLabel] -> Doc
 ppCallBr ty f args to indirectDests =
   "callbr"
-     <+> ppCallSym res f <> parens (commas (map (ppTyped ppValue) args))
+     <+> ppCallSym ty f <> parens (commas (map (ppTyped ppValue) args))
      <+> "to" <+> ppLab to <+> brackets (commas (map ppLab indirectDests))
   where
     ppLab l = ppType (PrimType Label) <+> ppLabel l
-    res =
-      case ty of
-        PtrTo (FunTy r _ _) -> r
-        _ -> PrimType Void
 
 -- | Print out the @<ty>|<fnty> <fnptrval>@ portion of a @call@, @callbr@, or
 -- @invoke@ instruction, where:
