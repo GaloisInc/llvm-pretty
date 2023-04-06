@@ -554,7 +554,7 @@ ppInstr instr = case instr of
   ShuffleVector a b m    -> "shufflevector" <+> ppTyped ppValue a
                          <> comma <+> ppTyped ppValue (b <$ a)
                          <> comma <+> ppTyped ppValue m
-  GEP ib ptr ixs         -> ppGEP ib ptr ixs
+  GEP ib ty ptr ixs      -> ppGEP ib ty ptr ixs
   Comment str            -> char ';' <+> text str
   Jump i                 -> "br"
                         <+> ppTypedLabel i
@@ -711,17 +711,15 @@ ppCallSym ty val = pp_ty <+> ppValue val
           -> ppType res
         _ -> ppType ty
 
-ppGEP :: LLVM => Bool -> Typed Value -> [Typed Value] -> Doc
-ppGEP ib ptr ixs = "getelementptr" <+> inbounds
-               <+> (if isImplicit then empty else explicit)
-               <+> commas (map (ppTyped ppValue) (ptr:ixs))
+ppGEP :: LLVM => Bool -> Type -> Typed Value -> [Typed Value] -> Doc
+ppGEP ib ty ptr ixs =
+  "getelementptr" <+> inbounds
+    <+> (if isImplicit then empty else explicit)
+    <+> commas (map (ppTyped ppValue) (ptr:ixs))
   where
   isImplicit = checkConfig cfgGEPImplicitType
 
-  explicit =
-    case typedType ptr of
-      PtrTo ty -> ppType ty <> comma
-      ty       -> ppType ty <> comma
+  explicit = ppType ty <> comma
 
   inbounds | ib        = "inbounds"
            | otherwise = empty
@@ -869,10 +867,10 @@ ppAsm s a i c =
 ppConstExpr' :: LLVM => (i -> Doc) -> ConstExpr' i -> Doc
 ppConstExpr' pp expr =
   case expr of
-    ConstGEP inb _mix mp ixs  ->
+    ConstGEP inb _mix ty ptr ixs  ->
       "getelementptr"
         <+> opt inb "inbounds"
-        <+> parens (mcommas ((ppType <$> mp) : (map (pure . ppTyp') ixs)))
+        <+> parens (commas (ppType ty : map ppTyp' (ptr:ixs)))
     ConstConv op tv t  -> ppConvOp op <+> parens (ppTyp' tv <+> "to" <+> ppType t)
     ConstSelect c l r  ->
       "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])

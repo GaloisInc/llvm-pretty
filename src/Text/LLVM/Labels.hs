@@ -66,7 +66,7 @@ instance HasLabel Instr' where
   relabel f (FCmp op l r)         = FCmp op
                                 <$> traverse (relabel f) l
                                 <*> relabel f r
-  relabel f (GEP ib a is)         = GEP ib
+  relabel f (GEP ib t a is)       = GEP ib t
                                 <$> traverse (relabel f) a
                                 <*> traverse (traverse (relabel f)) is
   relabel f (Select c l r)        = Select
