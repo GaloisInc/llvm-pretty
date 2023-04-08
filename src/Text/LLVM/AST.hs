@@ -347,6 +347,60 @@ isPointer PtrOpaque = True
 isPointer _         = False
 
 
+-- | Like `Type'`, but where the 'PtrTo' and 'PtrOpaque' constructors have been
+-- collapsed into a single 'PtrView' constructor. This provides a coarser notion
+-- of type equality than what `Type'` provides, which distinguishes the two
+-- types of pointers.
+--
+-- `TypeView'` is not used directly in any of the other AST types. Instead, it
+-- is used only as an internal data type to power the 'eqTypeModuloOpaquePtrs'
+-- and 'cmpTypeModuloOpaquePtrs' functions.
+data TypeView' ident
+  = PrimTypeView PrimType
+  | AliasView ident
+  | ArrayView Word64 (TypeView' ident)
+  | FunTyView (TypeView' ident) [TypeView' ident] Bool
+  | PtrView
+    -- ^ The sole pointer type. Both 'PtrTo' and 'PtrOpaque' are mapped to
+    -- 'PtrView'.
+  | StructView [TypeView' ident]
+  | PackedStructView [TypeView' ident]
+  | VectorView Word64 (TypeView' ident)
+  | OpaqueView
+    -- ^ An opaque structure type, used to represent structure types that do not
+    -- forward-declared structure.
+    --
+    -- 'OpaqueView' should not be confused with opaque pointers, which are
+    -- mapped to 'PtrView'.
+    deriving (Eq, Ord)
+
+-- | Convert a `Type'` value to a `TypeView'` value.
+typeView :: Type' ident -> TypeView' ident
+-- The two most important cases. Both forms of pointers are mapped to PtrView.
+typeView (PtrTo _)           = PtrView
+typeView PtrOpaque           = PtrView
+-- All other cases are straightforward.
+typeView (PrimType pt)       = PrimTypeView pt
+typeView (Alias lab)         = AliasView lab
+typeView (Array len et)      = ArrayView len (typeView et)
+typeView (FunTy ret args va) = FunTyView (typeView ret) (map typeView args) va
+typeView (Struct fs)         = StructView (map typeView fs)
+typeView (PackedStruct fs)   = PackedStructView (map typeView fs)
+typeView (Vector len et)     = VectorView len (typeView et)
+typeView Opaque              = OpaqueView
+
+-- | Check two 'Type's for equality, but treat 'PtrOpaque' types as being equal
+-- to @'PtrTo' ty@ types (for any type @ty@). This is a coarser notion of
+-- equality than what is provided by the 'Eq' instance for 'Type'.
+eqTypeModuloOpaquePtrs :: Eq ident => Type' ident -> Type' ident -> Bool
+eqTypeModuloOpaquePtrs x y = typeView x == typeView y
+
+-- | Compare two 'Type's, but treat 'PtrOpaque' types as being equal to
+-- @'PtrTo' ty@ types (for any type @ty@). This is a coarser notion of ordering
+-- than what is provided by the 'Ord' instance for 'Type'.
+cmpTypeModuloOpaquePtrs :: Ord ident => Type' ident -> Type' ident -> Ordering
+cmpTypeModuloOpaquePtrs x y = typeView x `compare` typeView y
+
 -- Null Values -----------------------------------------------------------------
 
 data NullResult lab
