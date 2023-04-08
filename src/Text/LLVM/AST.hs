@@ -12,8 +12,10 @@ import Data.Data (Data)
 import Data.Typeable (Typeable)
 import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
 import Data.Int (Int32,Int64)
+import Data.Generics (everywhere, extQ, mkT, something)
 import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
+import Data.Maybe (isJust)
 import Data.Semigroup as Sem
 import Data.String (IsString(fromString))
 import Data.Word (Word8,Word16,Word32,Word64)
@@ -400,6 +402,42 @@ eqTypeModuloOpaquePtrs x y = typeView x == typeView y
 -- than what is provided by the 'Ord' instance for 'Type'.
 cmpTypeModuloOpaquePtrs :: Ord ident => Type' ident -> Type' ident -> Ordering
 cmpTypeModuloOpaquePtrs x y = typeView x `compare` typeView y
+
+-- | Ensure that if there are any occurrences of opaque pointers, then all
+-- non-opaque pointers are converted to opaque ones.
+--
+-- This is useful because LLVM tools like @llvm-as@ are stricter than
+-- @llvm-pretty@ in that the former forbids mixing opaque and non-opaque
+-- pointers, whereas the latter allows this. As a result, the result of
+-- pretty-printing an @llvm-pretty@ AST might not be suitable for @llvm-as@'s
+-- needs unless you first call this function to ensure that the two types of
+-- pointers are not intermixed.
+--
+-- This is implemented using "Data.Data" combinators under the hood, which could
+-- potentially require a full traversal of the AST. Because of the performance
+-- implications of this, we do not call 'fixupOpaquePtrs' in @llvm-pretty@'s
+-- pretty-printer. If you wish to combine opaque and non-opaque pointers in your
+-- AST, the burden is on you to call this function before pretty-printing.
+fixupOpaquePtrs :: Data a => a -> a
+fixupOpaquePtrs m
+    | isJust (gfind isOpaquePtr m)
+    = everywhere (mkT opaquifyPtr) m
+    | otherwise
+    = m
+  where
+    isOpaquePtr :: Type -> Bool
+    isOpaquePtr PtrOpaque = True
+    isOpaquePtr _         = False
+
+    opaquifyPtr :: Type -> Type
+    opaquifyPtr (PtrTo _) = PtrOpaque
+    opaquifyPtr t         = t
+
+    -- Find the first occurrence of a @b@ value within the @a@ value that
+    -- satisfies the predicate and return it with 'Just'. Return 'Nothing' if there
+    -- are no such occurrences.
+    gfind :: (Data a, Typeable b) => (b -> Bool) -> a -> Maybe b
+    gfind p = something (const Nothing `extQ` \x -> if p x then Just x else Nothing)
 
 -- Null Values -----------------------------------------------------------------
 
