@@ -4,7 +4,162 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveLift #-}
-module Text.LLVM.AST where
+module Text.LLVM.AST
+  ( -- * Modules
+    Module(..)
+  , emptyModule
+    -- * Named Metadata
+  , NamedMd(..)
+    -- * Unnamed Metadata
+  , UnnamedMd(..)
+    -- * Aliases
+  , GlobalAlias(..)
+    -- * Data Layout
+  , DataLayout
+  , LayoutSpec(..)
+  , Mangling(..)
+  , parseDataLayout
+    -- * Inline Assembly
+  , InlineAsm
+    -- * Comdat
+  , SelectionKind(..)
+    -- * Identifiers
+  , Ident(..)
+    -- * Symbols
+  , Symbol(..)
+    -- * Types
+  , PrimType(..)
+  , FloatType(..)
+  , Type, Type'(..)
+  , updateAliasesA, updateAliases
+  , isFloatingPoint
+  , isAlias
+  , isPrimTypeOf
+  , isLabel
+  , isInteger
+  , isVector
+  , isVectorOf
+  , isArray
+  , isPointer
+  , eqTypeModuloOpaquePtrs
+  , cmpTypeModuloOpaquePtrs
+  , fixupOpaquePtrs
+    -- * Null values
+  , NullResult(..)
+  , primTypeNull
+  , floatTypeNull
+  , typeNull
+    -- * Type Elimination
+  , elimFunTy
+  , elimAlias
+  , elimPtrTo
+  , elimVector
+  , elimArray
+  , elimFunPtr
+  , elimPrimType
+  , elimFloatType
+  , elimSequentialType
+    -- * Top-level Type Aliases
+  , TypeDecl(..)
+    -- * Globals
+  , Global(..)
+  , addGlobal
+  , GlobalAttrs(..)
+  , emptyGlobalAttrs
+    -- * Declarations
+  , Declare(..)
+  , decFunType
+    -- * Function Definitions
+  , Define(..)
+  , defFunType, addDefine
+    -- * Function Attributes and attribute groups
+  , FunAttr(..)
+    -- * Basic Block Labels
+  , BlockLabel(..)
+    -- * Basic Blocks
+  , BasicBlock'(..), BasicBlock
+  , brTargets
+    -- * Attributes
+  , Linkage(..)
+  , Visibility(..)
+  , GC(..)
+    -- * Typed Things
+  , Typed(..)
+  , mapMTyped
+    -- * Instructions
+  , ArithOp(..)
+  , isIArith
+  , isFArith
+  , UnaryArithOp(..)
+  , BitOp(..)
+  , ConvOp(..)
+  , AtomicRWOp(..)
+  , AtomicOrdering(..)
+  , Align
+  , Instr'(..), Instr
+  , Clause'(..), Clause
+  , isTerminator
+  , isComment
+  , isPhi
+  , ICmpOp(..)
+  , FCmpOp(..)
+    -- * Values
+  , Value'(..), Value
+  , FP80Value(..)
+  , ValMd'(..), ValMd
+  , KindMd
+  , FnMdAttachments
+  , GlobalMdAttachments
+  , DebugLoc'(..), DebugLoc
+  , isConst
+    -- * Value Elimination
+  , elimValSymbol
+  , elimValInteger
+    -- * Statements
+  , Stmt'(..), Stmt
+  , stmtInstr
+  , stmtMetadata
+  , extendMetadata
+    -- * Constant Expressions
+  , ConstExpr'(..), ConstExpr
+    -- * DWARF Debug Info
+  , DebugInfo'(..), DebugInfo
+  , DILabel, DILabel'(..)
+  , DIImportedEntity, DIImportedEntity'(..)
+  , DITemplateTypeParameter, DITemplateTypeParameter'(..)
+  , DITemplateValueParameter, DITemplateValueParameter'(..)
+  , DINameSpace, DINameSpace'(..)
+  , DwarfAttrEncoding
+  , DwarfLang
+  , DwarfTag
+  , DwarfVirtuality
+  , DIFlags
+  , DIEmissionKind
+  , DIBasicType(..)
+  , DICompileUnit'(..), DICompileUnit
+  , DICompositeType'(..), DICompositeType
+  , DIDerivedType'(..), DIDerivedType
+  , DIExpression(..)
+  , DIFile(..)
+  , DIGlobalVariable'(..), DIGlobalVariable
+  , DIGlobalVariableExpression'(..), DIGlobalVariableExpression
+  , DILexicalBlock'(..), DILexicalBlock
+  , DILexicalBlockFile'(..), DILexicalBlockFile
+  , DILocalVariable'(..), DILocalVariable
+  , DISubprogram'(..), DISubprogram
+  , DISubrange(..)
+  , DISubroutineType'(..), DISubroutineType
+  , DIArgList'(..), DIArgList
+    -- * Aggregate Utilities
+  , IndexResult(..)
+  , isInvalid
+  , resolveGepFull
+  , resolveGep
+  , resolveGepBody
+  , isGepIndex
+  , isGepStructIndex
+  , resolveValueIndex
+  ) where
 
 import Data.Functor.Identity (Identity(..))
 import Data.Coerce (coerce)
