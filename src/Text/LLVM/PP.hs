@@ -47,6 +47,11 @@ data Config = Config { cfgLoadImplicitType :: Bool
                        -- instruction is implied.
 
                      , cfgUseDILocation :: Bool
+
+                     , cfgCommaSep :: [Doc] -> Doc
+                       -- ^ Replaces certain uses of fillSep with hsep to layout
+                       -- faster if the page is known to have unbounded width.
+
                      }
 
 withConfig :: Config -> (LLVM => a) -> a
@@ -62,14 +67,17 @@ ppLLVM35 = ppLLVM36
 ppLLVM36 = withConfig Config { cfgLoadImplicitType = True
                              , cfgGEPImplicitType  = True
                              , cfgUseDILocation    = False
+                             , cfgCommaSep         = hsep
                              }
 ppLLVM37 = withConfig Config { cfgLoadImplicitType = False
                              , cfgGEPImplicitType  = False
                              , cfgUseDILocation    = True
+                             , cfgCommaSep         = hsep
                              }
 ppLLVM38 = withConfig Config { cfgLoadImplicitType = False
                              , cfgGEPImplicitType  = False
                              , cfgUseDILocation    = True
+                             , cfgCommaSep         = hsep
                              }
 
 checkConfig :: LLVM => (Config -> Bool) -> Bool
@@ -103,7 +111,7 @@ ppSourceName (Just sn) = "source_filename" <+> char '=' <+> doubleQuotes (text s
 
 -- Metadata --------------------------------------------------------------------
 
-ppNamedMd :: NamedMd -> Doc
+ppNamedMd :: LLVM => NamedMd -> Doc
 ppNamedMd nm =
   sep [ ppMetadata (text (nmName nm)) <+> char '='
       , ppMetadata (braces (commas (map (ppMetadata . int) (nmValues nm)))) ]
@@ -236,7 +244,7 @@ ppFloatType Fp128     = "fp128"
 ppFloatType X86_fp80  = "x86_fp80"
 ppFloatType PPC_fp128 = "ppc_fp128"
 
-ppType :: Type -> Doc
+ppType :: LLVM => Type -> Doc
 ppType (PrimType pt)     = ppPrimType pt
 ppType (Alias i)         = ppIdent i
 ppType (Array len ty)    = brackets (integral len <+> char 'x' <+> ppType ty)
@@ -248,7 +256,7 @@ ppType (FunTy r as va)   = ppType r <> ppArgList va (map ppType as)
 ppType (Vector len pt)   = angles (integral len <+> char 'x' <+> ppType pt)
 ppType Opaque            = "opaque"
 
-ppTypeDecl :: TypeDecl -> Doc
+ppTypeDecl :: LLVM => TypeDecl -> Doc
 ppTypeDecl td = ppIdent (typeName td) <+> char '='
             <+> "type" <+> ppType (typeValue td)
 
@@ -289,7 +297,7 @@ ppStructGlobalAttrs ga
   constant | gaConstant ga = "constant"
            | otherwise     = "global"
 
-ppDeclare :: Declare -> Doc
+ppDeclare :: LLVM => Declare -> Doc
 ppDeclare d = "declare"
           <+> ppMaybe ppLinkage (decLinkage d)
           <+> ppMaybe ppVisibility (decVisibility d)
@@ -432,7 +440,7 @@ ppGC  = doubleQuotes . text . getGC
 
 -- Expressions -----------------------------------------------------------------
 
-ppTyped :: (a -> Doc) -> Typed a -> Doc
+ppTyped :: LLVM => (a -> Doc) -> Typed a -> Doc
 ppTyped fmt ty = ppType (typedType ty) <+> fmt (typedValue ty)
 
 ppSignBits :: Bool -> Bool -> Doc
@@ -645,10 +653,10 @@ ppClause c = case c of
   Filter tv -> "filter" <+> ppTyped ppValue tv
 
 
-ppTypedLabel :: BlockLabel -> Doc
+ppTypedLabel :: LLVM => BlockLabel -> Doc
 ppTypedLabel i = ppType (PrimType Label) <+> ppLabel i
 
-ppSwitchEntry :: Type -> (Integer,BlockLabel) -> Doc
+ppSwitchEntry :: LLVM => Type -> (Integer,BlockLabel) -> Doc
 ppSwitchEntry ty (i,l) = ppType ty <+> integer i <> comma <+> ppTypedLabel l
 
 ppVectorIndex :: LLVM => Value -> Doc
@@ -972,7 +980,7 @@ ppDITemplateValueParameter' pp vp = "!DITemplateValueParameter"
 ppDITemplateValueParameter :: LLVM => DITemplateValueParameter -> Doc
 ppDITemplateValueParameter = ppDITemplateValueParameter' ppLabel
 
-ppDIBasicType :: DIBasicType -> Doc
+ppDIBasicType :: LLVM => DIBasicType -> Doc
 ppDIBasicType bt = "!DIBasicType"
   <> parens (commas [ "tag:"      <+> integral (dibtTag bt)
                     , "name:"     <+> doubleQuotes (text (dibtName bt))
@@ -1069,18 +1077,18 @@ ppDIDerivedType' pp dt = "!DIDerivedType"
 ppDIDerivedType :: LLVM => DIDerivedType -> Doc
 ppDIDerivedType = ppDIDerivedType' ppLabel
 
-ppDIEnumerator :: String -> Integer -> Bool -> Doc
+ppDIEnumerator :: LLVM => String -> Integer -> Bool -> Doc
 ppDIEnumerator n v u = "!DIEnumerator"
   <> parens (commas [ "name:"  <+> doubleQuotes (text n)
                     , "value:" <+> integral v
                     , "isUnsigned:" <+> ppBool u
                     ])
 
-ppDIExpression :: DIExpression -> Doc
+ppDIExpression :: LLVM => DIExpression -> Doc
 ppDIExpression e = "!DIExpression"
   <> parens (commas (map integral (dieElements e)))
 
-ppDIFile :: DIFile -> Doc
+ppDIFile :: LLVM => DIFile -> Doc
 ppDIFile f = "!DIFile"
   <> parens (commas [ "filename:"  <+> doubleQuotes (text (difFilename f))
                     , "directory:" <+> doubleQuotes (text (difDirectory f))
@@ -1190,7 +1198,7 @@ ppDISubprogram' pp sp = "!DISubprogram"
 ppDISubprogram :: LLVM => DISubprogram -> Doc
 ppDISubprogram = ppDISubprogram' ppLabel
 
-ppDISubrange :: DISubrange -> Doc
+ppDISubrange :: LLVM => DISubrange -> Doc
 ppDISubrange sr = "!DISubrange"
   <> parens (commas [ "count:" <+> integral (disrCount sr)
                     , "lowerBound:" <+> integral (disrLowerBound sr)
@@ -1220,7 +1228,7 @@ ppBool b | b         = "true"
          | otherwise = "false"
 
 -- | Build a variable-argument argument list.
-ppArgList :: Bool -> [Doc] -> Doc
+ppArgList :: LLVM => Bool -> [Doc] -> Doc
 ppArgList True  ds = parens (commas (ds ++ ["..."]))
 ppArgList False ds = parens (commas ds)
 
@@ -1234,12 +1242,12 @@ opt :: Bool -> Doc -> Doc
 opt True  = id
 opt False = const empty
 
-commas :: [Doc] -> Doc
-commas  = fsep . punctuate comma
+commas :: LLVM => [Doc] -> Doc
+commas  = cfgCommaSep ?config . punctuate comma
 
 -- | Helpful for all of the optional fields that appear in the
 -- metadata values
-mcommas :: [Maybe Doc] -> Doc
+mcommas :: LLVM => [Maybe Doc] -> Doc
 mcommas = commas . catMaybes
 
 angles :: Doc -> Doc
