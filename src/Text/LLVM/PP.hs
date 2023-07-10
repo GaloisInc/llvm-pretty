@@ -1008,7 +1008,7 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
        , pure ("splitDebugInlining:"    <+> ppBool (dicuSplitDebugInlining cu))
        , pure ("debugInfoForProfiling:" <+> ppBool (dicuDebugInfoForProf cu))
        , pure ("nameTableKind:"         <+> integral (dicuNameTableKind cu))
-       , pure ("rangesBaseAddress:"     <+> ppBool (dicuRangesBaseAddress cu))
+       ,     (("rangesBaseAddress:"     <+>) . ppBool) <$> (dicuRangesBaseAddress cu)
        ,     (("sysroot:"               <+>) . doubleQuotes . text)
              <$> (dicuSysRoot cu)
        ,     (("sdk:"                   <+>) . doubleQuotes . text)
