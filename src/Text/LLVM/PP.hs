@@ -933,7 +933,7 @@ ppDIImportedEntity = ppDIImportedEntity' ppLabel
 ppDILabel' :: LLVM => (i -> Doc) -> DILabel' i -> Doc
 ppDILabel' pp ie = "!DILabel"
   <> parens (mcommas [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
-                     , pure ("name:" <+> text (dilName ie))
+                     , pure ("name:" <+> ppStringLiteral (dilName ie))
                      , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
                      , pure ("line:"   <+> integral (dilLine ie))
                      ])
