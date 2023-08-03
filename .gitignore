@@ -4,8 +4,5 @@ cabal.sandbox.config
 .stack-work/
 .ghc.environment.*
 /dist-newstyle
-/fuzz-temp-test.c
-/fuzz-temp-test.bc
-/fuzz-results
 .boring
 _darcs/
