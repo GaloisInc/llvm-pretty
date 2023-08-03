@@ -11,15 +11,16 @@
 
 module Output ( tests ) where
 
+import           Control.Monad ( unless )
 import qualified Data.Text as T
 import qualified Test.Tasty as Tasty
 import           Test.Tasty.HUnit
 import qualified Text.PrettyPrint as PP
 
-import Text.LLVM.AST
-import Text.LLVM.PP
+import           Text.LLVM.AST
+import           Text.LLVM.PP
 
-import TQQDefs
+import           TQQDefs
 
 tests :: Tasty.TestTree
 tests = Tasty.testGroup "LLVM pretty-printing output tests"
@@ -28,9 +29,11 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
         -- LLVM versions.  The pretty output will be checked at different LLVM
         -- versions to ensure that the desired version-specific changes in the
         -- output are seen.
+        s1 :: Stmt
         s1 = Effect
              (GEP True (Alias (Ident "hi")) (Typed Opaque dcu) [])
-             [] :: Stmt
+             []
+        dcu :: Value
         dcu = ValMd
               $ ValMdDebugInfo
               $ DebugInfoCompileUnit
@@ -56,7 +59,6 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
                               , dicuSysRoot = Just "the root"
                               , dicuSDK = Just "SDK"
                               }
-              :: Value
         dtt = ValMdDebugInfo
               $ DebugInfoTemplateTypeParameter
               $ DITemplateTypeParameter { dittpName = Just "ttp"
@@ -170,7 +172,7 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
 
 assertEqLines :: T.Text -> T.Text -> IO ()
 assertEqLines t1 t2 =
-  if t1 == t2 then return () else assertFailure $ multiLineDiff t1 t2
+  unless (t1 == t2) $ assertFailure $ multiLineDiff t1 t2
 
 -- | The multiLineDiff is another helper function that can be used to
 -- format a line-by-line difference display of two Text
