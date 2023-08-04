@@ -34,8 +34,6 @@ import Prelude hiding ((<>))
 
 -- Pretty-printer Config -------------------------------------------------------
 
-type LLVM = ?config :: Config
-
 -- | The differences between various versions of the llvm textual AST.
 data Config = Config { cfgLoadImplicitType :: Bool
                        -- ^ True when the type of the result of a load is
@@ -49,11 +47,11 @@ data Config = Config { cfgLoadImplicitType :: Bool
                      , cfgUseDILocation :: Bool
                      }
 
-withConfig :: Config -> (LLVM => a) -> a
+withConfig :: Config -> ((?config :: Config) => a) -> a
 withConfig cfg body = let ?config = cfg in body
 
 
-ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37, ppLLVM38 :: (LLVM => a) -> a
+ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37, ppLLVM38 :: ((?config :: Config) => a) -> a
 
 ppLLVM = ppLLVM38
 
@@ -72,13 +70,30 @@ ppLLVM38 = withConfig Config { cfgLoadImplicitType = False
                              , cfgUseDILocation    = True
                              }
 
-checkConfig :: LLVM => (Config -> Bool) -> Bool
+checkConfig :: (?config :: Config) => (Config -> Bool) -> Bool
 checkConfig p = p ?config
+
+
+-- | This type encapsulates the ability to convert an object into Doc
+-- format. Using this abstraction allows for a consolidated representation of the
+-- declaration.  Most pretty-printing for LLVM elements will have a `Fmt a`
+-- function signature for that element.
+type Fmt a = (?config :: Config) => a -> Doc
+
+
+-- | The LLVMPretty class has instances for most AST elements.  It allows the
+-- conversion of an AST element (and its sub-elements) into a Doc assembly format
+-- by simply using the 'llvmPP' method rather than needing to explicitly invoke
+-- the specific pretty-printing function for that element.
+class LLVMPretty a where llvmPP :: Fmt a
+
+instance LLVMPretty Module where llvmPP = ppModule
+instance LLVMPretty Symbol where llvmPP = ppSymbol
 
 
 -- Modules ---------------------------------------------------------------------
 
-ppModule :: LLVM => Module -> Doc
+ppModule :: Fmt Module
 ppModule m = foldr ($+$) empty
   $ ppSourceName (modSourceName m)
   : ppTargetTriple (modTriple m)
@@ -97,18 +112,18 @@ ppModule m = foldr ($+$) empty
 
 -- Source filename -------------------------------------------------------------
 
-ppSourceName :: Maybe String -> Doc
+ppSourceName :: Fmt (Maybe String)
 ppSourceName Nothing   = empty
 ppSourceName (Just sn) = "source_filename" <+> char '=' <+> doubleQuotes (text sn)
 
 -- Metadata --------------------------------------------------------------------
 
-ppNamedMd :: NamedMd -> Doc
+ppNamedMd :: Fmt NamedMd
 ppNamedMd nm =
   sep [ ppMetadata (text (nmName nm)) <+> char '='
       , ppMetadata (braces (commas (map (ppMetadata . int) (nmValues nm)))) ]
 
-ppUnnamedMd :: LLVM => UnnamedMd -> Doc
+ppUnnamedMd :: Fmt UnnamedMd
 ppUnnamedMd um =
   sep [ ppMetadata (int (umIndex um)) <+> char '='
       , distinct <+> ppValMd (umValues um) ]
@@ -119,7 +134,7 @@ ppUnnamedMd um =
 
 -- Aliases ---------------------------------------------------------------------
 
-ppGlobalAlias :: LLVM => GlobalAlias -> Doc
+ppGlobalAlias :: Fmt GlobalAlias
 ppGlobalAlias g = ppSymbol (aliasName g)
               <+> char '='
               <+> ppMaybe ppLinkage (aliasLinkage g)
@@ -135,20 +150,20 @@ ppGlobalAlias g = ppSymbol (aliasName g)
 -- Target triple ---------------------------------------------------------------
 
 -- | Pretty print a 'TargetTriple'
-ppTargetTriple :: TargetTriple -> Doc
+ppTargetTriple :: Fmt TargetTriple
 ppTargetTriple triple = "target" <+> "triple" <+> char '='
     <+> doubleQuotes (text (printTriple triple))
 
 -- Data Layout -----------------------------------------------------------------
 
 -- | Pretty print a data layout specification.
-ppDataLayout :: DataLayout -> Doc
+ppDataLayout :: Fmt DataLayout
 ppDataLayout [] = empty
 ppDataLayout ls = "target" <+> "datalayout" <+> char '='
     <+> doubleQuotes (hcat (intersperse (char '-') (map ppLayoutSpec ls)))
 
 -- | Pretty print a single layout specification.
-ppLayoutSpec :: LayoutSpec -> Doc
+ppLayoutSpec :: Fmt LayoutSpec
 ppLayoutSpec ls =
   case ls of
     BigEndian                 -> char 'E'
@@ -167,14 +182,14 @@ ppLayoutSpec ls =
     Mangling m                -> char 'm' <> char ':' <> ppMangling m
 
 -- | Pretty-print the common case for data layout specifications.
-ppLayoutBody :: Int -> Int -> Maybe Int -> Doc
+ppLayoutBody :: Int -> Int -> Fmt (Maybe Int)
 ppLayoutBody size abi mb = int size <> char ':' <> int abi <> pref
   where
   pref = case mb of
     Nothing -> empty
     Just p  -> char ':' <> int p
 
-ppMangling :: Mangling -> Doc
+ppMangling :: Fmt Mangling
 ppMangling ElfMangling         = char 'e'
 ppMangling MipsMangling        = char 'm'
 ppMangling MachOMangling       = char 'o'
@@ -184,7 +199,7 @@ ppMangling WindowsCoffMangling = char 'w'
 -- Inline Assembly -------------------------------------------------------------
 
 -- | Pretty-print the inline assembly block.
-ppInlineAsm :: InlineAsm -> Doc
+ppInlineAsm :: Fmt InlineAsm
 ppInlineAsm  = foldr ($+$) empty . map ppLine
   where
   ppLine l = "module asm" <+> doubleQuotes (text l)
@@ -192,7 +207,7 @@ ppInlineAsm  = foldr ($+$) empty . map ppLine
 
 -- Identifiers -----------------------------------------------------------------
 
-ppIdent :: Ident -> Doc
+ppIdent :: Fmt Ident
 ppIdent (Ident n)
   | validIdentifier n = char '%' <> text n
   | otherwise         = char '%' <> ppStringLiteral n
@@ -212,7 +227,7 @@ validIdentifier s@(c0 : cs)
 
 -- Symbols ---------------------------------------------------------------------
 
-ppSymbol :: Symbol -> Doc
+ppSymbol :: Fmt Symbol
 ppSymbol (Symbol n)
   | validIdentifier n = char '@' <> text n
   | otherwise         = char '@' <> ppStringLiteral n
@@ -220,7 +235,7 @@ ppSymbol (Symbol n)
 
 -- Types -----------------------------------------------------------------------
 
-ppPrimType :: PrimType -> Doc
+ppPrimType :: Fmt PrimType
 ppPrimType Label          = "label"
 ppPrimType Void           = "void"
 ppPrimType (Integer i)    = char 'i' <> integer (toInteger i)
@@ -228,7 +243,7 @@ ppPrimType (FloatType ft) = ppFloatType ft
 ppPrimType X86mmx         = "x86mmx"
 ppPrimType Metadata       = "metadata"
 
-ppFloatType :: FloatType -> Doc
+ppFloatType :: Fmt FloatType
 ppFloatType Half      = "half"
 ppFloatType Float     = "float"
 ppFloatType Double    = "double"
@@ -236,7 +251,7 @@ ppFloatType Fp128     = "fp128"
 ppFloatType X86_fp80  = "x86_fp80"
 ppFloatType PPC_fp128 = "ppc_fp128"
 
-ppType :: Type -> Doc
+ppType :: Fmt Type
 ppType (PrimType pt)     = ppPrimType pt
 ppType (Alias i)         = ppIdent i
 ppType (Array len ty)    = brackets (integral len <+> char 'x' <+> ppType ty)
@@ -248,14 +263,14 @@ ppType (FunTy r as va)   = ppType r <> ppArgList va (map ppType as)
 ppType (Vector len pt)   = angles (integral len <+> char 'x' <+> ppType pt)
 ppType Opaque            = "opaque"
 
-ppTypeDecl :: TypeDecl -> Doc
+ppTypeDecl :: Fmt TypeDecl
 ppTypeDecl td = ppIdent (typeName td) <+> char '='
             <+> "type" <+> ppType (typeValue td)
 
 
 -- Declarations ----------------------------------------------------------------
 
-ppGlobal :: LLVM => Global -> Doc
+ppGlobal :: Fmt Global
 ppGlobal g = ppSymbol (globalSym g) <+> char '='
          <+> ppTheGlobalAttrs (globalAttrs g)
          <+> ppType (globalType g) <+> ppMaybe ppValue (globalValue g)
@@ -267,7 +282,7 @@ ppGlobal g = ppSymbol (globalSym g) <+> char '='
   ppTheGlobalAttrs | isStruct = ppStructGlobalAttrs
                     | otherwise = ppGlobalAttrs
 
-ppGlobalAttrs :: GlobalAttrs -> Doc
+ppGlobalAttrs :: Fmt GlobalAttrs
 ppGlobalAttrs ga
     -- LLVM 3.8 does not emit or parse linkage information w/ hidden visibility
     | Just HiddenVisibility <- gaVisibility ga =
@@ -277,7 +292,7 @@ ppGlobalAttrs ga
   constant | gaConstant ga = "constant"
            | otherwise     = "global"
 
-ppStructGlobalAttrs :: GlobalAttrs -> Doc
+ppStructGlobalAttrs :: Fmt GlobalAttrs
 ppStructGlobalAttrs ga
     -- LLVM 3.8 does not emit or parse external linkage for
     -- global structs
@@ -289,7 +304,7 @@ ppStructGlobalAttrs ga
   constant | gaConstant ga = "constant"
            | otherwise     = "global"
 
-ppDeclare :: Declare -> Doc
+ppDeclare :: Fmt Declare
 ppDeclare d = "declare"
           <+> ppMaybe ppLinkage (decLinkage d)
           <+> ppMaybe ppVisibility (decVisibility d)
@@ -299,13 +314,13 @@ ppDeclare d = "declare"
           <+> hsep (ppFunAttr <$> decAttrs d)
           <> maybe empty ((char ' ' <>) . ppComdatName) (decComdat d)
 
-ppComdatName :: String -> Doc
+ppComdatName :: Fmt String
 ppComdatName s = "comdat" <> parens (char '$' <> text s)
 
-ppComdat :: (String,SelectionKind) -> Doc
+ppComdat :: Fmt (String,SelectionKind)
 ppComdat (n,k) = ppComdatName n <+> char '=' <+> text "comdat" <+> ppSelectionKind k
 
-ppSelectionKind :: SelectionKind -> Doc
+ppSelectionKind :: Fmt SelectionKind
 ppSelectionKind k =
     case k of
       ComdatAny             -> "any"
@@ -314,7 +329,7 @@ ppSelectionKind k =
       ComdatNoDuplicates    -> "noduplicates"
       ComdatSameSize        -> "samesize"
 
-ppDefine :: LLVM => Define -> Doc
+ppDefine :: Fmt Define
 ppDefine d = "define"
          <+> ppMaybe ppLinkage (defLinkage d)
          <+> ppMaybe ppVisibility (defVisibility d)
@@ -336,7 +351,7 @@ ppDefine d = "define"
 
 -- FunAttr ---------------------------------------------------------------------
 
-ppFunAttr :: FunAttr -> Doc
+ppFunAttr :: Fmt FunAttr
 ppFunAttr a =
   case a of
     AlignStack w    -> text "alignstack" <> parens (int w)
@@ -370,28 +385,28 @@ ppFunAttr a =
 
 -- Basic Blocks ----------------------------------------------------------------
 
-ppLabelDef :: BlockLabel -> Doc
+ppLabelDef :: Fmt BlockLabel
 ppLabelDef (Named (Ident l)) = text l <> char ':'
 ppLabelDef (Anon i)          = char ';' <+> "<label>:" <+> int i
 
-ppLabel :: BlockLabel -> Doc
+ppLabel :: Fmt BlockLabel
 ppLabel (Named l) = ppIdent l
 ppLabel (Anon i)  = char '%' <> int i
 
-ppBasicBlock :: LLVM => BasicBlock -> Doc
+ppBasicBlock :: Fmt BasicBlock
 ppBasicBlock bb = ppMaybe ppLabelDef (bbLabel bb)
               $+$ nest 2 (vcat (map ppStmt (bbStmts bb)))
 
 
 -- Statements ------------------------------------------------------------------
 
-ppStmt :: LLVM => Stmt -> Doc
+ppStmt :: Fmt Stmt
 ppStmt stmt = case stmt of
   Result var i mds -> ppIdent var <+> char '=' <+> ppInstr i
                    <> ppAttachedMetadata mds
   Effect i mds     -> ppInstr i <> ppAttachedMetadata mds
 
-ppAttachedMetadata :: LLVM => [(String,ValMd)] -> Doc
+ppAttachedMetadata :: Fmt [(String,ValMd)]
 ppAttachedMetadata mds
   | null mds  = empty
   | otherwise = comma <+> commas (map step mds)
@@ -401,7 +416,7 @@ ppAttachedMetadata mds
 
 -- Linkage ---------------------------------------------------------------------
 
-ppLinkage :: Linkage -> Doc
+ppLinkage :: Fmt Linkage
 ppLinkage linkage = case linkage of
   Private                  -> "private"
   LinkerPrivate            -> "linker_private"
@@ -420,28 +435,28 @@ ppLinkage linkage = case linkage of
   DLLImport                -> "dllimport"
   DLLExport                -> "dllexport"
 
-ppVisibility :: Visibility -> Doc
+ppVisibility :: Fmt Visibility
 ppVisibility v = case v of
     DefaultVisibility   -> "default"
     HiddenVisibility    -> "hidden"
     ProtectedVisibility -> "protected"
 
-ppGC :: GC -> Doc
+ppGC :: Fmt GC
 ppGC  = doubleQuotes . text . getGC
 
 
 -- Expressions -----------------------------------------------------------------
 
-ppTyped :: (a -> Doc) -> Typed a -> Doc
+ppTyped :: Fmt a -> Fmt (Typed a)
 ppTyped fmt ty = ppType (typedType ty) <+> fmt (typedValue ty)
 
-ppSignBits :: Bool -> Bool -> Doc
+ppSignBits :: Bool -> Fmt Bool
 ppSignBits nuw nsw = opt nuw "nuw" <+> opt nsw "nsw"
 
-ppExact :: Bool -> Doc
+ppExact :: Fmt Bool
 ppExact e = opt e "exact"
 
-ppArithOp :: ArithOp -> Doc
+ppArithOp :: Fmt ArithOp
 ppArithOp (Add nuw nsw) = "add" <+> ppSignBits nuw nsw
 ppArithOp FAdd          = "fadd"
 ppArithOp (Sub nuw nsw) = "sub" <+> ppSignBits nuw nsw
@@ -455,10 +470,10 @@ ppArithOp URem          = "urem"
 ppArithOp SRem          = "srem"
 ppArithOp FRem          = "frem"
 
-ppUnaryArithOp :: UnaryArithOp -> Doc
+ppUnaryArithOp :: Fmt UnaryArithOp
 ppUnaryArithOp FNeg = "fneg"
 
-ppBitOp :: BitOp -> Doc
+ppBitOp :: Fmt BitOp
 ppBitOp (Shl nuw nsw) = "shl"  <+> ppSignBits nuw nsw
 ppBitOp (Lshr e)      = "lshr" <+> ppExact e
 ppBitOp (Ashr e)      = "ashr" <+> ppExact e
@@ -466,7 +481,7 @@ ppBitOp And           = "and"
 ppBitOp Or            = "or"
 ppBitOp Xor           = "xor"
 
-ppConvOp :: ConvOp -> Doc
+ppConvOp :: Fmt ConvOp
 ppConvOp Trunc    = "trunc"
 ppConvOp ZExt     = "zext"
 ppConvOp SExt     = "sext"
@@ -480,7 +495,7 @@ ppConvOp PtrToInt = "ptrtoint"
 ppConvOp IntToPtr = "inttoptr"
 ppConvOp BitCast  = "bitcast"
 
-ppAtomicOrdering :: AtomicOrdering -> Doc
+ppAtomicOrdering :: Fmt AtomicOrdering
 ppAtomicOrdering Unordered = text "unordered"
 ppAtomicOrdering Monotonic = text "monotonic"
 ppAtomicOrdering Acquire   = text "acquire"
@@ -488,7 +503,7 @@ ppAtomicOrdering Release   = text "release"
 ppAtomicOrdering AcqRel    = text "acq_rel"
 ppAtomicOrdering SeqCst    = text "seq_cst"
 
-ppAtomicOp :: AtomicRWOp -> Doc
+ppAtomicOp :: Fmt AtomicRWOp
 ppAtomicOp AtomicXchg = "xchg"
 ppAtomicOp AtomicAdd  = "add"
 ppAtomicOp AtomicSub  = "sub"
@@ -501,11 +516,11 @@ ppAtomicOp AtomicMin  = "min"
 ppAtomicOp AtomicUMax = "umax"
 ppAtomicOp AtomicUMin = "umin"
 
-ppScope ::  Maybe String -> Doc
+ppScope ::  Fmt (Maybe String)
 ppScope Nothing = empty
 ppScope (Just s) = "syncscope" <> parens (doubleQuotes (text s))
 
-ppInstr :: LLVM => Instr -> Doc
+ppInstr :: Fmt Instr
 ppInstr instr = case instr of
   Ret tv                 -> "ret" <+> ppTyped ppValue tv
   RetVoid                -> "ret void"
@@ -597,7 +612,7 @@ ppInstr instr = case instr of
   Resume tv           -> "resume" <+> ppTyped ppValue tv
   Freeze tv           -> "freeze" <+> ppTyped ppValue tv
 
-ppLoad :: LLVM => Type -> Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Maybe Align -> Doc
+ppLoad :: Type -> Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Fmt (Maybe Align)
 ppLoad ty ptr mo ma =
   "load" <+> (if isAtomic   then "atomic" else empty)
          <+> (if isImplicit then empty    else explicit)
@@ -617,12 +632,10 @@ ppLoad ty ptr mo ma =
 
   explicit = ppType ty <> comma
 
-ppStore :: LLVM
-        => Typed (Value' BlockLabel)
+ppStore :: Typed (Value' BlockLabel)
         -> Typed (Value' BlockLabel)
         -> Maybe AtomicOrdering
-        -> Maybe Align
-        -> Doc
+        -> Fmt (Maybe Align)
 ppStore ptr val mo ma =
   "store" <+> (if isJust mo  then "atomic" else empty)
           <+> ppTyped ppValue ptr <> comma
@@ -633,32 +646,32 @@ ppStore ptr val mo ma =
           <> ppAlign ma
 
 
-ppClauses :: LLVM => Bool -> [Clause] -> Doc
+ppClauses :: Bool -> Fmt [Clause]
 ppClauses isCleanup cs = vcat (cleanup : map ppClause cs)
   where
   cleanup | isCleanup = "cleanup"
           | otherwise = empty
 
-ppClause :: LLVM => Clause -> Doc
+ppClause :: Fmt Clause
 ppClause c = case c of
   Catch  tv -> "catch"  <+> ppTyped ppValue tv
   Filter tv -> "filter" <+> ppTyped ppValue tv
 
 
-ppTypedLabel :: BlockLabel -> Doc
+ppTypedLabel :: Fmt BlockLabel
 ppTypedLabel i = ppType (PrimType Label) <+> ppLabel i
 
-ppSwitchEntry :: Type -> (Integer,BlockLabel) -> Doc
+ppSwitchEntry :: Type -> Fmt (Integer,BlockLabel)
 ppSwitchEntry ty (i,l) = ppType ty <+> integer i <> comma <+> ppTypedLabel l
 
-ppVectorIndex :: LLVM => Value -> Doc
+ppVectorIndex :: Fmt Value
 ppVectorIndex i = ppType (PrimType (Integer 32)) <+> ppValue i
 
-ppAlign :: Maybe Align -> Doc
+ppAlign :: Fmt (Maybe Align)
 ppAlign Nothing      = empty
 ppAlign (Just align) = comma <+> "align" <+> int align
 
-ppAlloca :: LLVM => Type -> Maybe (Typed Value) -> Maybe Int -> Doc
+ppAlloca :: Type -> Maybe (Typed Value) -> Fmt (Maybe Int)
 ppAlloca ty mbLen mbAlign = "alloca" <+> ppType ty <> len <> align
   where
   len = fromMaybe empty $ do
@@ -668,7 +681,7 @@ ppAlloca ty mbLen mbAlign = "alloca" <+> ppType ty <> len <> align
     a <- mbAlign
     return (comma <+> "align" <+> int a)
 
-ppCall :: LLVM => Bool -> Type -> Value -> [Typed Value] -> Doc
+ppCall :: Bool -> Type -> Value -> Fmt [Typed Value]
 ppCall tc ty f args
   | tc        = "tail" <+> body
   | otherwise = body
@@ -678,7 +691,7 @@ ppCall tc ty f args
 
 -- | Note that the textual syntax changed in LLVM 10 (@callbr@ was introduced in
 -- LLVM 9).
-ppCallBr :: LLVM => Type -> Value -> [Typed Value] -> BlockLabel -> [BlockLabel] -> Doc
+ppCallBr :: Type -> Value -> [Typed Value] -> BlockLabel -> Fmt [BlockLabel]
 ppCallBr ty f args to indirectDests =
   "callbr"
      <+> ppCallSym ty f <> parens (commas (map (ppTyped ppValue) args))
@@ -699,7 +712,7 @@ ppCallBr ty f args to indirectDests =
 -- The LLVM Language Reference Manual indicates that either @<ty>@ or @<fnty>@
 -- can be used, but in practice, @<ty>@ is typically preferred unless the
 -- function type involves varargs. We adopt the same convention here.
-ppCallSym :: LLVM => Type -> Value -> Doc
+ppCallSym :: Type -> Fmt Value
 ppCallSym ty val = pp_ty <+> ppValue val
   where
     pp_ty =
@@ -711,7 +724,7 @@ ppCallSym ty val = pp_ty <+> ppValue val
           -> ppType res
         _ -> ppType ty
 
-ppGEP :: LLVM => Bool -> Type -> Typed Value -> [Typed Value] -> Doc
+ppGEP :: Bool -> Type -> Typed Value -> Fmt [Typed Value]
 ppGEP ib ty ptr ixs =
   "getelementptr" <+> inbounds
     <+> (if isImplicit then empty else explicit)
@@ -724,7 +737,7 @@ ppGEP ib ty ptr ixs =
   inbounds | ib        = "inbounds"
            | otherwise = empty
 
-ppInvoke :: LLVM => Type -> Value -> [Typed Value] -> BlockLabel -> BlockLabel -> Doc
+ppInvoke :: Type -> Value -> [Typed Value] -> BlockLabel -> Fmt BlockLabel
 ppInvoke ty f args to uw = body
   where
   body = "invoke" <+> ppCallSym ty f
@@ -732,10 +745,10 @@ ppInvoke ty f args to uw = body
      <+> "to" <+> ppType (PrimType Label) <+> ppLabel to
      <+> "unwind" <+> ppType (PrimType Label) <+> ppLabel uw
 
-ppPhiArg :: LLVM => (Value,BlockLabel) -> Doc
+ppPhiArg :: Fmt (Value,BlockLabel)
 ppPhiArg (v,l) = char '[' <+> ppValue v <> comma <+> ppLabel l <+> char ']'
 
-ppICmpOp :: ICmpOp -> Doc
+ppICmpOp :: Fmt ICmpOp
 ppICmpOp Ieq  = "eq"
 ppICmpOp Ine  = "ne"
 ppICmpOp Iugt = "ugt"
@@ -747,7 +760,7 @@ ppICmpOp Isge = "sge"
 ppICmpOp Islt = "slt"
 ppICmpOp Isle = "sle"
 
-ppFCmpOp :: FCmpOp -> Doc
+ppFCmpOp :: Fmt FCmpOp
 ppFCmpOp Ffalse = "false"
 ppFCmpOp Foeq   = "oeq"
 ppFCmpOp Fogt   = "ogt"
@@ -765,7 +778,7 @@ ppFCmpOp Fune   = "une"
 ppFCmpOp Funo   = "uno"
 ppFCmpOp Ftrue  = "true"
 
-ppValue' :: LLVM => (i -> Doc) -> Value' i -> Doc
+ppValue' :: Fmt i -> Fmt (Value' i)
 ppValue' pp val = case val of
   ValInteger i       -> integer i
   ValBool b          -> ppBool b
@@ -797,10 +810,10 @@ ppValue' pp val = case val of
   ValMd m            -> ppValMd' pp m
   ValPoison          -> "poison"
 
-ppValue :: LLVM => Value -> Doc
+ppValue :: Fmt Value
 ppValue = ppValue' ppLabel
 
-ppValMd' :: LLVM => (i -> Doc) -> ValMd' i -> Doc
+ppValMd' :: Fmt i -> Fmt (ValMd' i)
 ppValMd' pp m = case m of
   ValMdString str   -> ppMetadata (ppStringLiteral str)
   ValMdValue tv     -> ppTyped (ppValue' pp) tv
@@ -809,10 +822,10 @@ ppValMd' pp m = case m of
   ValMdLoc l        -> ppDebugLoc' pp l
   ValMdDebugInfo di -> ppDebugInfo' pp di
 
-ppValMd :: LLVM => ValMd -> Doc
+ppValMd :: Fmt ValMd
 ppValMd = ppValMd' ppLabel
 
-ppDebugLoc' :: LLVM => (i -> Doc) -> DebugLoc' i -> Doc
+ppDebugLoc' :: Fmt i -> Fmt (DebugLoc' i)
 ppDebugLoc' pp dl = (if cfgUseDILocation ?config then "!DILocation"
                                                  else "!MDLocation")
              <> parens (commas [ "line:"   <+> integral (dlLine dl)
@@ -826,23 +839,23 @@ ppDebugLoc' pp dl = (if cfgUseDILocation ?config then "!DILocation"
            Nothing -> empty
   mbImplicit = if dlImplicit dl then comma <+> "implicit" else empty
 
-ppDebugLoc :: LLVM => DebugLoc -> Doc
+ppDebugLoc :: Fmt DebugLoc
 ppDebugLoc = ppDebugLoc' ppLabel
 
-ppTypedValMd :: LLVM => ValMd -> Doc
+ppTypedValMd :: Fmt ValMd
 ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
 
-ppMetadata :: Doc -> Doc
+ppMetadata :: Fmt Doc
 ppMetadata body = char '!' <> body
 
-ppMetadataNode' :: LLVM => (i -> Doc) -> [Maybe (ValMd' i)] -> Doc
+ppMetadataNode' :: Fmt i -> Fmt [Maybe (ValMd' i)]
 ppMetadataNode' pp vs = ppMetadata (braces (commas (map arg vs)))
   where arg = maybe ("null") (ppValMd' pp)
 
-ppMetadataNode :: LLVM => [Maybe ValMd] -> Doc
+ppMetadataNode :: Fmt [Maybe ValMd]
 ppMetadataNode = ppMetadataNode' ppLabel
 
-ppStringLiteral :: String -> Doc
+ppStringLiteral :: Fmt String
 ppStringLiteral  = doubleQuotes . text . concatMap escape
   where
   escape c | c == '"' || c == '\\'  = '\\' : showHex (fromEnum c) ""
@@ -852,7 +865,7 @@ ppStringLiteral  = doubleQuotes . text . concatMap escape
   pad n | n < 0x10  = '0' : map toUpper (showHex n "")
         | otherwise =       map toUpper (showHex n "")
 
-ppAsm :: Bool -> Bool -> String -> String -> Doc
+ppAsm :: Bool -> Bool -> String -> Fmt String
 ppAsm s a i c =
   "asm" <+> sideeffect <+> alignstack
         <+> ppStringLiteral i <> comma <+> ppStringLiteral c
@@ -864,7 +877,7 @@ ppAsm s a i c =
              | otherwise = empty
 
 
-ppConstExpr' :: LLVM => (i -> Doc) -> ConstExpr' i -> Doc
+ppConstExpr' :: Fmt i -> Fmt (ConstExpr' i)
 ppConstExpr' pp expr =
   case expr of
     ConstGEP inb _mix ty ptr ixs  ->
@@ -885,12 +898,12 @@ ppConstExpr' pp expr =
         ppVal'       = ppValue' pp
         ppTyp'       = ppTyped ppVal'
 
-ppConstExpr :: LLVM => ConstExpr -> Doc
+ppConstExpr :: Fmt ConstExpr
 ppConstExpr = ppConstExpr' ppLabel
 
 -- DWARF Debug Info ------------------------------------------------------------
 
-ppDebugInfo' :: LLVM => (i -> Doc) -> DebugInfo' i -> Doc
+ppDebugInfo' :: Fmt i -> Fmt (DebugInfo' i)
 ppDebugInfo' pp di = case di of
   DebugInfoBasicType bt         -> ppDIBasicType bt
   DebugInfoCompileUnit cu       -> ppDICompileUnit' pp cu
@@ -914,10 +927,10 @@ ppDebugInfo' pp di = case di of
   DebugInfoLabel dil            -> ppDILabel' pp dil
   DebugInfoArgList args         -> ppDIArgList' pp args
 
-ppDebugInfo :: LLVM => DebugInfo -> Doc
+ppDebugInfo :: Fmt DebugInfo
 ppDebugInfo = ppDebugInfo' ppLabel
 
-ppDIImportedEntity' :: LLVM => (i -> Doc) -> DIImportedEntity' i -> Doc
+ppDIImportedEntity' :: Fmt i -> Fmt (DIImportedEntity' i)
 ppDIImportedEntity' pp ie = "!DIImportedEntity"
   <> parens (mcommas [ pure ("tag:"    <+> integral (diieTag ie))
                      , (("scope:"  <+>) . ppValMd' pp) <$> diieScope ie
@@ -927,10 +940,10 @@ ppDIImportedEntity' pp ie = "!DIImportedEntity"
                      , (("name:"   <+>) . text)        <$> diieName ie
                      ])
 
-ppDIImportedEntity :: LLVM => DIImportedEntity -> Doc
+ppDIImportedEntity :: Fmt DIImportedEntity
 ppDIImportedEntity = ppDIImportedEntity' ppLabel
 
-ppDILabel' :: LLVM => (i -> Doc) -> DILabel' i -> Doc
+ppDILabel' :: Fmt i -> Fmt (DILabel' i)
 ppDILabel' pp ie = "!DILabel"
   <> parens (mcommas [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
                      , pure ("name:" <+> text (dilName ie))
@@ -938,10 +951,10 @@ ppDILabel' pp ie = "!DILabel"
                      , pure ("line:"   <+> integral (dilLine ie))
                      ])
 
-ppDILabel :: LLVM => DILabel -> Doc
+ppDILabel :: Fmt DILabel
 ppDILabel = ppDILabel' ppLabel
 
-ppDINameSpace' :: LLVM => (i -> Doc) -> DINameSpace' i -> Doc
+ppDINameSpace' :: Fmt i -> Fmt (DINameSpace' i)
 ppDINameSpace' pp ns = "!DINameSpace"
   <> parens (mcommas [ ("name:"   <+>) . text <$> (dinsName ns)
                      , pure ("scope:"  <+> ppValMd' pp (dinsScope ns))
@@ -949,19 +962,19 @@ ppDINameSpace' pp ns = "!DINameSpace"
                      , pure ("line:"   <+> integral (dinsLine ns))
                      ])
 
-ppDINameSpace :: LLVM => DINameSpace -> Doc
+ppDINameSpace :: Fmt DINameSpace
 ppDINameSpace = ppDINameSpace' ppLabel
 
-ppDITemplateTypeParameter' :: LLVM => (i -> Doc) -> DITemplateTypeParameter' i -> Doc
+ppDITemplateTypeParameter' :: Fmt i -> Fmt (DITemplateTypeParameter' i)
 ppDITemplateTypeParameter' pp tp = "!DITemplateTypeParameter"
   <> parens (mcommas [ ("name:"  <+>) . text        <$> dittpName tp
                      , ("type:"  <+>) . ppValMd' pp <$> dittpType tp
                      ])
 
-ppDITemplateTypeParameter :: LLVM => DITemplateTypeParameter -> Doc
+ppDITemplateTypeParameter :: Fmt DITemplateTypeParameter
 ppDITemplateTypeParameter = ppDITemplateTypeParameter' ppLabel
 
-ppDITemplateValueParameter' :: LLVM => (i -> Doc) -> DITemplateValueParameter' i -> Doc
+ppDITemplateValueParameter' :: Fmt i -> Fmt (DITemplateValueParameter' i)
 ppDITemplateValueParameter' pp vp = "!DITemplateValueParameter"
   <> parens (mcommas [ pure ("tag:"   <+> integral (ditvpTag vp))
                      , ("name:"  <+>) . text        <$> ditvpName vp
@@ -969,10 +982,10 @@ ppDITemplateValueParameter' pp vp = "!DITemplateValueParameter"
                      , pure ("value:" <+> ppValMd' pp (ditvpValue vp))
                      ])
 
-ppDITemplateValueParameter :: LLVM => DITemplateValueParameter -> Doc
+ppDITemplateValueParameter :: Fmt DITemplateValueParameter
 ppDITemplateValueParameter = ppDITemplateValueParameter' ppLabel
 
-ppDIBasicType :: DIBasicType -> Doc
+ppDIBasicType :: Fmt DIBasicType
 ppDIBasicType bt = "!DIBasicType"
   <> parens (commas [ "tag:"      <+> integral (dibtTag bt)
                     , "name:"     <+> doubleQuotes (text (dibtName bt))
@@ -985,7 +998,7 @@ ppDIBasicType bt = "!DIBasicType"
               Just flags -> comma <+> "flags:" <+> integral flags
               Nothing -> empty
 
-ppDICompileUnit' :: LLVM => (i -> Doc) -> DICompileUnit' i -> Doc
+ppDICompileUnit' :: Fmt i -> Fmt (DICompileUnit' i)
 ppDICompileUnit' pp cu = "!DICompileUnit"
   <> parens (mcommas
        [ pure ("language:"              <+> integral (dicuLanguage cu))
@@ -1015,13 +1028,13 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
              <$> (dicuSDK cu)
        ])
 
-ppDICompileUnit :: LLVM => DICompileUnit -> Doc
+ppDICompileUnit :: Fmt DICompileUnit
 ppDICompileUnit = ppDICompileUnit' ppLabel
 
-ppFlags :: Maybe String -> Doc
+ppFlags :: Fmt (Maybe String)
 ppFlags mb = doubleQuotes (maybe empty text mb)
 
-ppDICompositeType' :: LLVM => (i -> Doc) -> DICompositeType' i -> Doc
+ppDICompositeType' :: Fmt i -> Fmt (DICompositeType' i)
 ppDICompositeType' pp ct = "!DICompositeType"
   <> parens (mcommas
        [ pure ("tag:"            <+> integral (dictTag ct))
@@ -1046,10 +1059,10 @@ ppDICompositeType' pp ct = "!DICompositeType"
        ,     (("annotations:"    <+>) . ppValMd' pp) <$> (dictAnnotations ct)
        ])
 
-ppDICompositeType :: LLVM => DICompositeType -> Doc
+ppDICompositeType :: Fmt DICompositeType
 ppDICompositeType = ppDICompositeType' ppLabel
 
-ppDIDerivedType' :: LLVM => (i -> Doc) -> DIDerivedType' i -> Doc
+ppDIDerivedType' :: Fmt i -> Fmt (DIDerivedType' i)
 ppDIDerivedType' pp dt = "!DIDerivedType"
   <> parens (mcommas
        [ pure ("tag:"       <+> integral (didtTag dt))
@@ -1066,27 +1079,27 @@ ppDIDerivedType' pp dt = "!DIDerivedType"
        ,     (("annotations:" <+>) . ppValMd' pp) <$> (didtAnnotations dt)
        ])
 
-ppDIDerivedType :: LLVM => DIDerivedType -> Doc
+ppDIDerivedType :: Fmt DIDerivedType
 ppDIDerivedType = ppDIDerivedType' ppLabel
 
-ppDIEnumerator :: String -> Integer -> Bool -> Doc
+ppDIEnumerator :: String -> Integer -> Fmt Bool
 ppDIEnumerator n v u = "!DIEnumerator"
   <> parens (commas [ "name:"  <+> doubleQuotes (text n)
                     , "value:" <+> integral v
                     , "isUnsigned:" <+> ppBool u
                     ])
 
-ppDIExpression :: DIExpression -> Doc
+ppDIExpression :: Fmt DIExpression
 ppDIExpression e = "!DIExpression"
   <> parens (commas (map integral (dieElements e)))
 
-ppDIFile :: DIFile -> Doc
+ppDIFile :: Fmt DIFile
 ppDIFile f = "!DIFile"
   <> parens (commas [ "filename:"  <+> doubleQuotes (text (difFilename f))
                     , "directory:" <+> doubleQuotes (text (difDirectory f))
                     ])
 
-ppDIGlobalVariable' :: LLVM => (i -> Doc) -> DIGlobalVariable' i -> Doc
+ppDIGlobalVariable' :: Fmt i -> Fmt (DIGlobalVariable' i)
 ppDIGlobalVariable' pp gv = "!DIGlobalVariable"
   <> parens (mcommas
        [      (("scope:"       <+>) . ppValMd' pp) <$> (digvScope gv)
@@ -1104,20 +1117,20 @@ ppDIGlobalVariable' pp gv = "!DIGlobalVariable"
        ,      (("annotations:" <+>) . ppValMd' pp) <$> (digvAnnotations gv)
        ])
 
-ppDIGlobalVariable :: LLVM => DIGlobalVariable -> Doc
+ppDIGlobalVariable :: Fmt DIGlobalVariable
 ppDIGlobalVariable = ppDIGlobalVariable' ppLabel
 
-ppDIGlobalVariableExpression' :: LLVM => (i -> Doc) -> DIGlobalVariableExpression' i -> Doc
+ppDIGlobalVariableExpression' :: Fmt i -> Fmt (DIGlobalVariableExpression' i)
 ppDIGlobalVariableExpression' pp gve = "!DIGlobalVariableExpression"
   <> parens (mcommas
        [      (("var:"  <+>) . ppValMd' pp) <$> (digveVariable gve)
        ,      (("expr:" <+>) . ppValMd' pp) <$> (digveExpression gve)
        ])
 
-ppDIGlobalVariableExpression :: LLVM => DIGlobalVariableExpression -> Doc
+ppDIGlobalVariableExpression :: Fmt DIGlobalVariableExpression
 ppDIGlobalVariableExpression = ppDIGlobalVariableExpression' ppLabel
 
-ppDILexicalBlock' :: LLVM => (i -> Doc) -> DILexicalBlock' i -> Doc
+ppDILexicalBlock' :: Fmt i -> Fmt (DILexicalBlock' i)
 ppDILexicalBlock' pp ct = "!DILexicalBlock"
   <> parens (mcommas
        [     (("scope:"  <+>) . ppValMd' pp) <$> (dilbScope ct)
@@ -1126,10 +1139,10 @@ ppDILexicalBlock' pp ct = "!DILexicalBlock"
        , pure ("column:" <+> integral (dilbColumn ct))
        ])
 
-ppDILexicalBlock :: LLVM => DILexicalBlock -> Doc
+ppDILexicalBlock :: Fmt DILexicalBlock
 ppDILexicalBlock = ppDILexicalBlock' ppLabel
 
-ppDILexicalBlockFile' :: LLVM => (i -> Doc) -> DILexicalBlockFile' i -> Doc
+ppDILexicalBlockFile' :: Fmt i -> Fmt (DILexicalBlockFile' i)
 ppDILexicalBlockFile' pp lbf = "!DILexicalBlockFile"
   <> parens (mcommas
        [ pure ("scope:"         <+> ppValMd' pp (dilbfScope lbf))
@@ -1137,10 +1150,10 @@ ppDILexicalBlockFile' pp lbf = "!DILexicalBlockFile"
        , pure ("discriminator:" <+> integral (dilbfDiscriminator lbf))
        ])
 
-ppDILexicalBlockFile :: LLVM => DILexicalBlockFile -> Doc
+ppDILexicalBlockFile :: Fmt DILexicalBlockFile
 ppDILexicalBlockFile = ppDILexicalBlockFile' ppLabel
 
-ppDILocalVariable' :: LLVM => (i -> Doc) -> DILocalVariable' i -> Doc
+ppDILocalVariable' :: Fmt i -> Fmt (DILocalVariable' i)
 ppDILocalVariable' pp lv = "!DILocalVariable"
   <> parens (mcommas
        [      (("scope:" <+>) . ppValMd' pp) <$> (dilvScope lv)
@@ -1154,14 +1167,14 @@ ppDILocalVariable' pp lv = "!DILocalVariable"
        ,      (("annotations:" <+>) . ppValMd' pp) <$> (dilvAnnotations lv)
        ])
 
-ppDILocalVariable :: LLVM => DILocalVariable -> Doc
+ppDILocalVariable :: Fmt DILocalVariable
 ppDILocalVariable = ppDILocalVariable' ppLabel
 
 -- | See @writeDISubprogram@ in the LLVM source, in the file @AsmWriter.cpp@
 --
 -- Note that the textual syntax changed in LLVM 7, as the @retainedNodes@ field
 -- was called @variables@ in previous LLVM versions.
-ppDISubprogram' :: LLVM => (i -> Doc) -> DISubprogram' i -> Doc
+ppDISubprogram' :: Fmt i -> Fmt (DISubprogram' i)
 ppDISubprogram' pp sp = "!DISubprogram"
   <> parens (mcommas
        [      (("scope:"          <+>) . ppValMd' pp) <$> (dispScope sp)
@@ -1187,66 +1200,66 @@ ppDISubprogram' pp sp = "!DISubprogram"
        ,      (("annotations:"    <+>) . ppValMd' pp) <$> (dispAnnotations sp)
        ])
 
-ppDISubprogram :: LLVM => DISubprogram -> Doc
+ppDISubprogram :: Fmt DISubprogram
 ppDISubprogram = ppDISubprogram' ppLabel
 
-ppDISubrange :: DISubrange -> Doc
+ppDISubrange :: Fmt DISubrange
 ppDISubrange sr = "!DISubrange"
   <> parens (commas [ "count:" <+> integral (disrCount sr)
                     , "lowerBound:" <+> integral (disrLowerBound sr)
                     ])
 
-ppDISubroutineType' :: LLVM => (i -> Doc) -> DISubroutineType' i -> Doc
+ppDISubroutineType' :: Fmt i -> Fmt (DISubroutineType' i)
 ppDISubroutineType' pp st = "!DISubroutineType"
   <> parens (commas
        [ "flags:" <+> integral (distFlags st)
        , "types:" <+> fromMaybe "null" (ppValMd' pp <$> (distTypeArray st))
        ])
 
-ppDISubroutineType :: LLVM => DISubroutineType -> Doc
+ppDISubroutineType :: Fmt DISubroutineType
 ppDISubroutineType = ppDISubroutineType' ppLabel
 
-ppDIArgList' :: LLVM => (i -> Doc) -> DIArgList' i -> Doc
+ppDIArgList' :: Fmt i -> Fmt (DIArgList' i)
 ppDIArgList' pp args = "!DIArgList"
   <> parens (commas (map (ppValMd' pp) (dialArgs args)))
 
-ppDIArgList :: LLVM => DIArgList -> Doc
+ppDIArgList :: Fmt DIArgList
 ppDIArgList = ppDIArgList' ppLabel
 
 -- Utilities -------------------------------------------------------------------
 
-ppBool :: Bool -> Doc
+ppBool :: Fmt Bool
 ppBool b | b         = "true"
          | otherwise = "false"
 
 -- | Build a variable-argument argument list.
-ppArgList :: Bool -> [Doc] -> Doc
+ppArgList :: Bool -> Fmt [Doc]
 ppArgList True  ds = parens (commas (ds ++ ["..."]))
 ppArgList False ds = parens (commas ds)
 
-integral :: Integral i => i -> Doc
+integral :: Integral i => Fmt i
 integral  = integer . fromIntegral
 
-hex :: (Integral i, Show i) => i -> Doc
+hex :: (Integral i, Show i) => Fmt i
 hex i = text (showHex i "0x")
 
-opt :: Bool -> Doc -> Doc
+opt :: Bool -> Fmt Doc
 opt True  = id
 opt False = const empty
 
-commas :: [Doc] -> Doc
+commas :: Fmt [Doc]
 commas  = fsep . punctuate comma
 
 -- | Helpful for all of the optional fields that appear in the
 -- metadata values
-mcommas :: [Maybe Doc] -> Doc
+mcommas :: Fmt [Maybe Doc]
 mcommas = commas . catMaybes
 
-angles :: Doc -> Doc
+angles :: Fmt Doc
 angles d = char '<' <> d <> char '>'
 
-structBraces :: Doc -> Doc
+structBraces :: Fmt Doc
 structBraces body = char '{' <+> body <+> char '}'
 
-ppMaybe :: (a -> Doc) -> Maybe a -> Doc
+ppMaybe :: Fmt a -> Fmt (Maybe a)
 ppMaybe  = maybe empty
