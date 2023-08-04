@@ -143,6 +143,7 @@ class LLVMPretty a where llvmPP :: Fmt a
 
 instance LLVMPretty Module where llvmPP = ppModule
 instance LLVMPretty Symbol where llvmPP = ppSymbol
+instance LLVMPretty Ident  where llvmPP = ppIdent
 
 
 -- Modules ---------------------------------------------------------------------
