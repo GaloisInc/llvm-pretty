@@ -76,7 +76,7 @@ checkConfig p = p ?config
 
 -- | This type encapsulates the ability to convert an object into Doc
 -- format. Using this abstraction allows for a consolidated representation of the
--- declaration.  Most pretty-printing for LLVM elements will have a `Fmt a`
+-- declaration.  Most pretty-printing for LLVM elements will have a @'Fmt' a@
 -- function signature for that element.
 type Fmt a = (?config :: Config) => a -> Doc
 
