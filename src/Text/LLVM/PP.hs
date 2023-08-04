@@ -77,6 +77,16 @@ checkConfig p = p ?config
 type Fmt a = (?config :: Config) => a -> Doc
 
 
+-- | The LLVMPretty class has instances for most AST elements.  It allows the
+-- conversion of an AST element (and its sub-elements) into a Doc assembly format
+-- by simply using the 'llvmPP' method rather than needing to explicitly invoke
+-- the specific pretty-printing function for that element.
+class LLVMPretty a where llvmPP :: Fmt a
+
+instance LLVMPretty Module where llvmPP = ppModule
+instance LLVMPretty Symbol where llvmPP = ppSymbol
+
+
 -- Modules ---------------------------------------------------------------------
 
 ppModule :: Fmt Module
