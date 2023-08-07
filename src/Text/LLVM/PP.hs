@@ -971,7 +971,7 @@ ppDIImportedEntity = ppDIImportedEntity' ppLabel
 ppDILabel' :: Fmt i -> Fmt (DILabel' i)
 ppDILabel' pp ie = "!DILabel"
   <> parens (mcommas [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
-                     , pure ("name:" <+> text (dilName ie))
+                     , pure ("name:" <+> doubleQuotes (text (dilName ie)))
                      , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
                      , pure ("line:"   <+> integral (dilLine ie))
                      ])
