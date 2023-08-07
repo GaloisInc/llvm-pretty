@@ -94,6 +94,11 @@ ppLLVM38 = withConfig Config { cfgVer = llvmV3_8 }
 llvmVer :: (?config :: Config) => LLVMVer
 llvmVer = cfgVer ?config
 
+-- | This is a helper function for when a list of parameters is gated by a
+-- condition (usually the llvmVer value).
+when' :: Monoid a => Bool -> a -> a
+when' c l = if c then l else mempty
+
 
 -- | This type encapsulates the ability to convert an object into Doc
 -- format. Using this abstraction allows for a consolidated representation of the
@@ -1045,14 +1050,15 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
        , pure ("nameTableKind:"         <+> integral (dicuNameTableKind cu))
        ]
        ++
+       when' (llvmVer >= 11)
        [ pure ("rangesBaseAddress:"     <+> ppBool (dicuRangesBaseAddress cu))
        ,     (("sysroot:"               <+>) . doubleQuotes . text)
              <$> (dicuSysRoot cu)
        ,     (("sdk:"                   <+>) . doubleQuotes . text)
              <$> (dicuSDK cu)
-       | llvmVer >= 11  -- Minimum version for outputting this set of fields
        ]
        )
+
 
 ppDICompileUnit :: Fmt DICompileUnit
 ppDICompileUnit = ppDICompileUnit' ppLabel
