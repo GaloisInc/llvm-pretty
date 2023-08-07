@@ -851,8 +851,8 @@ ppValMd :: Fmt ValMd
 ppValMd = ppValMd' ppLabel
 
 ppDebugLoc' :: Fmt i -> Fmt (DebugLoc' i)
-ppDebugLoc' pp dl = (  if llvmVer > llvmV3_6 then "!DILocation"
-                                             else "!MDLocation")
+ppDebugLoc' pp dl = (if llvmVer > llvmV3_6 then "!DILocation"
+                                           else "!MDLocation")
              <> parens (commas [ "line:"   <+> integral (dlLine dl)
                                , "column:" <+> integral (dlCol dl)
                                , "scope:"  <+> ppValMd' pp (dlScope dl)
