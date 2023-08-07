@@ -75,57 +75,27 @@ llvmVlatest = 16
 
 
 -- | The differences between various versions of the llvm textual AST.
-data Config = Config { cfgLoadImplicitType :: Bool
-                       -- ^ True when the type of the result of a load is
-                       -- derived from its pointer argument, or supplied
-                       -- implicitly.
-
-                     , cfgGEPImplicitType :: Bool
-                       -- ^ True when the type of the result of the GEP
-                       -- instruction is implied.
-
-                     , cfgUseDILocation :: Bool
-
-                     , cfgVer :: LLVMVer
-                     }
+newtype Config = Config { cfgVer :: LLVMVer }
 
 withConfig :: Config -> ((?config :: Config) => a) -> a
 withConfig cfg body = let ?config = cfg in body
 
 
 ppLLVM :: LLVMVer -> ((?config :: Config) => a) -> a
-ppLLVM llvmver = withConfig Config { cfgLoadImplicitType = False
-                                   , cfgGEPImplicitType  = False
-                                   , cfgUseDILocation    = True
-                                   , cfgVer = llvmver
-                                   }
+ppLLVM llvmver = withConfig Config { cfgVer = llvmver }
 
 ppLLVM35, ppLLVM36, ppLLVM37, ppLLVM38 :: ((?config :: Config) => a) -> a
 
-ppLLVM35 = withConfig Config { cfgLoadImplicitType = True
-                             , cfgGEPImplicitType  = True
-                             , cfgUseDILocation    = False
-                             , cfgVer = llvmV3_5
-                             }
-
-ppLLVM36 = withConfig Config { cfgLoadImplicitType = True
-                             , cfgGEPImplicitType  = True
-                             , cfgUseDILocation    = False
-                             , cfgVer = llvmV3_6
-                             }
-ppLLVM37 = withConfig Config { cfgLoadImplicitType = False
-                             , cfgGEPImplicitType  = False
-                             , cfgUseDILocation    = True
-                             , cfgVer = llvmV3_7
-                             }
-ppLLVM38 = withConfig Config { cfgLoadImplicitType = False
-                             , cfgGEPImplicitType  = False
-                             , cfgUseDILocation    = True
-                             , cfgVer = llvmV3_8
-                             }
+ppLLVM35 = withConfig Config { cfgVer = llvmV3_5 }
+ppLLVM36 = withConfig Config { cfgVer = llvmV3_6 }
+ppLLVM37 = withConfig Config { cfgVer = llvmV3_7 }
+ppLLVM38 = withConfig Config { cfgVer = llvmV3_8 }
 
 checkConfig :: (?config :: Config) => (Config -> Bool) -> Bool
 checkConfig p = p ?config
+
+llvmVer :: (?config :: Config) => LLVMVer
+llvmVer = cfgVer ?config
 
 
 -- | This type encapsulates the ability to convert an object into Doc
@@ -670,7 +640,7 @@ ppInstr instr = case instr of
 ppLoad :: Type -> Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Fmt (Maybe Align)
 ppLoad ty ptr mo ma =
   "load" <+> (if isAtomic   then "atomic" else empty)
-         <+> (if isImplicit then empty    else explicit)
+         <+> (if isExplicit then explicit else empty)
          <+> ppTyped ppValue ptr
          <+> ordering
           <> ppAlign ma
@@ -678,7 +648,7 @@ ppLoad ty ptr mo ma =
   where
   isAtomic = isJust mo
 
-  isImplicit = checkConfig cfgLoadImplicitType
+  isExplicit = llvmVer >= llvmV3_7
 
   ordering =
     case mo of
@@ -782,10 +752,10 @@ ppCallSym ty val = pp_ty <+> ppValue val
 ppGEP :: Bool -> Type -> Typed Value -> Fmt [Typed Value]
 ppGEP ib ty ptr ixs =
   "getelementptr" <+> inbounds
-    <+> (if isImplicit then empty else explicit)
+    <+> (if isExplicit then explicit else empty)
     <+> commas (map (ppTyped ppValue) (ptr:ixs))
   where
-  isImplicit = checkConfig cfgGEPImplicitType
+  isExplicit = llvmVer >= llvmV3_7
 
   explicit = ppType ty <> comma
 
@@ -881,8 +851,8 @@ ppValMd :: Fmt ValMd
 ppValMd = ppValMd' ppLabel
 
 ppDebugLoc' :: Fmt i -> Fmt (DebugLoc' i)
-ppDebugLoc' pp dl = (if cfgUseDILocation ?config then "!DILocation"
-                                                 else "!MDLocation")
+ppDebugLoc' pp dl = (if llvmVer >= llvmV3_7 then "!DILocation"
+                                            else "!MDLocation")
              <> parens (commas [ "line:"   <+> integral (dlLine dl)
                                , "column:" <+> integral (dlCol dl)
                                , "scope:"  <+> ppValMd' pp (dlScope dl)
