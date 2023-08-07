@@ -91,11 +91,13 @@ ppLLVM36 = withConfig Config { cfgVer = llvmV3_6 }
 ppLLVM37 = withConfig Config { cfgVer = llvmV3_7 }
 ppLLVM38 = withConfig Config { cfgVer = llvmV3_8 }
 
-checkConfig :: (?config :: Config) => (Config -> Bool) -> Bool
-checkConfig p = p ?config
-
 llvmVer :: (?config :: Config) => LLVMVer
 llvmVer = cfgVer ?config
+
+-- | This is a helper function for when a list of parameters is gated by a
+-- condition (usually the llvmVer value).
+when' :: Monoid a => Bool -> a -> a
+when' c l = if c then l else mempty
 
 
 -- | This type encapsulates the ability to convert an object into Doc
@@ -971,7 +973,7 @@ ppDIImportedEntity = ppDIImportedEntity' ppLabel
 ppDILabel' :: Fmt i -> Fmt (DILabel' i)
 ppDILabel' pp ie = "!DILabel"
   <> parens (mcommas [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
-                     , pure ("name:" <+> text (dilName ie))
+                     , pure ("name:" <+> ppStringLiteral (dilName ie))
                      , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
                      , pure ("line:"   <+> integral (dilLine ie))
                      ])
@@ -1025,7 +1027,7 @@ ppDIBasicType bt = "!DIBasicType"
 
 ppDICompileUnit' :: Fmt i -> Fmt (DICompileUnit' i)
 ppDICompileUnit' pp cu = "!DICompileUnit"
-  <> parens (mcommas
+  <> parens (mcommas $
        [ pure ("language:"              <+> integral (dicuLanguage cu))
        ,     (("file:"                  <+>) . ppValMd' pp) <$> (dicuFile cu)
        ,     (("producer:"              <+>) . doubleQuotes . text)
@@ -1046,12 +1048,17 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
        , pure ("splitDebugInlining:"    <+> ppBool (dicuSplitDebugInlining cu))
        , pure ("debugInfoForProfiling:" <+> ppBool (dicuDebugInfoForProf cu))
        , pure ("nameTableKind:"         <+> integral (dicuNameTableKind cu))
-       , pure ("rangesBaseAddress:"     <+> ppBool (dicuRangesBaseAddress cu))
+       ]
+       ++
+       when' (llvmVer >= 11)
+       [ pure ("rangesBaseAddress:"     <+> ppBool (dicuRangesBaseAddress cu))
        ,     (("sysroot:"               <+>) . doubleQuotes . text)
              <$> (dicuSysRoot cu)
        ,     (("sdk:"                   <+>) . doubleQuotes . text)
              <$> (dicuSDK cu)
-       ])
+       ]
+       )
+
 
 ppDICompileUnit :: Fmt DICompileUnit
 ppDICompileUnit = ppDICompileUnit' ppLabel

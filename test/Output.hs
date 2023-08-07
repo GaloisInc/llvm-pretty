@@ -103,10 +103,7 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
                                                    dwoId: 2,
                                                    splitDebugInlining: false,
                                                    debugInfoForProfiling: true,
-                                                   nameTableKind: 4,
-                                                   rangesBaseAddress: true,
-                                                   sysroot: "the root",
-                                                   sdk: "SDK")
+                                                   nameTableKind: 4)
       ----
       |]
       (ppToText $ ppLLVM35 ppStmt s1)
@@ -125,13 +122,49 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
                                                         dwoId: 2,
                                                         splitDebugInlining: false,
                                                         debugInfoForProfiling: true,
+                                                        nameTableKind: 4)
+      ----
+      |]
+      (ppToText $ ppLLVM37 ppStmt s1)
+
+  , testCase "Stmt 1, LLVM 10" $
+    assertEqLines (ppToText $ ppLLVM 10 $ ppStmt s1) [sq|
+      No change from LLVM 3.7 through LLVM 10
+      ----
+      getelementptr inbounds %hi, opaque !DICompileUnit(language: 12,
+                                                        producer: "llvm-pretty-test",
+                                                        isOptimized: true,
+                                                        flags: "some flags",
+                                                        runtimeVersion: 3,
+                                                        emissionKind: 1,
+                                                        enums: !DITemplateTypeParameter(name: ttp),
+                                                        dwoId: 2,
+                                                        splitDebugInlining: false,
+                                                        debugInfoForProfiling: true,
+                                                        nameTableKind: 4)
+      ----
+      |]
+
+  , testCase "Stmt 1, LLVM 11" $
+    assertEqLines (ppToText $ ppLLVM 11 $ ppStmt s1) [sq|
+      In LLVM 11, DICompileUnit adds rangesBaseAddress, sysroot, and sdk
+      ----
+      getelementptr inbounds %hi, opaque !DICompileUnit(language: 12,
+                                                        producer: "llvm-pretty-test",
+                                                        isOptimized: true,
+                                                        flags: "some flags",
+                                                        runtimeVersion: 3,
+                                                        emissionKind: 1,
+                                                        enums: !DITemplateTypeParameter(name: ttp),
+                                                        dwoId: 2,
+                                                        splitDebugInlining: false,
+                                                        debugInfoForProfiling: true,
                                                         nameTableKind: 4,
                                                         rangesBaseAddress: true,
                                                         sysroot: "the root",
                                                         sdk: "SDK")
       ----
       |]
-      (ppToText $ ppLLVM37 ppStmt s1)
 
   ------------------------------------------------------------
 
