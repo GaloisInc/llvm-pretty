@@ -34,6 +34,46 @@ import Prelude hiding ((<>))
 
 -- Pretty-printer Config -------------------------------------------------------
 
+
+-- | The value used to specify the LLVM major version.  The LLVM text format
+-- (i.e. assembly code) changes with different versions of LLVM, so this value is
+-- used to select the version the output should be generated for.
+--
+-- At the current time, changes primarily occur when the LLVM major version
+-- changes, and this is expected to be the case going forward, so it is
+-- sufficient to reference the LLVM version by the single major version number.
+-- There is one exception and one possible future exception to this approach:
+--
+--  1. During LLVM v3, there were changes in 3.5, 3.6, 3.7, and 3.8.  There are
+--     explicit @ppLLVMnn@ function entry points for those versions, but in the
+--     event that a numerical value is needed, we note the serendipitous fact
+--     that prior to LLVM 4, there are exactly 4 versions we need to
+--     differentiate and can therefore assign the values of 0, 1, 2, and 3 to
+--     those versions (and we have no intention of supporting any other pre-4.0
+--     versions at this point).
+--
+--  2. If at some future date, there are text format changes associated with a
+--     minor version, then the LLVM version designation here will need to be
+--     enhanced and made more sophisticated.  At the present time, the likelihood
+--     of that is small enough that the current simple implementation is a
+--     benefit over a more complex mechanism that might not be needed.
+--
+type LLVMVer = Int
+
+-- | Helpers for specifying the LLVM versions prior to v4
+llvmV3_5, llvmV3_6, llvmV3_7, llvmV3_8 :: LLVMVer
+llvmV3_5 = 0
+llvmV3_6 = 1
+llvmV3_7 = 2
+llvmV3_8 = 3
+
+-- | This value should be updated when support is added for new LLVM versions;
+-- this is used for defaulting and otherwise reporting the maximum LLVM version
+-- known to be supported.
+llvmVlatest :: LLVMVer
+llvmVlatest = 16
+
+
 -- | The differences between various versions of the llvm textual AST.
 data Config = Config { cfgLoadImplicitType :: Bool
                        -- ^ True when the type of the result of a load is
@@ -45,29 +85,43 @@ data Config = Config { cfgLoadImplicitType :: Bool
                        -- instruction is implied.
 
                      , cfgUseDILocation :: Bool
+
+                     , cfgVer :: LLVMVer
                      }
 
 withConfig :: Config -> ((?config :: Config) => a) -> a
 withConfig cfg body = let ?config = cfg in body
 
 
-ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37, ppLLVM38 :: ((?config :: Config) => a) -> a
+ppLLVM :: LLVMVer -> ((?config :: Config) => a) -> a
+ppLLVM llvmver = withConfig Config { cfgLoadImplicitType = False
+                                   , cfgGEPImplicitType  = False
+                                   , cfgUseDILocation    = True
+                                   , cfgVer = llvmver
+                                   }
 
-ppLLVM = ppLLVM38
+ppLLVM35, ppLLVM36, ppLLVM37, ppLLVM38 :: ((?config :: Config) => a) -> a
 
-ppLLVM35 = ppLLVM36
+ppLLVM35 = withConfig Config { cfgLoadImplicitType = True
+                             , cfgGEPImplicitType  = True
+                             , cfgUseDILocation    = False
+                             , cfgVer = llvmV3_5
+                             }
 
 ppLLVM36 = withConfig Config { cfgLoadImplicitType = True
                              , cfgGEPImplicitType  = True
                              , cfgUseDILocation    = False
+                             , cfgVer = llvmV3_6
                              }
 ppLLVM37 = withConfig Config { cfgLoadImplicitType = False
                              , cfgGEPImplicitType  = False
                              , cfgUseDILocation    = True
+                             , cfgVer = llvmV3_7
                              }
 ppLLVM38 = withConfig Config { cfgLoadImplicitType = False
                              , cfgGEPImplicitType  = False
                              , cfgUseDILocation    = True
+                             , cfgVer = llvmV3_8
                              }
 
 checkConfig :: (?config :: Config) => (Config -> Bool) -> Bool
@@ -76,7 +130,7 @@ checkConfig p = p ?config
 
 -- | This type encapsulates the ability to convert an object into Doc
 -- format. Using this abstraction allows for a consolidated representation of the
--- declaration.  Most pretty-printing for LLVM elements will have a `Fmt a`
+-- declaration.  Most pretty-printing for LLVM elements will have a @'Fmt' a@
 -- function signature for that element.
 type Fmt a = (?config :: Config) => a -> Doc
 
@@ -89,6 +143,7 @@ class LLVMPretty a where llvmPP :: Fmt a
 
 instance LLVMPretty Module where llvmPP = ppModule
 instance LLVMPretty Symbol where llvmPP = ppSymbol
+instance LLVMPretty Ident  where llvmPP = ppIdent
 
 
 -- Modules ---------------------------------------------------------------------
