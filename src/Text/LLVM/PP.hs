@@ -1025,7 +1025,7 @@ ppDIBasicType bt = "!DIBasicType"
 
 ppDICompileUnit' :: Fmt i -> Fmt (DICompileUnit' i)
 ppDICompileUnit' pp cu = "!DICompileUnit"
-  <> parens (mcommas
+  <> parens (mcommas $
        [ pure ("language:"              <+> integral (dicuLanguage cu))
        ,     (("file:"                  <+>) . ppValMd' pp) <$> (dicuFile cu)
        ,     (("producer:"              <+>) . doubleQuotes . text)
@@ -1046,12 +1046,15 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
        , pure ("splitDebugInlining:"    <+> ppBool (dicuSplitDebugInlining cu))
        , pure ("debugInfoForProfiling:" <+> ppBool (dicuDebugInfoForProf cu))
        , pure ("nameTableKind:"         <+> integral (dicuNameTableKind cu))
-       , pure ("rangesBaseAddress:"     <+> ppBool (dicuRangesBaseAddress cu))
+       ]
+       ++ if llvmVer < 11 then [] else
+       [ pure ("rangesBaseAddress:"     <+> ppBool (dicuRangesBaseAddress cu))
        ,     (("sysroot:"               <+>) . doubleQuotes . text)
              <$> (dicuSysRoot cu)
        ,     (("sdk:"                   <+>) . doubleQuotes . text)
              <$> (dicuSDK cu)
-       ])
+       ]
+       )
 
 ppDICompileUnit :: Fmt DICompileUnit
 ppDICompileUnit = ppDICompileUnit' ppLabel
