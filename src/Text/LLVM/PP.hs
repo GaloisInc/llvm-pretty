@@ -968,7 +968,7 @@ ppDIImportedEntity = ppDIImportedEntity' ppLabel
 ppDILabel' :: Fmt i -> Fmt (DILabel' i)
 ppDILabel' pp ie = "!DILabel"
   <> parens (mcommas [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
-                     , pure ("name:" <+> doubleQuotes (text (dilName ie)))
+                     , pure ("name:" <+> ppStringLiteral (dilName ie))
                      , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
                      , pure ("line:"   <+> integral (dilLine ie))
                      ])
@@ -1044,12 +1044,13 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
        , pure ("debugInfoForProfiling:" <+> ppBool (dicuDebugInfoForProf cu))
        , pure ("nameTableKind:"         <+> integral (dicuNameTableKind cu))
        ]
-       ++ if llvmVer < 11 then [] else
+       ++
        [ pure ("rangesBaseAddress:"     <+> ppBool (dicuRangesBaseAddress cu))
        ,     (("sysroot:"               <+>) . doubleQuotes . text)
              <$> (dicuSysRoot cu)
        ,     (("sdk:"                   <+>) . doubleQuotes . text)
              <$> (dicuSDK cu)
+       | llvmVer >= 11  -- Minimum version for outputting this set of fields
        ]
        )
 

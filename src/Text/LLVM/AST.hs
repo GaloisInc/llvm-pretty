@@ -1495,6 +1495,7 @@ data DICompileUnit' lab = DICompileUnit
   , dicuSplitDebugInlining :: Bool
   , dicuDebugInfoForProf   :: Bool
   , dicuNameTableKind      :: Word64
+    -- added in LLVM 11: dicuRangesBaseAddress, dicuSysRoot, and dicuSDK
   , dicuRangesBaseAddress  :: Bool
   , dicuSysRoot            :: Maybe String
   , dicuSDK                :: Maybe String
