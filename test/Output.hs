@@ -29,10 +29,17 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
         -- LLVM versions.  The pretty output will be checked at different LLVM
         -- versions to ensure that the desired version-specific changes in the
         -- output are seen.
-        s1 :: Stmt
+        s1, s2 :: Stmt
         s1 = Effect
              (GEP True (Alias (Ident "hi")) (Typed Opaque dcu) [])
              []
+        s2 = Effect (Load PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
+             [ ("location", ValMdLoc $ DebugLoc { dlLine = 12
+                                                , dlCol = 34
+                                                , dlScope = ValMdRef 5
+                                                , dlIA = Nothing
+                                                , dlImplicit = True })
+             ]
         dcu :: Value
         dcu = ValMd
               $ ValMdDebugInfo
@@ -128,6 +135,42 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
 
   ------------------------------------------------------------
 
+  , testCase "Stmt 2, LLVM 3.5" $
+    assertEqLines [sq|
+      ----
+      load opaque null, !location !MDLocation(line: 12,
+                                              column: 34,
+                                              scope: !5, implicit)
+      ----
+      |]
+      (ppToText $ ppLLVM35 ppStmt s2)
+
+  , testCase "Stmt 2, LLVM 3.7" $
+    assertEqLines [sq|
+      Beginning in LLVM 3.7, the type is no longer implicit and is explicitly
+      shown, and the DebugLoc metadata is DILocation instead of MDLocation
+      ----
+      load ptr, opaque null, !location !DILocation(line: 12,
+                                                   column: 34,
+                                                   scope: !5, implicit)
+      ----
+      |]
+      (ppToText $ ppLLVM37 ppStmt s2)
+
+  , testCase "Stmt 2, LLVM 10" $
+    assertEqLines [sq|
+      No change since LLVM 3.7
+      ----
+      load ptr, opaque null, !location !DILocation(line: 12,
+                                                   column: 34,
+                                                   scope: !5, implicit)
+      ----
+      |]
+      (ppToText $ ppLLVM 10 $ ppStmt s2)
+
+  ------------------------------------------------------------
+  -- Verify named labels and label targets are emitted correctly
+
   , testCase "Blk 1, LLVM 3.5" $
     assertEqLines (ppToText $ ppLLVM35 ppBasicBlock blk1) [sq|
       --------
@@ -151,6 +194,7 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
       |]
 
   ------------------------------------------------------------
+  -- Verify anonymous labels are emitted correctly
 
   , testCase "Blk 2, LLVM 3.5" $
     assertEqLines (ppToText $ ppLLVM35 ppBasicBlock blk2) [sq|
