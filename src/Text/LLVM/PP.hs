@@ -91,9 +91,6 @@ ppLLVM36 = withConfig Config { cfgVer = llvmV3_6 }
 ppLLVM37 = withConfig Config { cfgVer = llvmV3_7 }
 ppLLVM38 = withConfig Config { cfgVer = llvmV3_8 }
 
-checkConfig :: (?config :: Config) => (Config -> Bool) -> Bool
-checkConfig p = p ?config
-
 llvmVer :: (?config :: Config) => LLVMVer
 llvmVer = cfgVer ?config
 
