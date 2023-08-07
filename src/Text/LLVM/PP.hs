@@ -640,7 +640,7 @@ ppInstr instr = case instr of
 ppLoad :: Type -> Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Fmt (Maybe Align)
 ppLoad ty ptr mo ma =
   "load" <+> (if isAtomic   then "atomic" else empty)
-         <+> (if isImplicit then empty    else explicit)
+         <+> (if isExplicit then explicit else empty)
          <+> ppTyped ppValue ptr
          <+> ordering
           <> ppAlign ma
@@ -648,7 +648,7 @@ ppLoad ty ptr mo ma =
   where
   isAtomic = isJust mo
 
-  isImplicit = llvmVer < llvmV3_7
+  isExplicit = llvmVer >= llvmV3_7
 
   ordering =
     case mo of
@@ -752,10 +752,10 @@ ppCallSym ty val = pp_ty <+> ppValue val
 ppGEP :: Bool -> Type -> Typed Value -> Fmt [Typed Value]
 ppGEP ib ty ptr ixs =
   "getelementptr" <+> inbounds
-    <+> (if isImplicit then empty else explicit)
+    <+> (if isExplicit then explicit else empty)
     <+> commas (map (ppTyped ppValue) (ptr:ixs))
   where
-  isImplicit = llvmVer < llvmV3_7
+  isExplicit = llvmVer >= llvmV3_7
 
   explicit = ppType ty <> comma
 
@@ -851,8 +851,8 @@ ppValMd :: Fmt ValMd
 ppValMd = ppValMd' ppLabel
 
 ppDebugLoc' :: Fmt i -> Fmt (DebugLoc' i)
-ppDebugLoc' pp dl = (if llvmVer > llvmV3_6 then "!DILocation"
-                                           else "!MDLocation")
+ppDebugLoc' pp dl = (if llvmVer >= llvmV3_7 then "!DILocation"
+                                            else "!MDLocation")
              <> parens (commas [ "line:"   <+> integral (dlLine dl)
                                , "column:" <+> integral (dlCol dl)
                                , "scope:"  <+> ppValMd' pp (dlScope dl)
