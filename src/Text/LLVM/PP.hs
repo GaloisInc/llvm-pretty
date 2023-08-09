@@ -1107,7 +1107,10 @@ ppDIDerivedType' pp dt = "!DIDerivedType"
        , pure ("offset:"    <+> integral (didtOffset dt))
        , pure ("flags:"     <+> integral (didtFlags dt))
        ,     (("extraData:" <+>) . ppValMd' pp) <$> (didtExtraData dt)
-       ,     (("dwarfAddressSpace:" <+>) . integral) <$> didtDwarfAddressSpace dt
+       , case didtDwarfAddressSpace dt of
+           Nothing -> Nothing
+           Just 0 -> Nothing
+           Just s -> Just $ "dwarfAddressSpace:" <+> integral s
        ,     (("annotations:" <+>) . ppValMd' pp) <$> (didtAnnotations dt)
        ])
 
