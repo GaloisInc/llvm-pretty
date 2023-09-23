@@ -314,7 +314,19 @@ ppGlobalAttrs ga
     -- LLVM 3.8 does not emit or parse linkage information w/ hidden visibility
     | Just HiddenVisibility <- gaVisibility ga =
             ppVisibility HiddenVisibility <+> constant
-    | otherwise = ppMaybe ppLinkage (gaLinkage ga) <+> ppMaybe ppVisibility (gaVisibility ga) <+> constant
+    | otherwise =
+        -- In LLVM's llvm-as will not accept "default" or "external" for global
+        -- definitions of this type (for LLVM 5 through 16).  [There may be other
+        -- exceptions: this is all that has been empirically observed to date.]
+        case gaLinkage ga of
+          Just External -> id
+          l -> (ppMaybe ppLinkage l <+>)
+        $
+        case gaVisibility ga of
+          Just DefaultVisibility -> id
+          v -> (ppMaybe ppVisibility v <+>)
+        $
+        constant
   where
   constant | gaConstant ga = "constant"
            | otherwise     = "global"
