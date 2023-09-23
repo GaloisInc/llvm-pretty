@@ -1101,6 +1101,7 @@ ppDIDerivedType' pp dt = "!DIDerivedType"
        ,     (("name:"      <+>) . doubleQuotes . text) <$> (didtName dt)
        ,     (("file:"      <+>) . ppValMd' pp) <$> (didtFile dt)
        , pure ("line:"      <+> integral (didtLine dt))
+       ,     (("scope:"     <+>) . ppValMd' pp) <$> (didtScope dt)
        ,      ("baseType:"  <+>) <$> (ppValMd' pp <$> didtBaseType dt <|> Just "null")
        , pure ("size:"      <+> integral (didtSize dt))
        , pure ("align:"     <+> integral (didtAlign dt))
