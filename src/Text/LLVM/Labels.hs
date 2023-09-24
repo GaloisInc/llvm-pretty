@@ -130,6 +130,7 @@ instance HasLabel DebugLoc'                   where relabel = $(generateRelabel 
 instance HasLabel DebugInfo'                  where relabel = $(generateRelabel 'relabel ''DebugInfo')
 instance HasLabel DIDerivedType'              where relabel = $(generateRelabel 'relabel ''DIDerivedType')
 instance HasLabel DISubroutineType'           where relabel = $(generateRelabel 'relabel ''DISubroutineType')
+instance HasLabel DISubrange'                 where relabel = $(generateRelabel 'relabel ''DISubrange')
 instance HasLabel DIGlobalVariable'           where relabel = $(generateRelabel 'relabel ''DIGlobalVariable')
 instance HasLabel DIGlobalVariableExpression' where relabel = $(generateRelabel 'relabel ''DIGlobalVariableExpression')
 instance HasLabel DILocalVariable'            where relabel = $(generateRelabel 'relabel ''DILocalVariable')

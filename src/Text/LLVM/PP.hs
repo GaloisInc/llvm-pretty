@@ -945,7 +945,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoLexicalBlockFile lbf -> ppDILexicalBlockFile' pp lbf
   DebugInfoLocalVariable lv     -> ppDILocalVariable' pp lv
   DebugInfoSubprogram sp        -> ppDISubprogram' pp sp
-  DebugInfoSubrange sr          -> ppDISubrange sr
+  DebugInfoSubrange sr          -> ppDISubrange' pp sr
   DebugInfoSubroutineType st    -> ppDISubroutineType' pp st
   DebugInfoNameSpace ns         -> ppDINameSpace' pp ns
   DebugInfoTemplateTypeParameter dttp  -> ppDITemplateTypeParameter' pp dttp
@@ -1235,11 +1235,20 @@ ppDISubprogram' pp sp = "!DISubprogram"
 ppDISubprogram :: Fmt DISubprogram
 ppDISubprogram = ppDISubprogram' ppLabel
 
+ppDISubrange' :: Fmt i -> Fmt (DISubrange' i)
+ppDISubrange' pp sr =
+  let eimb pfx l mbr = either (Just . (pfx <+>) . l) (fmap ((pfx <+>) . mbr))
+  in "!DISubrange"
+     <> parens (mcommas
+                [
+                  eimb "count:" integral (ppValMd' pp) (disrCount sr)
+                , eimb "lowerBound:" integral (ppValMd' pp) (disrLowerBound sr)
+                , (("upperBound:" <+>) . ppValMd' pp) <$> disrUpperBound sr
+                , (("stride:" <+>) . ppValMd' pp) <$> disrStride sr
+                ])
+
 ppDISubrange :: Fmt DISubrange
-ppDISubrange sr = "!DISubrange"
-  <> parens (commas [ "count:" <+> integral (disrCount sr)
-                    , "lowerBound:" <+> integral (disrLowerBound sr)
-                    ])
+ppDISubrange = ppDISubrange' ppLabel
 
 ppDISubroutineType' :: Fmt i -> Fmt (DISubroutineType' i)
 ppDISubroutineType' pp st = "!DISubroutineType"

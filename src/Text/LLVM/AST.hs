@@ -147,7 +147,7 @@ module Text.LLVM.AST
   , DILexicalBlockFile'(..), DILexicalBlockFile
   , DILocalVariable'(..), DILocalVariable
   , DISubprogram'(..), DISubprogram
-  , DISubrange(..)
+  , DISubrange'(..), DISubrange
   , DISubroutineType'(..), DISubroutineType
   , DIArgList'(..), DIArgList
     -- * Aggregate Utilities
@@ -1400,7 +1400,7 @@ data DebugInfo' lab
   | DebugInfoLexicalBlockFile (DILexicalBlockFile' lab)
   | DebugInfoLocalVariable (DILocalVariable' lab)
   | DebugInfoSubprogram (DISubprogram' lab)
-  | DebugInfoSubrange DISubrange
+  | DebugInfoSubrange (DISubrange' lab)
   | DebugInfoSubroutineType (DISubroutineType' lab)
   | DebugInfoNameSpace (DINameSpace' lab)
   | DebugInfoTemplateTypeParameter (DITemplateTypeParameter' lab)
@@ -1647,10 +1647,14 @@ data DISubprogram' lab = DISubprogram
 
 type DISubprogram = DISubprogram' BlockLabel
 
-data DISubrange = DISubrange
-  { disrCount      :: Int64
-  , disrLowerBound :: Int64
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+data DISubrange' lab = DISubrange
+  { disrCount      :: Either Int64 (Maybe (ValMd' lab))
+  , disrLowerBound :: Either Int64 (Maybe (ValMd' lab))
+  , disrUpperBound :: Maybe (ValMd' lab)
+  , disrStride     :: Maybe (ValMd' lab)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+
+type DISubrange = DISubrange' BlockLabel
 
 data DISubroutineType' lab = DISubroutineType
   { distFlags     :: DIFlags
