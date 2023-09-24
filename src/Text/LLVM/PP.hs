@@ -299,46 +299,21 @@ ppTypeDecl td = ppIdent (typeName td) <+> char '='
 
 ppGlobal :: Fmt Global
 ppGlobal g = ppSymbol (globalSym g) <+> char '='
-         <+> ppTheGlobalAttrs (globalAttrs g)
+         <+> ppGlobalAttrs (isJust $ globalValue g) (globalAttrs g)
          <+> ppType (globalType g) <+> ppMaybe ppValue (globalValue g)
           <> ppAlign (globalAlign g)
           <> ppAttachedMetadata (Map.toList (globalMetadata g))
-  where
-  isStruct | Just (ValStruct {}) <- globalValue g = True
-           | otherwise = False
-  ppTheGlobalAttrs | isStruct = ppStructGlobalAttrs
-                    | otherwise = ppGlobalAttrs
 
-ppGlobalAttrs :: Fmt GlobalAttrs
-ppGlobalAttrs ga
+ppGlobalAttrs :: Bool -> Fmt GlobalAttrs
+ppGlobalAttrs hasValue ga
     -- LLVM 3.8 does not emit or parse linkage information w/ hidden visibility
     | Just HiddenVisibility <- gaVisibility ga =
             ppVisibility HiddenVisibility <+> constant
+    | Just External <- gaLinkage ga
+    , Just DefaultVisibility <- gaVisibility ga
+    , hasValue = constant
     | otherwise =
-        -- In LLVM's llvm-as will not accept "default" or "external" for global
-        -- definitions of this type (for LLVM 5 through 16).  [There may be other
-        -- exceptions: this is all that has been empirically observed to date.]
-        case gaLinkage ga of
-          Just External -> id
-          l -> (ppMaybe ppLinkage l <+>)
-        $
-        case gaVisibility ga of
-          Just DefaultVisibility -> id
-          v -> (ppMaybe ppVisibility v <+>)
-        $
-        constant
-  where
-  constant | gaConstant ga = "constant"
-           | otherwise     = "global"
-
-ppStructGlobalAttrs :: Fmt GlobalAttrs
-ppStructGlobalAttrs ga
-    -- LLVM 3.8 does not emit or parse external linkage for
-    -- global structs
-    | Just External <- gaLinkage ga,
-      Just DefaultVisibility <- gaVisibility ga
-        = constant
-    | otherwise = ppGlobalAttrs ga
+        ppMaybe ppLinkage (gaLinkage ga) <+> ppMaybe ppVisibility (gaVisibility ga) <+> constant
   where
   constant | gaConstant ga = "constant"
            | otherwise     = "global"
