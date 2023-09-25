@@ -299,34 +299,37 @@ ppTypeDecl td = ppIdent (typeName td) <+> char '='
 
 ppGlobal :: Fmt Global
 ppGlobal g = ppSymbol (globalSym g) <+> char '='
-         <+> ppTheGlobalAttrs (globalAttrs g)
+         <+> ppGlobalAttrs (isJust $ globalValue g) (globalAttrs g)
          <+> ppType (globalType g) <+> ppMaybe ppValue (globalValue g)
           <> ppAlign (globalAlign g)
           <> ppAttachedMetadata (Map.toList (globalMetadata g))
-  where
-  isStruct | Just (ValStruct {}) <- globalValue g = True
-           | otherwise = False
-  ppTheGlobalAttrs | isStruct = ppStructGlobalAttrs
-                    | otherwise = ppGlobalAttrs
 
-ppGlobalAttrs :: Fmt GlobalAttrs
-ppGlobalAttrs ga
+-- | Pretty-print Global Attributes (usually associated with a global variable
+-- declaration). The first argument to ppGlobalAttrs indicates whether there is a
+-- value associated with this global declaration: a global declaration with a
+-- value should not be identified as \"external\" and \"default\" visibility,
+-- whereas one without a value may have those attributes.
+
+ppGlobalAttrs :: Bool -> Fmt GlobalAttrs
+ppGlobalAttrs hasValue ga
     -- LLVM 3.8 does not emit or parse linkage information w/ hidden visibility
     | Just HiddenVisibility <- gaVisibility ga =
             ppVisibility HiddenVisibility <+> constant
-    | otherwise = ppMaybe ppLinkage (gaLinkage ga) <+> ppMaybe ppVisibility (gaVisibility ga) <+> constant
-  where
-  constant | gaConstant ga = "constant"
-           | otherwise     = "global"
-
-ppStructGlobalAttrs :: Fmt GlobalAttrs
-ppStructGlobalAttrs ga
-    -- LLVM 3.8 does not emit or parse external linkage for
-    -- global structs
-    | Just External <- gaLinkage ga,
-      Just DefaultVisibility <- gaVisibility ga
-        = constant
-    | otherwise = ppGlobalAttrs ga
+    | Just External <- gaLinkage ga
+    , Just DefaultVisibility <- gaVisibility ga
+    , hasValue =
+        -- Just show the value, no "external" or "default".  This is based on
+        -- empirical testing as described in the comment above (testing the
+        -- following 6 configurations:
+        --   * uninitialized scalar
+        --   * uninitialized structure
+        --   * initialized scalar
+        --   * initialized structure
+        --   * external scalar
+        --   * external structure
+        constant
+    | otherwise =
+        ppMaybe ppLinkage (gaLinkage ga) <+> ppMaybe ppVisibility (gaVisibility ga) <+> constant
   where
   constant | gaConstant ga = "constant"
            | otherwise     = "global"
