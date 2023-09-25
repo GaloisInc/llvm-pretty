@@ -1648,6 +1648,8 @@ data DISubprogram' lab = DISubprogram
 type DISubprogram = DISubprogram' BlockLabel
 
 data DISubrange' lab = DISubrange
+  -- see llvm-project/llvm/lib/Bitcode/Reader/MetadataLoader.cpp handling of
+  -- bitc::METADATA_SUBRANGE (lines 1425-1461 in commit bbe8cd1)
   { disrCount      :: Either Int64 (Maybe (ValMd' lab))
   , disrLowerBound :: Either Int64 (Maybe (ValMd' lab))
   , disrUpperBound :: Maybe (ValMd' lab)
