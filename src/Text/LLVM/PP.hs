@@ -304,6 +304,11 @@ ppGlobal g = ppSymbol (globalSym g) <+> char '='
           <> ppAlign (globalAlign g)
           <> ppAttachedMetadata (Map.toList (globalMetadata g))
 
+-- The first argument to ppGlobalAttrs indicates whether there is a value
+-- associated with this global declaration: a global declaration with a value
+-- should not be identified as "external" and "default" visibility, whereas one
+-- without a value may have those attributes.
+
 ppGlobalAttrs :: Bool -> Fmt GlobalAttrs
 ppGlobalAttrs hasValue ga
     -- LLVM 3.8 does not emit or parse linkage information w/ hidden visibility
@@ -311,7 +316,7 @@ ppGlobalAttrs hasValue ga
             ppVisibility HiddenVisibility <+> constant
     | Just External <- gaLinkage ga
     , Just DefaultVisibility <- gaVisibility ga
-    , hasValue = constant
+    , hasValue = constant   -- Just show the value, no "external" or "default".
     | otherwise =
         ppMaybe ppLinkage (gaLinkage ga) <+> ppMaybe ppVisibility (gaVisibility ga) <+> constant
   where
