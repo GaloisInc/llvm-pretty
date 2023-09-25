@@ -1237,12 +1237,14 @@ ppDISubprogram = ppDISubprogram' ppLabel
 
 ppDISubrange' :: Fmt i -> Fmt (DISubrange' i)
 ppDISubrange' pp sr =
-  let eimb pfx l mbr = either (Just . (pfx <+>) . l) (fmap ((pfx <+>) . mbr))
+  let intOrValMd pfx = either
+                       (Just . (pfx <+>) . integral)
+                       (fmap ((pfx <+>) . ppValMd' pp))
   in "!DISubrange"
      <> parens (mcommas
                 [
-                  eimb "count:" integral (ppValMd' pp) (disrCount sr)
-                , eimb "lowerBound:" integral (ppValMd' pp) (disrLowerBound sr)
+                  intOrValMd "count:" $ disrCount sr
+                , intOrValMd "lowerBound:" $ disrLowerBound sr
                 , (("upperBound:" <+>) . ppValMd' pp) <$> disrUpperBound sr
                 , (("stride:" <+>) . ppValMd' pp) <$> disrStride sr
                 ])
