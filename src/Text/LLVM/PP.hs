@@ -304,10 +304,11 @@ ppGlobal g = ppSymbol (globalSym g) <+> char '='
           <> ppAlign (globalAlign g)
           <> ppAttachedMetadata (Map.toList (globalMetadata g))
 
--- The first argument to ppGlobalAttrs indicates whether there is a value
--- associated with this global declaration: a global declaration with a value
--- should not be identified as "external" and "default" visibility, whereas one
--- without a value may have those attributes.
+-- | Pretty-print Global Attributes (usually associated with a global variable
+-- declaration). The first argument to ppGlobalAttrs indicates whether there is a
+-- value associated with this global declaration: a global declaration with a
+-- value should not be identified as \"external\" and \"default\" visibility,
+-- whereas one without a value may have those attributes.
 
 ppGlobalAttrs :: Bool -> Fmt GlobalAttrs
 ppGlobalAttrs hasValue ga
@@ -316,7 +317,17 @@ ppGlobalAttrs hasValue ga
             ppVisibility HiddenVisibility <+> constant
     | Just External <- gaLinkage ga
     , Just DefaultVisibility <- gaVisibility ga
-    , hasValue = constant   -- Just show the value, no "external" or "default".
+    , hasValue =
+        -- Just show the value, no "external" or "default".  This is based on
+        -- empirical testing as described in the comment above (testing the
+        -- following 6 configurations:
+        --   * uninitialized scalar
+        --   * uninitialized structure
+        --   * initialized scalar
+        --   * initialized structure
+        --   * external scalar
+        --   * external structure
+        constant
     | otherwise =
         ppMaybe ppLinkage (gaLinkage ga) <+> ppMaybe ppVisibility (gaVisibility ga) <+> constant
   where
