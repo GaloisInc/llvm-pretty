@@ -1321,7 +1321,7 @@ ppInt64ValMd' canFallBack pp = go
           ValMdDebugInfo (DebugInfoLocalVariable lv) ->
             integer $ fromIntegral $ dilvArg lv  -- ??
           -- ValMdRef _idx -> mempty -- no table here to look this up...
-          o -> if canFallBack then ppValMd' pp o else mempty
+          o -> when' canFallBack $ ppValMd' pp o
 
 
 commas :: Fmt [Doc]
