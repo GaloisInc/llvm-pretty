@@ -1310,13 +1310,13 @@ ppInt64ValMd' canFallBack pp = go
             | PrimType (Integer _) <- typedType tv
             , ValInteger i <- typedValue tv
               -> integer i  -- 64 bits is the largest Int, so no conversion needed
-          ValMdDebugInfo (DebugInfoGlobalVariable gv) ->
+          o@(ValMdDebugInfo (DebugInfoGlobalVariable gv)) ->
             case digvVariable gv of
-              Nothing -> mempty
+              Nothing -> when' canFallBack $ ppValMd' pp o
               Just v -> go v
-          ValMdDebugInfo (DebugInfoGlobalVariableExpression expr) ->
+          o@(ValMdDebugInfo (DebugInfoGlobalVariableExpression expr)) ->
             case digveExpression expr of
-              Nothing -> mempty
+              Nothing -> when' canFallBack $ ppValMd' pp o
               Just e -> go e
           ValMdDebugInfo (DebugInfoLocalVariable lv) ->
             integer $ fromIntegral $ dilvArg lv  -- ??
