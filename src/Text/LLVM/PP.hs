@@ -1238,28 +1238,24 @@ ppDISubprogram = ppDISubprogram' ppLabel
 
 ppDISubrange' :: Fmt i -> Fmt (DISubrange' i)
 ppDISubrange' pp sr =
-  let when' c e = if c then e else Nothing
-  in "!DISubrange"
-     <> parens (mcommas
-               -- LLVM < 7: count and lowerBound as signed int 64
-               -- LLVM < 11: count as ValMd, lowerBound as signed in 64
-               -- LLVM >= 11: ValMd of count, lowerBound, upperBound, and stride
-               -- Valid through LLVM 17.
-               -- See AST.hs description for more details.
-                [
-                  let ppV = if llvmVer >= 7
-                            then ppValMd' pp
-                            else ppInt64ValMd'
-                  in (("count:" <+>) . ppV) <$> disrCount sr
-                , let ppV = if llvmVer >= 11
-                            then ppValMd' pp
-                            else ppInt64ValMd'
-                  in (("lowerBound:" <+>) . ppV) <$> disrLowerBound sr
-                , when' (llvmVer >= 11)
-                  $ (("upperBound:" <+>) . ppValMd' pp) <$> disrUpperBound sr
-                , when' (llvmVer >= 11)
-                  $ (("stride:" <+>) . ppValMd' pp) <$> disrStride sr
-                ])
+  "!DISubrange"
+  <> parens
+  (mcommas
+   -- LLVM < 7: count and lowerBound as signed int 64
+   -- LLVM < 11: count as ValMd, lowerBound as signed in 64
+   -- LLVM >= 11: ValMd of count, lowerBound, upperBound, and stride
+   -- Valid through LLVM 17.
+   -- See AST.hs description for more details on the structure.
+   -- See https://github.com/llvm/llvm-project/blob/431969e/llvm/lib/IR/AsmWriter.cpp#L1888-L1927
+   -- for more details on output generation.
+   [
+     (("count:" <+>) . ppInt64ValMd' (llvmVer >= 7) pp) <$> disrCount sr
+   , (("lowerBound:" <+>) . ppInt64ValMd' (llvmVer >= 11) pp) <$> disrLowerBound sr
+   , when' (llvmVer >= 11)
+     $ (("upperBound:" <+>) . ppInt64ValMd' True pp) <$> disrUpperBound sr
+   , when' (llvmVer >= 11)
+     $ (("stride:" <+>) . ppInt64ValMd' True pp) <$> disrStride sr
+   ])
 
 ppDISubrange :: Fmt DISubrange
 ppDISubrange = ppDISubrange' ppLabel
@@ -1302,28 +1298,30 @@ opt :: Bool -> Fmt Doc
 opt True  = id
 opt False = const empty
 
--- | Print a ValMd' value as an Int64.  If the ValMd' is not representable as an
--- Int64, simply print nothing, which is where it differs from ppValMd' which
--- will print *any* metadata value.
+-- | Print a ValMd' value as a plain signed integer (Int64) if possible.  If the
+-- ValMd' is not representable as an Int64, defer to ValMd' printing (if
+-- canFallBack is True) or print nothing (for when a ValMd is not a valid
+-- representation).
 
-ppInt64ValMd' :: Fmt (ValMd' i)
-ppInt64ValMd' = \case
-  ValMdValue tv
-    | PrimType (Integer _) <- typedType tv
-    , ValInteger i <- typedValue tv
-      -> integer i  -- 64 bits is the largest Int, so no conversion needed
-  ValMdDebugInfo (DebugInfoGlobalVariable gv) ->
-    case digvVariable gv of
-      Nothing -> mempty
-      Just v -> ppInt64ValMd' v
-  ValMdDebugInfo (DebugInfoGlobalVariableExpression expr) ->
-    case digveExpression expr of
-      Nothing -> mempty
-      Just e -> ppInt64ValMd' e
-  ValMdDebugInfo (DebugInfoLocalVariable lv) ->
-    integer $ fromIntegral $ dilvArg lv  -- ??
-  ValMdRef _idx -> mempty -- no table here to look this up...
-  _ -> mempty  -- TODO: generate warning?
+ppInt64ValMd' :: Bool -> Fmt i -> Fmt (ValMd' i)
+ppInt64ValMd' canFallBack pp = go
+  where go = \case
+          ValMdValue tv
+            | PrimType (Integer _) <- typedType tv
+            , ValInteger i <- typedValue tv
+              -> integer i  -- 64 bits is the largest Int, so no conversion needed
+          ValMdDebugInfo (DebugInfoGlobalVariable gv) ->
+            case digvVariable gv of
+              Nothing -> mempty
+              Just v -> go v
+          ValMdDebugInfo (DebugInfoGlobalVariableExpression expr) ->
+            case digveExpression expr of
+              Nothing -> mempty
+              Just e -> go e
+          ValMdDebugInfo (DebugInfoLocalVariable lv) ->
+            integer $ fromIntegral $ dilvArg lv  -- ??
+          -- ValMdRef _idx -> mempty -- no table here to look this up...
+          o -> if canFallBack then ppValMd' pp o else mempty
 
 
 commas :: Fmt [Doc]
