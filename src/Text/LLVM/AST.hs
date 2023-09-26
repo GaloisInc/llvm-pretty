@@ -1647,11 +1647,31 @@ data DISubprogram' lab = DISubprogram
 
 type DISubprogram = DISubprogram' BlockLabel
 
+-- | The DISubrange is a Value subrange specification, usually associated with
+-- arrays or enumerations.
+--
+-- * Early LLVM: only 'disrCount' and 'disrLowerBound' were present, where both
+--   were a direct signed 64-bit value.  This corresponds to "format 0" in the
+--   bitcode encoding.
+--
+-- * LLVM 7: 'disrCount' changed to metadata representation ('ValMd').  The
+--   metadata representation should only be a signed 64-bit integer, a Variable,
+--   or an Expression.  This corresponds to "format 1" in the bitcode encoding.
+--
+-- * LLVM 11: 'disrLowerBound' was changed to a metadata representation and
+--   'disrUpperBound' and 'disrStride' were added (primarily driven by the
+--   addition of Fortran support in llvm).  All three should only be represented
+--   as a signed 64-bit integer, a Variable, or an Expression.  This corresponds
+--   to "format 2" in the bitcode encoding.  See
+--   https://github.com/llvm/llvm-project/commit/d20bf5a for this change.
+--
+-- Also see llvm-project/llvm/lib/Bitcode/Reader/MetadataLoader.cpp handling of
+-- bitc::METADATA_SUBRANGE (lines 1425-1461 in commit bbe8cd1) for how this is
+-- read from the bitcode encoding.
+
 data DISubrange' lab = DISubrange
-  -- see llvm-project/llvm/lib/Bitcode/Reader/MetadataLoader.cpp handling of
-  -- bitc::METADATA_SUBRANGE (lines 1425-1461 in commit bbe8cd1)
-  { disrCount      :: Either Int64 (Maybe (ValMd' lab))
-  , disrLowerBound :: Either Int64 (Maybe (ValMd' lab))
+  { disrCount      :: Maybe (ValMd' lab)
+  , disrLowerBound :: Maybe (ValMd' lab)
   , disrUpperBound :: Maybe (ValMd' lab)
   , disrStride     :: Maybe (ValMd' lab)
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
