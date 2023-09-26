@@ -1237,29 +1237,28 @@ ppDISubprogram = ppDISubprogram' ppLabel
 
 ppDISubrange' :: Fmt i -> Fmt (DISubrange' i)
 ppDISubrange' pp sr =
-  "!DISubrange"
-  <> parens (mcommas
-             -- LLVM < 7: count and lowerBound as signed int 64
-             -- LLVM < 11: count as ValMd, lowerBound as signed in 64
-             -- LLVM >= 11: ValMd of count, lowerBound, upperBound, and stride
-             -- Valid through LLVM 17.
-             -- See AST.hs description for more details.
-             [
-               let ppV = if llvmVer >= 7
-                         then ppValMd' pp
-                         else ppInt64ValMd'
-               in (("count:" <+>) . ppV) <$> disrCount sr
-             , let ppV = if llvmVer >= 11
-                         then ppValMd' pp
-                         else ppInt64ValMd'
-               in (("lowerBound:" <+>) . ppV) <$> disrLowerBound sr
-             , if llvmVer >= 11
-               then (("upperBound:" <+>) . ppValMd' pp) <$> disrUpperBound sr
-               else Nothing
-             , if llvmVer >= 11
-               then (("stride:" <+>) . ppValMd' pp) <$> disrStride sr
-               else Nothing
-             ])
+  let when' c e = if c then e else Nothing
+  in "!DISubrange"
+     <> parens (mcommas
+               -- LLVM < 7: count and lowerBound as signed int 64
+               -- LLVM < 11: count as ValMd, lowerBound as signed in 64
+               -- LLVM >= 11: ValMd of count, lowerBound, upperBound, and stride
+               -- Valid through LLVM 17.
+               -- See AST.hs description for more details.
+                [
+                  let ppV = if llvmVer >= 7
+                            then ppValMd' pp
+                            else ppInt64ValMd'
+                  in (("count:" <+>) . ppV) <$> disrCount sr
+                , let ppV = if llvmVer >= 11
+                            then ppValMd' pp
+                            else ppInt64ValMd'
+                  in (("lowerBound:" <+>) . ppV) <$> disrLowerBound sr
+                , when' (llvmVer >= 11)
+                  $ (("upperBound:" <+>) . ppValMd' pp) <$> disrUpperBound sr
+                , when' (llvmVer >= 11)
+                  $ (("stride:" <+>) . ppValMd' pp) <$> disrStride sr
+                ])
 
 ppDISubrange :: Fmt DISubrange
 ppDISubrange = ppDISubrange' ppLabel
