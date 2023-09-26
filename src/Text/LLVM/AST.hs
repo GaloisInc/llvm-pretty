@@ -1652,7 +1652,7 @@ type DISubprogram = DISubprogram' BlockLabel
 --
 -- * Early LLVM: only 'disrCount' and 'disrLowerBound' were present, where both
 --   were a direct signed 64-bit value.  This corresponds to "format 0" in the
---   bitcode encoding.
+--   bitcode encoding (see reference below).
 --
 -- * LLVM 7: 'disrCount' changed to metadata representation ('ValMd').  The
 --   metadata representation should only be a signed 64-bit integer, a Variable,
@@ -1665,9 +1665,10 @@ type DISubprogram = DISubprogram' BlockLabel
 --   to "format 2" in the bitcode encoding.  See
 --   https://github.com/llvm/llvm-project/commit/d20bf5a for this change.
 --
--- Also see llvm-project/llvm/lib/Bitcode/Reader/MetadataLoader.cpp handling of
--- bitc::METADATA_SUBRANGE (lines 1425-1461 in commit bbe8cd1) for how this is
--- read from the bitcode encoding.
+-- Also see
+-- https://github.com/llvm/llvm-project/blob/bbe8cd1/llvm/lib/Bitcode/Reader/MetadataLoader.cpp#L1435-L1461
+-- for how this is read from the bitcode encoding and the use of the format
+-- values mentioned above.
 
 data DISubrange' lab = DISubrange
   { disrCount      :: Maybe (ValMd' lab)
