@@ -147,7 +147,7 @@ module Text.LLVM.AST
   , DILexicalBlockFile'(..), DILexicalBlockFile
   , DILocalVariable'(..), DILocalVariable
   , DISubprogram'(..), DISubprogram
-  , DISubrange(..)
+  , DISubrange'(..), DISubrange
   , DISubroutineType'(..), DISubroutineType
   , DIArgList'(..), DIArgList
     -- * Aggregate Utilities
@@ -1400,7 +1400,7 @@ data DebugInfo' lab
   | DebugInfoLexicalBlockFile (DILexicalBlockFile' lab)
   | DebugInfoLocalVariable (DILocalVariable' lab)
   | DebugInfoSubprogram (DISubprogram' lab)
-  | DebugInfoSubrange DISubrange
+  | DebugInfoSubrange (DISubrange' lab)
   | DebugInfoSubroutineType (DISubroutineType' lab)
   | DebugInfoNameSpace (DINameSpace' lab)
   | DebugInfoTemplateTypeParameter (DITemplateTypeParameter' lab)
@@ -1647,10 +1647,37 @@ data DISubprogram' lab = DISubprogram
 
 type DISubprogram = DISubprogram' BlockLabel
 
-data DISubrange = DISubrange
-  { disrCount      :: Int64
-  , disrLowerBound :: Int64
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+-- | The DISubrange is a Value subrange specification, usually associated with
+-- arrays or enumerations.
+--
+-- * Early LLVM: only 'disrCount' and 'disrLowerBound' were present, where both
+--   were a direct signed 64-bit value.  This corresponds to "format 0" in the
+--   bitcode encoding (see reference below).
+--
+-- * LLVM 7: 'disrCount' changed to metadata representation ('ValMd').  The
+--   metadata representation should only be a signed 64-bit integer, a Variable,
+--   or an Expression.  This corresponds to "format 1" in the bitcode encoding.
+--
+-- * LLVM 11: 'disrLowerBound' was changed to a metadata representation and
+--   'disrUpperBound' and 'disrStride' were added (primarily driven by the
+--   addition of Fortran support in llvm).  All three should only be represented
+--   as a signed 64-bit integer, a Variable, or an Expression.  This corresponds
+--   to "format 2" in the bitcode encoding.  See
+--   https://github.com/llvm/llvm-project/commit/d20bf5a for this change.
+--
+-- Also see
+-- https://github.com/llvm/llvm-project/blob/bbe8cd1/llvm/lib/Bitcode/Reader/MetadataLoader.cpp#L1435-L1461
+-- for how this is read from the bitcode encoding and the use of the format
+-- values mentioned above.
+
+data DISubrange' lab = DISubrange
+  { disrCount      :: Maybe (ValMd' lab)
+  , disrLowerBound :: Maybe (ValMd' lab)
+  , disrUpperBound :: Maybe (ValMd' lab)
+  , disrStride     :: Maybe (ValMd' lab)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+
+type DISubrange = DISubrange' BlockLabel
 
 data DISubroutineType' lab = DISubroutineType
   { distFlags     :: DIFlags

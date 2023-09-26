@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 
@@ -948,7 +949,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoLexicalBlockFile lbf -> ppDILexicalBlockFile' pp lbf
   DebugInfoLocalVariable lv     -> ppDILocalVariable' pp lv
   DebugInfoSubprogram sp        -> ppDISubprogram' pp sp
-  DebugInfoSubrange sr          -> ppDISubrange sr
+  DebugInfoSubrange sr          -> ppDISubrange' pp sr
   DebugInfoSubroutineType st    -> ppDISubroutineType' pp st
   DebugInfoNameSpace ns         -> ppDINameSpace' pp ns
   DebugInfoTemplateTypeParameter dttp  -> ppDITemplateTypeParameter' pp dttp
@@ -1239,11 +1240,29 @@ ppDISubprogram' pp sp = "!DISubprogram"
 ppDISubprogram :: Fmt DISubprogram
 ppDISubprogram = ppDISubprogram' ppLabel
 
+ppDISubrange' :: Fmt i -> Fmt (DISubrange' i)
+ppDISubrange' pp sr =
+  "!DISubrange"
+  <> parens
+  (mcommas
+   -- LLVM < 7: count and lowerBound as signed int 64
+   -- LLVM < 11: count as ValMd, lowerBound as signed in 64
+   -- LLVM >= 11: ValMd of count, lowerBound, upperBound, and stride
+   -- Valid through LLVM 17.
+   -- See AST.hs description for more details on the structure.
+   -- See https://github.com/llvm/llvm-project/blob/431969e/llvm/lib/IR/AsmWriter.cpp#L1888-L1927
+   -- for more details on output generation.
+   [
+     (("count:" <+>) . ppInt64ValMd' (llvmVer >= 7) pp) <$> disrCount sr
+   , (("lowerBound:" <+>) . ppInt64ValMd' (llvmVer >= 11) pp) <$> disrLowerBound sr
+   , when' (llvmVer >= 11)
+     $ (("upperBound:" <+>) . ppInt64ValMd' True pp) <$> disrUpperBound sr
+   , when' (llvmVer >= 11)
+     $ (("stride:" <+>) . ppInt64ValMd' True pp) <$> disrStride sr
+   ])
+
 ppDISubrange :: Fmt DISubrange
-ppDISubrange sr = "!DISubrange"
-  <> parens (commas [ "count:" <+> integral (disrCount sr)
-                    , "lowerBound:" <+> integral (disrLowerBound sr)
-                    ])
+ppDISubrange = ppDISubrange' ppLabel
 
 ppDISubroutineType' :: Fmt i -> Fmt (DISubroutineType' i)
 ppDISubroutineType' pp st = "!DISubroutineType"
@@ -1282,6 +1301,32 @@ hex i = text (showHex i "0x")
 opt :: Bool -> Fmt Doc
 opt True  = id
 opt False = const empty
+
+-- | Print a ValMd' value as a plain signed integer (Int64) if possible.  If the
+-- ValMd' is not representable as an Int64, defer to ValMd' printing (if
+-- canFallBack is True) or print nothing (for when a ValMd is not a valid
+-- representation).
+
+ppInt64ValMd' :: Bool -> Fmt i -> Fmt (ValMd' i)
+ppInt64ValMd' canFallBack pp = go
+  where go = \case
+          ValMdValue tv
+            | PrimType (Integer _) <- typedType tv
+            , ValInteger i <- typedValue tv
+              -> integer i  -- 64 bits is the largest Int, so no conversion needed
+          o@(ValMdDebugInfo (DebugInfoGlobalVariable gv)) ->
+            case digvVariable gv of
+              Nothing -> when' canFallBack $ ppValMd' pp o
+              Just v -> go v
+          o@(ValMdDebugInfo (DebugInfoGlobalVariableExpression expr)) ->
+            case digveExpression expr of
+              Nothing -> when' canFallBack $ ppValMd' pp o
+              Just e -> go e
+          ValMdDebugInfo (DebugInfoLocalVariable lv) ->
+            integer $ fromIntegral $ dilvArg lv  -- ??
+          -- ValMdRef _idx -> mempty -- no table here to look this up...
+          o -> when' canFallBack $ ppValMd' pp o
+
 
 commas :: Fmt [Doc]
 commas  = fsep . punctuate comma
