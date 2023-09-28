@@ -957,6 +957,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoImportedEntity diip         -> ppDIImportedEntity' pp diip
   DebugInfoLabel dil            -> ppDILabel' pp dil
   DebugInfoArgList args         -> ppDIArgList' pp args
+  DebugInfoAssignID             -> "!DIAssignID()"
 
 ppDebugInfo :: Fmt DebugInfo
 ppDebugInfo = ppDebugInfo' ppLabel
