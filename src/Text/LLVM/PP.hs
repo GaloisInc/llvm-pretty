@@ -140,8 +140,8 @@ ppModule m = foldr ($+$) empty
   : concat [ map ppTypeDecl    (modTypes m)
            , map ppGlobal      (modGlobals m)
            , map ppGlobalAlias (modAliases m)
-           , map ppDeclare     (modDeclares m)
            , map ppDefine      (modDefines m)
+           , map ppDeclare     (modDeclares m)
            , map ppNamedMd     (modNamedMd m)
            , map ppUnnamedMd   (modUnnamedMd m)
            , map ppComdat      (Map.toList (modComdat m))
@@ -206,9 +206,9 @@ ppLayoutSpec ls =
   case ls of
     BigEndian                 -> char 'E'
     LittleEndian              -> char 'e'
-    PointerSize 0 sz abi pref -> char 'p' <> char ':' <> ppLayoutBody sz abi pref
-    PointerSize n sz abi pref -> char 'p' <> int n <> char ':'
-                                          <> ppLayoutBody sz abi pref
+    PointerSize False 0 sz abi pref gep -> char 'p' <> char ':' <> ppLayoutBody' sz abi pref gep
+    PointerSize fat n sz abi pref gep -> char 'p' <> when' fat (char 'f') <> int n <> char ':'
+                                          <> ppLayoutBody' sz abi pref gep
     IntegerSize   sz abi pref -> char 'i' <> ppLayoutBody sz abi pref
     VectorSize    sz abi pref -> char 'v' <> ppLayoutBody sz abi pref
     FloatSize     sz abi pref -> char 'f' <> ppLayoutBody sz abi pref
@@ -218,6 +218,9 @@ ppLayoutSpec ls =
       char 'n' <> hcat (punctuate (char ':') (map int szs))
     StackAlign a              -> char 'S' <> int a
     Mangling m                -> char 'm' <> char ':' <> ppMangling m
+    ProgramAddressSpace a     -> char 'P' <> int ( getAddrSpace a)
+    AllocaAddressSpace a      -> char 'A' <> int (getAddrSpace a)
+    DefaultGlobalVariableAddressSpace a -> char 'G' <> int (getAddrSpace a)
 
 -- | Pretty-print the common case for data layout specifications.
 ppLayoutBody :: Int -> Int -> Fmt (Maybe Int)
@@ -226,6 +229,18 @@ ppLayoutBody size abi mb = int size <> char ':' <> int abi <> pref
   pref = case mb of
     Nothing -> empty
     Just p  -> char ':' <> int p
+
+-- | Pretty-print the common case for data layout specifications.
+ppLayoutBody' :: Int -> Int -> Maybe Int -> Fmt (Maybe Int)
+ppLayoutBody' size abi mb mg = int size <> char ':' <> int abi <> pref <> gep
+  where
+  pref = case mb of
+    Nothing -> empty
+    Just p  -> char ':' <> int p
+  gep = case (mb, mg) of
+    (Just _, Just g) -> char ':' <> int g
+    _ -> empty
+
 
 ppMangling :: Fmt Mangling
 ppMangling ElfMangling         = char 'e'
@@ -293,8 +308,8 @@ ppType :: Fmt Type
 ppType (PrimType pt)     = ppPrimType pt
 ppType (Alias i)         = ppIdent i
 ppType (Array len ty)    = brackets (integral len <+> char 'x' <+> ppType ty)
-ppType (PtrTo ty)        = ppType ty <> char '*'
-ppType PtrOpaque         = "ptr"
+ppType (PtrTo adr ty)    = ppType ty <+> ppAddrSpace adr <> char '*'
+ppType (PtrOpaque adr)   = "ptr" <+> ppAddrSpace adr
 ppType (Struct ts)       = structBraces (commas (map ppType ts))
 ppType (PackedStruct ts) = angles (structBraces (commas (map ppType ts)))
 ppType (FunTy r as va)   = ppType r <> ppArgList va (map ppType as)
@@ -338,9 +353,14 @@ ppGlobalAttrs hasValue ga
         --   * initialized structure
         --   * external scalar
         --   * external structure
+        ppAddrSpace (gaAddrSpace ga) <+>
         constant
     | otherwise =
-        ppMaybe ppLinkage (gaLinkage ga) <+> ppMaybe ppVisibility (gaVisibility ga) <+> constant
+        ppMaybe ppLinkage (gaLinkage ga) <+>
+        ppMaybe ppVisibility (gaVisibility ga) <+>
+        ppMaybe ppUnnamedAddr (gaUnnamedAddr ga) <+>
+        ppAddrSpace (gaAddrSpace ga) <+>
+        constant
   where
   constant | gaConstant ga = "constant"
            | otherwise     = "global"
@@ -353,6 +373,7 @@ ppDeclare d = "declare"
           <+> ppSymbol (decName d)
            <> ppArgList (decVarArgs d) (map ppType (decArgs d))
           <+> hsep (ppFunAttr <$> decAttrs d)
+          <+> ppAddrSpace (decAddrSpace d)
           <> maybe empty ((char ' ' <>) . ppComdatName) (decComdat d)
 
 ppComdatName :: Fmt String
@@ -378,6 +399,7 @@ ppDefine d = "define"
          <+> ppSymbol (defName d)
           <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
          <+> hsep (ppFunAttr <$> defAttrs d)
+         <+> ppAddrSpace (defAddrSpace d)
          <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
          <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (defGC d)
          <+> ppMds (defMetadata d)
@@ -478,13 +500,20 @@ ppLinkage linkage = case linkage of
 
 ppVisibility :: Fmt Visibility
 ppVisibility v = case v of
-    DefaultVisibility   -> "default"
+    DefaultVisibility   -> empty
     HiddenVisibility    -> "hidden"
     ProtectedVisibility -> "protected"
 
 ppGC :: Fmt GC
 ppGC  = doubleQuotes . text . getGC
 
+ppUnnamedAddr :: Fmt UnnamedAddr
+ppUnnamedAddr ua = case ua of
+  GlobalUnnamedAddr -> "unnamed_addr"
+  LocalUnnamedAddr  -> "local_unnamed_addr"
+
+ppAddrSpace :: Fmt AddrSpace
+ppAddrSpace (AddrSpace a) = if a == 0 then empty else "addrspace" <> parens (int a)
 
 -- Expressions -----------------------------------------------------------------
 
@@ -580,7 +609,7 @@ ppInstr instr = case instr of
                         <+> "to" <+> ppType ty
   Call tc ty f args      -> ppCall tc ty f args
   CallBr ty f args u es  -> ppCallBr ty f args u es
-  Alloca ty len align    -> ppAlloca ty len align
+  Alloca ty as len align -> ppAlloca ty as len align
   Load ty ptr mo ma      -> ppLoad ty ptr mo ma
   Store a ptr mo ma      -> ppStore a ptr mo ma
   Fence scope order      -> "fence" <+> ppScope scope <+> ppAtomicOrdering order
@@ -718,8 +747,8 @@ ppAlign :: Fmt (Maybe Align)
 ppAlign Nothing      = empty
 ppAlign (Just align) = comma <+> "align" <+> int align
 
-ppAlloca :: Type -> Maybe (Typed Value) -> Fmt (Maybe Int)
-ppAlloca ty mbLen mbAlign = "alloca" <+> ppType ty <> len <> align
+ppAlloca :: Type -> AddrSpace -> Maybe (Typed Value) -> Fmt (Maybe Int)
+ppAlloca ty as mbLen mbAlign = "alloca" <+> ppType ty <> len <> align <> addrspace
   where
   len = fromMaybe empty $ do
     l <- mbLen
@@ -727,6 +756,7 @@ ppAlloca ty mbLen mbAlign = "alloca" <+> ppType ty <> len <> align
   align = fromMaybe empty $ do
     a <- mbAlign
     return (comma <+> "align" <+> int a)
+  addrspace = if as /= AddrSpace 0 then comma <+> ppAddrSpace as else empty
 
 ppCall :: Bool -> Type -> Value -> Fmt [Typed Value]
 ppCall tc ty f args

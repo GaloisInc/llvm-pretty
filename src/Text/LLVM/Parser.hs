@@ -73,7 +73,7 @@ pType = pType0 >>= pFunPtr
       , angles (braces (PackedStruct <$> pTypeList) <|> spaced (pNumType Vector))
       , string "opaque" >> return Opaque
       , PrimType <$> pPrimType
-      , string "ptr" >> return PtrOpaque
+      , string "ptr" >> return (PtrOpaque (AddrSpace 0))
       ]
 
     pTypeList :: Parser [Type]
@@ -85,6 +85,10 @@ pType = pType0 >>= pFunPtr
          spaces >> char 'x' >> spaces
          t <- pType
          return (f n t)
+
+    pAddressSpace :: Parser AddrSpace
+    pAddressSpace = AddrSpace . fromIntegral <$> do
+      (string "addrspace" *> parens pWord32) <|> return 0
 
     pArgList :: Type -> Parser Type
     pArgList t0 = spaces >> (p1 [] <|> return (FunTy t0 [] False))
@@ -100,7 +104,9 @@ pType = pType0 >>= pFunPtr
     pFunPtr t0 = pFun <|> pPtr <|> return t0
       where
         pFun = parens (pArgList t0) >>= pFunPtr
-        pPtr = char '*' >> pFunPtr (PtrTo t0)
+        pPtr = do
+          adr <- pAddressSpace
+          char '*' >> pFunPtr (PtrTo adr t0)
 
 parseType :: String -> Either ParseError Type
 parseType = parse (pType <* eof) "<internal>"
