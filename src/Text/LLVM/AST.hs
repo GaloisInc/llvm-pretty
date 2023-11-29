@@ -394,7 +394,18 @@ data SelectionKind = ComdatAny
 -- Identifiers -----------------------------------------------------------------
 
 newtype Ident = Ident String
-    deriving (Data, Eq, Generic, Ord, Show, Typeable, Lift)
+    deriving (Data, Eq, Generic, Show, Typeable, Lift)
+
+-- this exists so that struct types will be printed in the same order llvm-dis prints them
+instance Ord Ident where
+  compare (Ident l) (Ident r) = go l r where
+    go [] [] = EQ
+    go [] _ = GT
+    go _ [] = LT
+    go (ll:ls) (rr:rs) = case compare ll rr of
+      LT -> LT
+      GT -> GT
+      EQ -> go ls rs
 
 instance IsString Ident where
   fromString = Ident
