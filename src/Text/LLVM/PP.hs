@@ -72,7 +72,7 @@ llvmV3_8 = 3
 -- this is used for defaulting and otherwise reporting the maximum LLVM version
 -- known to be supported.
 llvmVlatest :: LLVMVer
-llvmVlatest = 16
+llvmVlatest = 17
 
 
 -- | The differences between various versions of the llvm textual AST.
@@ -957,6 +957,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoImportedEntity diip         -> ppDIImportedEntity' pp diip
   DebugInfoLabel dil            -> ppDILabel' pp dil
   DebugInfoArgList args         -> ppDIArgList' pp args
+  DebugInfoAssignID             -> "!DIAssignID()"
 
 ppDebugInfo :: Fmt DebugInfo
 ppDebugInfo = ppDebugInfo' ppLabel

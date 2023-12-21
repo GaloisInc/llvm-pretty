@@ -1408,6 +1408,8 @@ data DebugInfo' lab
   | DebugInfoImportedEntity (DIImportedEntity' lab)
   | DebugInfoLabel (DILabel' lab)
   | DebugInfoArgList (DIArgList' lab)
+  | DebugInfoAssignID
+    -- ^ Introduced in LLVM 17.
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugInfo = DebugInfo' BlockLabel
