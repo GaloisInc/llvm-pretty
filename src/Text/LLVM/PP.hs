@@ -745,17 +745,15 @@ ppVectorIndex i = ppType (PrimType (Integer 32)) <+> ppValue i
 
 ppAlign :: Fmt (Maybe Align)
 ppAlign Nothing      = empty
-ppAlign (Just align) = comma <+> "align" <+> int align
+ppAlign (Just align) | align == 0 = empty
+                     | otherwise = comma <+> "align" <+> int align
 
 ppAlloca :: Type -> AddrSpace -> Maybe (Typed Value) -> Fmt (Maybe Int)
-ppAlloca ty as mbLen mbAlign = "alloca" <+> ppType ty <> len <> align <> addrspace
+ppAlloca ty as mbLen mbAlign = "alloca" <+> ppType ty <> len <> ppAlign mbAlign <> addrspace
   where
   len = fromMaybe empty $ do
     l <- mbLen
     return (comma <+> ppTyped ppValue l)
-  align = fromMaybe empty $ do
-    a <- mbAlign
-    return (comma <+> "align" <+> int a)
   addrspace = if as /= AddrSpace 0 then comma <+> ppAddrSpace as else empty
 
 ppCall :: Bool -> Type -> Value -> Fmt [Typed Value]
