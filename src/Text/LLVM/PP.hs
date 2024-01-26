@@ -975,7 +975,7 @@ ppConstExpr' pp expr =
     ConstArith      op a b -> ppArithOp op <+> ppTuple a b
     ConstUnaryArith op a   -> ppUnaryArithOp op <+> ppTyp' a
     ConstBit        op a b -> ppBitOp op   <+> ppTuple a b
-  where ppTuple  a b = parens $ ppTyped ppVal' a <> comma <+> ppVal' b
+  where ppTuple  a b = parens $ ppTyped ppVal' a <> comma <+> ppTyped ppVal' (const b <$> a)
         ppTupleT a b = parens $ ppTyped ppVal' a <> comma <+> ppTyp' b
         ppVal'       = ppValue' pp
         ppTyp'       = ppTyped ppVal'
