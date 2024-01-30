@@ -14,6 +14,7 @@ Description:
   that allows functions to be defined and called, generating the corresponding
   LLVM assembly when run.
 tested-with:         GHC==8.4.3, GHC==8.2.2, GHC==8.0.2
+extra-doc-files:     CHANGELOG.md, README.md
 
 
 source-repository head
