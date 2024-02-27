@@ -46,7 +46,7 @@ Library
                        Text.LLVM.Triple.Parse.LookupTable
                        Text.LLVM.Util
 
-  Build-depends:       base             >= 4.9 && < 5,
+  Build-depends:       base             >= 4.11 && < 5,
                        containers       >= 0.4,
                        parsec           >= 3,
                        pretty           >= 1.0.1,
