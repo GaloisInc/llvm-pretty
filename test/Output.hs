@@ -13,6 +13,7 @@ module Output ( tests ) where
 
 import           Control.Monad ( unless )
 import qualified Data.Text as T
+import           GHC.Float (castWord32ToFloat, castWord64ToDouble)
 import qualified Test.Tasty as Tasty
 import           Test.Tasty.HUnit
 import qualified Text.PrettyPrint as PP
@@ -242,6 +243,46 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
       ; <label>: 123
       --------
       |]
+
+  , testCase "Positive Infinity (float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValFloat (castWord32ToFloat 0x7F800000)))
+      "0x7f800000"
+
+  , testCase "Negative Infinity (float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValFloat (castWord32ToFloat 0xFF800000)))
+      "0xff800000"
+
+  , testCase "NaN 1 (float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValFloat (castWord32ToFloat 0x7FC00000)))
+      "0x7fc00000"
+
+  , testCase "NaN 2 (float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValFloat (castWord32ToFloat 0x7FD00000)))
+      "0x7fd00000"
+
+  , testCase "Positive Infinity (double)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValDouble (castWord64ToDouble 0x7FF0000000000000)))
+      "0x7ff0000000000000"
+
+  , testCase "Negative Infinity (double)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValDouble (castWord64ToDouble 0xFFF0000000000000)))
+      "0xfff0000000000000"
+
+  , testCase "NaN 1 (double)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValDouble (castWord64ToDouble 0x7FFC000000000000)))
+      "0x7ffc000000000000"
+
+  , testCase "NaN 2 (double)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValDouble (castWord64ToDouble 0x7FFD000000000000)))
+      "0x7ffd000000000000"
 
   ]
 
