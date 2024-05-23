@@ -19,7 +19,7 @@ represented in a specific (or any) LLVM version.
 features](https://llvm.org/docs/LangRef.html), but there are places where our
 coverage of the LLVM language is incomplete. If you need a LLVM feature that is
 not currently supported by `llvm-pretty`, please [file an
-issue](https://github.com/elliottt/llvm-pretty/issues/new).
+issue](https://github.com/GaloisInc/llvm-pretty/issues/new).
 
 ## `llvm-pretty` versus `llvm-pretty-bc-parser`
 

@@ -19,7 +19,7 @@ extra-doc-files:     CHANGELOG.md, README.md
 
 source-repository head
   type:                 git
-  location:             http://github.com/elliottt/llvm-pretty
+  location:             http://github.com/GaloisInc/llvm-pretty
 
 common common
   Default-language:    Haskell2010
