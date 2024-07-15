@@ -982,6 +982,10 @@ data ConvOp
   | BitCast
     deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
+-- | Some of the atomic RW operations are supported only on later LLVM
+-- versions. Because the LLVM version is chosen dynamically, the data
+-- constructors cannot be excluded statically; pretty-printing for an LLVM
+-- version that does not support the operation will call 'error'.
 data AtomicRWOp
   = AtomicXchg
   | AtomicAdd
@@ -994,6 +998,12 @@ data AtomicRWOp
   | AtomicMin
   | AtomicUMax
   | AtomicUMin
+  | AtomicFAdd  -- ^ LLVM >= 9
+  | AtomicFSub  -- ^ LLVM >= 9
+  | AtomicFMax  -- ^ LLVM >= 15
+  | AtomicFMin  -- ^ LLVM >= 15
+  | AtomicUIncWrap  -- ^ LLVM >= 16
+  | AtomicUDecWrap  -- ^ LLVM >= 16
     deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 data AtomicOrdering
