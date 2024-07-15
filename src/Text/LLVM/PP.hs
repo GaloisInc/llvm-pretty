@@ -1369,8 +1369,8 @@ structBraces body = char '{' <+> body <+> char '}'
 ppMaybe :: Fmt a -> Fmt (Maybe a)
 ppMaybe  = maybe empty
 
--- | Throw an error if the ?config version is older than the given version. The
--- String indicates the constructor that is unavailable.
+-- | Throw an error if the @?config@ version is older than the given version. The
+-- String indicates which constructor is unavailable in the error message.
 onlyOnLLVM :: (?config :: Config) => LLVMVer -> String -> a -> a
 onlyOnLLVM fromVer name
   | llvmVer >= fromVer = id

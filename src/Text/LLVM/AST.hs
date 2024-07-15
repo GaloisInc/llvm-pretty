@@ -1,7 +1,7 @@
 {- |
 Because this library supports many LLVM versions, it is possible to construct
 an AST with the types in this module that only some LLVM versions will accept.
-These cases are usually documented in the haddocks for the relevant data types.
+These cases are usually documented in the Haddocks for the relevant data types.
 When trying to pretty-print constructions that are unsupported by the current
 LLVM version, pretty-printing may 'error'.
 
