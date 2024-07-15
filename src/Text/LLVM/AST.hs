@@ -1005,12 +1005,12 @@ data AtomicRWOp
   | AtomicMin
   | AtomicUMax
   | AtomicUMin
-  | AtomicFAdd  -- ^ LLVM >= 9
-  | AtomicFSub  -- ^ LLVM >= 9
-  | AtomicFMax  -- ^ LLVM >= 15
-  | AtomicFMin  -- ^ LLVM >= 15
-  | AtomicUIncWrap  -- ^ LLVM >= 16
-  | AtomicUDecWrap  -- ^ LLVM >= 16
+  | AtomicFAdd  -- ^ Introduced in LLVM 9
+  | AtomicFSub  -- ^ Introduced in LLVM 9
+  | AtomicFMax  -- ^ Introduced in LLVM 15
+  | AtomicFMin  -- ^ Introduced in LLVM 15
+  | AtomicUIncWrap  -- ^ Introduced in LLVM 16
+  | AtomicUDecWrap  -- ^ Introduced in LLVM 16
     deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 data AtomicOrdering
