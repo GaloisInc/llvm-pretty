@@ -1,3 +1,14 @@
+{- |
+Because this library supports many LLVM versions, it is possible to construct
+an AST with the types in this module that only some LLVM versions will accept.
+These cases are usually documented in the haddocks for the relevant data types.
+When trying to pretty-print constructions that are unsupported by the current
+LLVM version, pretty-printing may 'error'.
+
+At the same time, while the AST coverage is fairly extensive, it is also
+incomplete: there are some values that new LLVM versions would accept but are
+not yet represented here.
+-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveDataTypeable, DeriveFunctor, DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
@@ -982,10 +993,6 @@ data ConvOp
   | BitCast
     deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
--- | Some of the atomic RW operations are supported only on later LLVM
--- versions. Because the LLVM version is chosen dynamically, the data
--- constructors cannot be excluded statically; pretty-printing for an LLVM
--- version that does not support the operation will call 'error'.
 data AtomicRWOp
   = AtomicXchg
   | AtomicAdd
