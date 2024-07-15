@@ -96,6 +96,15 @@ ppLLVM38 = withConfig Config { cfgVer = llvmV3_8 }
 llvmVer :: (?config :: Config) => LLVMVer
 llvmVer = cfgVer ?config
 
+llvmVerToString :: LLVMVer -> String
+llvmVerToString 0 = "3.5"
+llvmVerToString 1 = "3.6"
+llvmVerToString 2 = "3.7"
+llvmVerToString 3 = "3.8"
+llvmVerToString n
+  | n >= 4    = show n
+  | otherwise = error $ "Invalid LLVMVer: " ++ show n
+
 -- | This is a helper function for when a list of parameters is gated by a
 -- condition (usually the llvmVer value).
 when' :: Monoid a => Bool -> a -> a
@@ -547,6 +556,12 @@ ppAtomicOp AtomicMax  = "max"
 ppAtomicOp AtomicMin  = "min"
 ppAtomicOp AtomicUMax = "umax"
 ppAtomicOp AtomicUMin = "umin"
+ppAtomicOp AtomicFAdd = onlyOnLLVM 9 "AtomicFAdd" "fadd"
+ppAtomicOp AtomicFSub = onlyOnLLVM 9 "AtomicFSub" "fsub"
+ppAtomicOp AtomicFMax = onlyOnLLVM 15 "AtomicFMax" "fmax"
+ppAtomicOp AtomicFMin = onlyOnLLVM 15 "AtomicFMin" "fmin"
+ppAtomicOp AtomicUIncWrap = onlyOnLLVM 16 "AtomicUIncWrap" "uincwrap"
+ppAtomicOp AtomicUDecWrap = onlyOnLLVM 16 "AtomicUDecWrap" "udecwrap"
 
 ppScope ::  Fmt (Maybe String)
 ppScope Nothing = empty
@@ -1353,3 +1368,11 @@ structBraces body = char '{' <+> body <+> char '}'
 
 ppMaybe :: Fmt a -> Fmt (Maybe a)
 ppMaybe  = maybe empty
+
+-- | Throw an error if the @?config@ version is older than the given version. The
+-- String indicates which constructor is unavailable in the error message.
+onlyOnLLVM :: (?config :: Config) => LLVMVer -> String -> a -> a
+onlyOnLLVM fromVer name
+  | llvmVer >= fromVer = id
+  | otherwise          = error $ name ++ " is supported only on LLVM >= "
+                                 ++ llvmVerToString fromVer

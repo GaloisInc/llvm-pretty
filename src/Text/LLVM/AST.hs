@@ -1,3 +1,14 @@
+{- |
+Because this library supports many LLVM versions, it is possible to construct
+an AST with the types in this module that only some LLVM versions will accept.
+These cases are usually documented in the Haddocks for the relevant data types.
+When trying to pretty-print constructions that are unsupported by the current
+LLVM version, pretty-printing may 'error'.
+
+At the same time, while the AST coverage is fairly extensive, it is also
+incomplete: there are some values that new LLVM versions would accept but are
+not yet represented here.
+-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveDataTypeable, DeriveFunctor, DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
@@ -994,6 +1005,12 @@ data AtomicRWOp
   | AtomicMin
   | AtomicUMax
   | AtomicUMin
+  | AtomicFAdd  -- ^ Introduced in LLVM 9
+  | AtomicFSub  -- ^ Introduced in LLVM 9
+  | AtomicFMax  -- ^ Introduced in LLVM 15
+  | AtomicFMin  -- ^ Introduced in LLVM 15
+  | AtomicUIncWrap  -- ^ Introduced in LLVM 16
+  | AtomicUDecWrap  -- ^ Introduced in LLVM 16
     deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 data AtomicOrdering
