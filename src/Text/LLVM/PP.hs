@@ -560,8 +560,8 @@ ppAtomicOp AtomicFAdd = onlyOnLLVM 9 "AtomicFAdd" "fadd"
 ppAtomicOp AtomicFSub = onlyOnLLVM 9 "AtomicFSub" "fsub"
 ppAtomicOp AtomicFMax = onlyOnLLVM 15 "AtomicFMax" "fmax"
 ppAtomicOp AtomicFMin = onlyOnLLVM 15 "AtomicFMin" "fmin"
-ppAtomicOp AtomicUIncWrap = onlyOnLLVM 16 "AtomicUIncWrap" "uincwrap"
-ppAtomicOp AtomicUDecWrap = onlyOnLLVM 16 "AtomicUDecWrap" "udecwrap"
+ppAtomicOp AtomicUIncWrap = onlyOnLLVM 16 "AtomicUIncWrap" "uinc_wrap"
+ppAtomicOp AtomicUDecWrap = onlyOnLLVM 16 "AtomicUDecWrap" "udec_wrap"
 
 ppScope ::  Fmt (Maybe String)
 ppScope Nothing = empty
