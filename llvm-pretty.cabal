@@ -1,6 +1,6 @@
 Cabal-version:       2.2
 Name:                llvm-pretty
-Version:             0.12.1.0
+Version:             0.12.1.0.99
 License:             BSD-3-Clause
 License-file:        LICENSE
 Author:              Trevor Elliott
