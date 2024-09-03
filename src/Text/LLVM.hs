@@ -700,8 +700,8 @@ getelementptr ty ptr ixs = observe ty (GEP False ty (toValue `fmap` ptr) ixs)
 -- | Emit a call instruction, and generate a new variable for its result.
 call :: IsValue a => Typed a -> [Typed Value] -> BB (Typed Value)
 call sym vs = case typedType sym of
-  ty@(PtrTo (FunTy rty _ _)) -> observe rty (Call False ty (toValue sym) vs)
-  _                          -> error "invalid function type given to call"
+  PtrTo ty@(FunTy rty _ _) -> observe rty (Call False ty (toValue sym) vs)
+  _                        -> error "invalid function type given to call"
 
 -- | Emit a call instruction, but don't generate a new variable for its result.
 call_ :: IsValue a => Typed a -> [Typed Value] -> BB ()
