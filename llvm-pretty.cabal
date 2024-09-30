@@ -55,7 +55,7 @@ Library
                        microlens-th     >= 0.4,
                        syb              >= 0.7,
                        template-haskell >= 2.7,
-                       th-abstraction   >= 0.3.1 && <0.7
+                       th-abstraction   >= 0.3.1 && <0.8
 
 Test-suite llvm-pretty-test
   Import: common
