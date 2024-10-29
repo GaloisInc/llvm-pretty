@@ -357,6 +357,7 @@ ppGlobalAttrs hasValue ga
         constant
     | otherwise =
         ppMaybe ppLinkage (gaLinkage ga) <+>
+        ppMaybe ppThreadLocality (gaThreadLocality ga) <+>
         ppMaybe ppVisibility (gaVisibility ga) <+>
         ppMaybe ppUnnamedAddr (gaUnnamedAddr ga) <+>
         ppAddrSpace (gaAddrSpace ga) <+>
@@ -503,6 +504,14 @@ ppVisibility v = case v of
     DefaultVisibility   -> empty
     HiddenVisibility    -> "hidden"
     ProtectedVisibility -> "protected"
+
+ppThreadLocality :: Fmt ThreadLocality
+ppThreadLocality v = case v of
+  NotThreadLocal -> empty
+  ThreadLocal -> "thread_local"
+  LocalDynamic -> "localdynamic"
+  InitialExec -> "initialexec"
+  LocalExec -> "localexec"
 
 ppGC :: Fmt GC
 ppGC  = doubleQuotes . text . getGC

@@ -93,6 +93,7 @@ module Text.LLVM.AST
     -- * Attributes
   , Linkage(..)
   , Visibility(..)
+  , ThreadLocality(..)
   , UnnamedAddr(..)
   , AddrSpace(..)
   , allocaAddrSpace
@@ -723,6 +724,7 @@ addGlobal g m = m { modGlobals = g : modGlobals m }
 data GlobalAttrs = GlobalAttrs
   { gaLinkage    :: Maybe Linkage
   , gaVisibility :: Maybe Visibility
+  , gaThreadLocality :: Maybe ThreadLocality
   , gaUnnamedAddr :: Maybe UnnamedAddr
   , gaAddrSpace  :: AddrSpace
   , gaConstant   :: Bool
@@ -871,6 +873,13 @@ data Linkage
 data Visibility = DefaultVisibility
                 | HiddenVisibility
                 | ProtectedVisibility
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+data ThreadLocality = NotThreadLocal
+                | ThreadLocal
+                | LocalDynamic
+                | InitialExec
+                | LocalExec
     deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 -- ^ there is also None, use Nothing for it
