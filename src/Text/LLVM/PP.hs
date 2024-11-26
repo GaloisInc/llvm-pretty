@@ -312,7 +312,7 @@ ppType (PtrTo adr ty)    = ppType ty <+> ppAddrSpace adr <> char '*'
 ppType (PtrOpaque adr)   = "ptr" <+> ppAddrSpace adr
 ppType (Struct ts)       = structBraces (commas (map ppType ts))
 ppType (PackedStruct ts) = angles (structBraces (commas (map ppType ts)))
-ppType (FunTy r as va)   = ppType r <> ppArgList va (map ppType as)
+ppType (FunTy r as va)   = ppType r <+> ppArgList va (map ppType as)
 ppType (Vector len pt)   = angles (integral len <+> char 'x' <+> ppType pt)
 ppType Opaque            = "opaque"
 
@@ -405,7 +405,7 @@ ppDefine d = "define"
          <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (defGC d)
          <+> ppMds (defMetadata d)
          <+> char '{'
-         $+$ vcat (map ppBasicBlock (defBody d))
+         $+$ vcat (punctuate "" $ map ppBasicBlock (defBody d))
          $+$ char '}'
   where
   ppMds mdm =
@@ -1390,7 +1390,7 @@ ppInt64ValMd' canFallBack pp = go
 
 
 commas :: Fmt [Doc]
-commas  = fsep . punctuate comma
+commas  = hsep . punctuate comma
 
 -- | Helpful for all of the optional fields that appear in the
 -- metadata values
