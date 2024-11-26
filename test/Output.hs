@@ -34,7 +34,7 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
         s1 = Effect
              (GEP True (Alias (Ident "hi")) (Typed Opaque dcu) [])
              []
-        s2 = Effect (Load PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
+        s2 = Effect (Load (PtrOpaque (AddrSpace 0)) (Typed Opaque ValNull) Nothing Nothing)
              [ ("location", ValMdLoc $ DebugLoc { dlLine = 12
                                                 , dlCol = 34
                                                 , dlScope = ValMdRef 5

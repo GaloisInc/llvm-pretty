@@ -93,6 +93,12 @@ module Text.LLVM.AST
     -- * Attributes
   , Linkage(..)
   , Visibility(..)
+  , ThreadLocality(..)
+  , UnnamedAddr(..)
+  , AddrSpace(..)
+  , allocaAddrSpace
+  , programAddrSpace
+  , ptrAddrSpace
   , GC(..)
     -- * Typed Things
   , Typed(..)
@@ -284,7 +290,7 @@ type DataLayout = [LayoutSpec]
 data LayoutSpec
   = BigEndian
   | LittleEndian
-  | PointerSize   !Int !Int !Int (Maybe Int) -- ^ address space, size, abi, pref
+  | PointerSize   !Bool !Int !Int !Int (Maybe Int) (Maybe Int) -- ^ fat pointer?, address space, size, abi, pref, "size of index used in GEP for address calculation"
   | IntegerSize   !Int !Int (Maybe Int) -- ^ size, abi, pref
   | VectorSize    !Int !Int (Maybe Int) -- ^ size, abi, pref
   | FloatSize     !Int !Int (Maybe Int) -- ^ size, abi, pref
@@ -293,6 +299,9 @@ data LayoutSpec
   | NativeIntSize [Int]
   | StackAlign    !Int -- ^ size
   | Mangling Mangling
+  | AllocaAddressSpace !AddrSpace
+  | DefaultGlobalVariableAddressSpace !AddrSpace
+  | ProgramAddressSpace !AddrSpace -- ^ program address space, in particular functions
     deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data Mangling = ElfMangling
@@ -318,7 +327,7 @@ parseDataLayout str =
            'E' -> return BigEndian
            'e' -> return LittleEndian
            'S' -> StackAlign    <$> pInt
-           'p' -> PointerSize   <$> pInt0 <*> pCInt <*> pCInt <*> pPref
+           'p' -> PointerSize   <$> pFat <*> pInt0 <*> pCInt <*> pCInt <*> pPref <*> pPref
            'i' -> IntegerSize   <$> pInt <*> pCInt <*> pPref
            'v' -> VectorSize    <$> pInt <*> pCInt <*> pPref
            'f' -> FloatSize     <$> pInt <*> pCInt <*> pPref  -- size of float, abi-align, pref-align
@@ -340,6 +349,9 @@ parseDataLayout str =
            'a' -> AggregateSize <$> pInt <*> pCInt <*> pPref
            'n' -> NativeIntSize <$> sepBy pInt (char ':')
            'm' -> Mangling      <$> (char ':' >> pMangling)
+           'A' -> AllocaAddressSpace                . AddrSpace <$> pInt
+           'G' -> DefaultGlobalVariableAddressSpace . AddrSpace <$> pInt
+           'P' -> ProgramAddressSpace               . AddrSpace <$> pInt
            _   -> mzero
 
     pMangling :: Parser Mangling
@@ -361,6 +373,9 @@ parseDataLayout str =
     pCInt :: Parser Int
     pCInt = char ':' >> pInt
 
+    pFat :: Parser Bool
+    pFat = (char 'f' *> return True) <|> return False
+
     pPref :: Parser (Maybe Int)
     pPref = optionMaybe pCInt
 
@@ -380,7 +395,18 @@ data SelectionKind = ComdatAny
 -- Identifiers -----------------------------------------------------------------
 
 newtype Ident = Ident String
-    deriving (Data, Eq, Generic, Ord, Show, Typeable, Lift)
+    deriving (Data, Eq, Generic, Show, Typeable, Lift)
+
+-- this exists so that struct types will be printed in the same order llvm-dis prints them
+instance Ord Ident where
+  compare (Ident l) (Ident r) = go l r where
+    go [] [] = EQ
+    go [] _ = GT
+    go _ [] = LT
+    go (ll:ls) (rr:rs) = case compare ll rr of
+      LT -> LT
+      GT -> GT
+      EQ -> go ls rs
 
 instance IsString Ident where
   fromString = Ident
@@ -427,20 +453,20 @@ data Type' ident
   | Alias ident
   | Array Word64 (Type' ident)
   | FunTy (Type' ident) [Type' ident] Bool
-  | PtrTo (Type' ident)
+  | PtrTo !AddrSpace (Type' ident)
     -- ^ A pointer to a memory location of a particular type. See also
     -- 'PtrOpaque', which represents a pointer without a pointee type.
     --
-    -- LLVM pointers can also have an optional address space attribute, but this
-    -- is not currently represented in the @llvm-pretty@ AST.
-  | PtrOpaque
+    -- LLVM pointers also have an optional address space attribute defaulting
+    -- to 0.
+  | PtrOpaque !AddrSpace
     -- ^ A pointer to a memory location. Unlike 'PtrTo', a 'PtrOpaque' does not
     -- have a pointee type. Instead, instructions interacting through opaque
     -- pointers specify the type of the underlying memory they are interacting
     -- with.
     --
-    -- LLVM pointers can also have an optional address space attribute, but this
-    -- is not currently represented in the @llvm-pretty@ AST.
+    -- LLVM pointers also have an optional address space attribute defaulting to
+    -- 0.
     --
     -- 'PtrOpaque' should not be confused with 'Opaque', which is a completely
     -- separate type with a similar-sounding name.
@@ -463,8 +489,8 @@ updateAliasesA f = loop
   loop ty = case ty of
     Array len ety    -> Array len    <$> (loop ety)
     FunTy res ps var -> FunTy        <$> (loop res) <*> (traverse loop ps) <*> pure var
-    PtrTo pty        -> PtrTo        <$> (loop pty)
-    PtrOpaque        -> pure PtrOpaque
+    PtrTo adr pty    -> PtrTo adr    <$> (loop pty)
+    PtrOpaque adr    -> pure $ PtrOpaque adr
     Struct fs        -> Struct       <$> (traverse loop fs)
     PackedStruct fs  -> PackedStruct <$> (traverse loop fs)
     Vector len ety   -> Vector       <$> pure len <*> (loop ety)
@@ -510,8 +536,8 @@ isArray ty = case ty of
   _         -> False
 
 isPointer :: Type -> Bool
-isPointer (PtrTo _) = True
-isPointer PtrOpaque = True
+isPointer (PtrTo _ _) = True
+isPointer (PtrOpaque _) = True
 isPointer _         = False
 
 
@@ -545,8 +571,8 @@ data TypeView' ident
 -- | Convert a `Type'` value to a `TypeView'` value.
 typeView :: Type' ident -> TypeView' ident
 -- The two most important cases. Both forms of pointers are mapped to PtrView.
-typeView (PtrTo _)           = PtrView
-typeView PtrOpaque           = PtrView
+typeView (PtrTo _ _)         = PtrView
+typeView (PtrOpaque _)       = PtrView
 -- All other cases are straightforward.
 typeView (PrimType pt)       = PrimTypeView pt
 typeView (Alias lab)         = AliasView lab
@@ -592,11 +618,11 @@ fixupOpaquePtrs m
     = m
   where
     isOpaquePtr :: Type -> Bool
-    isOpaquePtr PtrOpaque = True
+    isOpaquePtr (PtrOpaque _) = True
     isOpaquePtr _         = False
 
     opaquifyPtr :: Type -> Type
-    opaquifyPtr (PtrTo _) = PtrOpaque
+    opaquifyPtr (PtrTo adr _) = PtrOpaque adr
     opaquifyPtr t         = t
 
     -- Find the first occurrence of a @b@ value within the @a@ value that
@@ -627,7 +653,7 @@ floatTypeNull _        = error "must be a float type"
 typeNull :: Type -> NullResult lab
 typeNull (PrimType pt) = HasNull (primTypeNull pt)
 typeNull PtrTo{}       = HasNull ValNull
-typeNull PtrOpaque     = HasNull ValNull
+typeNull PtrOpaque{}   = HasNull ValNull
 typeNull (Alias i)     = ResolveNull i
 typeNull _             = HasNull ValZeroInit
 
@@ -642,7 +668,7 @@ elimAlias (Alias i) = return i
 elimAlias _         = mzero
 
 elimPtrTo :: MonadPlus m => Type -> m Type
-elimPtrTo (PtrTo ty) = return ty
+elimPtrTo (PtrTo _ ty) = return ty
 elimPtrTo _          = mzero
 
 elimVector :: MonadPlus m => Type -> m (Word64,Type)
@@ -668,7 +694,7 @@ elimFloatType _              = mzero
 elimSequentialType :: MonadPlus m => Type -> m Type
 elimSequentialType ty = case ty of
   Array _ elTy -> return elTy
-  PtrTo elTy   -> return elTy
+  PtrTo _ elTy -> return elTy
   Vector _ pty -> return pty
   _            -> mzero
 
@@ -698,6 +724,9 @@ addGlobal g m = m { modGlobals = g : modGlobals m }
 data GlobalAttrs = GlobalAttrs
   { gaLinkage    :: Maybe Linkage
   , gaVisibility :: Maybe Visibility
+  , gaThreadLocality :: Maybe ThreadLocality
+  , gaUnnamedAddr :: Maybe UnnamedAddr
+  , gaAddrSpace  :: AddrSpace
   , gaConstant   :: Bool
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
@@ -705,6 +734,8 @@ emptyGlobalAttrs :: GlobalAttrs
 emptyGlobalAttrs  = GlobalAttrs
   { gaLinkage    = Nothing
   , gaVisibility = Nothing
+  , gaUnnamedAddr = Nothing
+  , gaAddrSpace  = AddrSpace 0
   , gaConstant   = False
   }
 
@@ -714,17 +745,19 @@ emptyGlobalAttrs  = GlobalAttrs
 data Declare = Declare
   { decLinkage    :: Maybe Linkage
   , decVisibility :: Maybe Visibility
+  , decUnnamedAddr :: Maybe UnnamedAddr
   , decRetType    :: Type
   , decName       :: Symbol
   , decArgs       :: [Type]
   , decVarArgs    :: Bool
   , decAttrs      :: [FunAttr]
   , decComdat     :: Maybe String
+  , decAddrSpace  :: AddrSpace
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 -- | The function type of this declaration
 decFunType :: Declare -> Type
-decFunType Declare { .. } = PtrTo (FunTy decRetType decArgs decVarArgs)
+decFunType Declare { .. } = PtrTo decAddrSpace (FunTy decRetType decArgs decVarArgs)
 
 
 -- Function Definitions --------------------------------------------------------
@@ -732,6 +765,7 @@ decFunType Declare { .. } = PtrTo (FunTy decRetType decArgs decVarArgs)
 data Define = Define
   { defLinkage    :: Maybe Linkage
   , defVisibility :: Maybe Visibility
+  , defAddrSpace  :: AddrSpace
   , defRetType    :: Type
   , defName       :: Symbol
   , defArgs       :: [Typed Ident]
@@ -746,7 +780,7 @@ data Define = Define
 
 defFunType :: Define -> Type
 defFunType Define { .. } =
-  PtrTo (FunTy defRetType (map typedType defArgs) defVarArgs)
+  PtrTo defAddrSpace (FunTy defRetType (map typedType defArgs) defVarArgs)
 
 addDefine :: Define -> Module -> Module
 addDefine d m = m { modDefines = d : modDefines m }
@@ -840,6 +874,22 @@ data Visibility = DefaultVisibility
                 | HiddenVisibility
                 | ProtectedVisibility
     deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+data ThreadLocality = NotThreadLocal
+                | ThreadLocal
+                | LocalDynamic
+                | InitialExec
+                | LocalExec
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+-- ^ there is also None, use Nothing for it
+data UnnamedAddr = GlobalUnnamedAddr
+                 | LocalUnnamedAddr
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+newtype AddrSpace = AddrSpace
+  { getAddrSpace :: Int
+  } deriving (Data, Eq, Generic, Ord, Show, Typeable) -- , Bits, FiniteBits)
 
 newtype GC = GC
   { getGC :: String
@@ -1070,8 +1120,9 @@ data Instr' lab
          * The result is as indicated by the provided type.
          * Introduced in LLVM 9. -}
 
-  | Alloca Type (Maybe (Typed (Value' lab))) (Maybe Int)
+  | Alloca Type AddrSpace (Maybe (Typed (Value' lab))) (Maybe Int)
     {- ^ * Allocated space on the stack:
+           address space;
            type of elements;
            how many elements (1 if 'Nothing');
            required alignment.
@@ -1822,3 +1873,21 @@ resolveValueIndex ty is@(ix:ixs) = case ty of
 
   _ -> Invalid
 resolveValueIndex ty [] = HasType ty
+
+allocaAddrSpace :: DataLayout -> AddrSpace
+allocaAddrSpace [] = AddrSpace 0
+allocaAddrSpace (AllocaAddressSpace as:_) = as
+allocaAddrSpace (_:ds) = allocaAddrSpace ds
+
+programAddrSpace :: DataLayout -> AddrSpace
+programAddrSpace [] = AddrSpace 0
+programAddrSpace (ProgramAddressSpace as:_) = as
+programAddrSpace (_:ds) = programAddrSpace ds
+
+ptrAddrSpace :: Typed a -> AddrSpace
+ptrAddrSpace = go . typedType
+  where
+    go :: Type -> AddrSpace
+    go (PtrTo x _) = x
+    go (PtrOpaque x) = x
+    go _ = AddrSpace 0
