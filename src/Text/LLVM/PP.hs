@@ -1390,7 +1390,7 @@ ppInt64ValMd' canFallBack pp = go
 
 
 commas :: Fmt [Doc]
-commas  = hsep . punctuate comma
+commas  = fsep . punctuate comma
 
 -- | Helpful for all of the optional fields that appear in the
 -- metadata values
