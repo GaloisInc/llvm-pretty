@@ -480,11 +480,11 @@ isFloatingPoint :: PrimType -> Bool
 isFloatingPoint (FloatType _) = True
 isFloatingPoint _             = False
 
-isAlias :: Type -> Bool
+isAlias :: Type' ident -> Bool
 isAlias Alias{} = True
 isAlias _       = False
 
-isPrimTypeOf :: (PrimType -> Bool) -> Type -> Bool
+isPrimTypeOf :: (PrimType -> Bool) -> Type' lab -> Bool
 isPrimTypeOf p (PrimType pt) = p pt
 isPrimTypeOf _ _             = False
 
@@ -496,20 +496,20 @@ isInteger :: PrimType -> Bool
 isInteger Integer{} = True
 isInteger _         = False
 
-isVector :: Type -> Bool
+isVector :: Type' lab -> Bool
 isVector Vector{} = True
 isVector _        = False
 
-isVectorOf :: (Type -> Bool) -> Type -> Bool
+isVectorOf :: (Type' lab -> Bool) -> Type' lab -> Bool
 isVectorOf p (Vector _ e) = p e
 isVectorOf _ _            = False
 
-isArray :: Type -> Bool
+isArray :: Type' ident -> Bool
 isArray ty = case ty of
   Array _ _ -> True
   _         -> False
 
-isPointer :: Type -> Bool
+isPointer :: Type' ident -> Bool
 isPointer (PtrTo _) = True
 isPointer PtrOpaque = True
 isPointer _         = False
