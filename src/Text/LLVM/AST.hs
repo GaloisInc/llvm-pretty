@@ -484,7 +484,7 @@ isAlias :: Type' ident -> Bool
 isAlias Alias{} = True
 isAlias _       = False
 
-isPrimTypeOf :: (PrimType -> Bool) -> Type' lab -> Bool
+isPrimTypeOf :: (PrimType -> Bool) -> Type' ident -> Bool
 isPrimTypeOf p (PrimType pt) = p pt
 isPrimTypeOf _ _             = False
 
@@ -496,11 +496,11 @@ isInteger :: PrimType -> Bool
 isInteger Integer{} = True
 isInteger _         = False
 
-isVector :: Type' lab -> Bool
+isVector :: Type' ident -> Bool
 isVector Vector{} = True
 isVector _        = False
 
-isVectorOf :: (Type' lab -> Bool) -> Type' lab -> Bool
+isVectorOf :: (Type' ident -> Bool) -> Type' ident -> Bool
 isVectorOf p (Vector _ e) = p e
 isVectorOf _ _            = False
 
