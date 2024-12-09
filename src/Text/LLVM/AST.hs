@@ -1197,9 +1197,8 @@ data Instr' lab
 
   | ShuffleVector (Typed (Value' lab)) (Value' lab) (Typed (Value' lab))
     {- ^ * Constructs a fixed permutation of two input vectors: the first
-           argument is the input vector V1, the second input vector V2, and
-           the third is the mask,
-           the third is the insert position.
+           and second arguments are input vectors, and the third argument
+           is the mask.
          * Middle of basic block.
          * Returns the permuted vector. For each element, the mask selects
            an element from one of the input vectors to copy to the result:
@@ -1222,11 +1221,11 @@ data Instr' lab
            label.  If an exception occurs during the call, the exception unwind
            handling branches to the second label.
          * Arguments:
-           1. The FunctionType
-           2. The Function target
-           3. arguments
-           4. onSuccess ret target label
-           5. onException unwind target label
+           1. The function's return type
+           2. The function target itself (to be called)
+           3. arguments to the function
+           4. successful return target label
+           5. on-exception unwind target label
          * Ends basic block. -}
 
   | Comment String
@@ -1237,8 +1236,8 @@ data Instr' lab
 
   | Unwind
   | VaArg (Typed (Value' lab)) Type
-    -- ^ Accesses arguments passed through "varargs" areas of a function call.
-    -- The argument is a va_list*; this instruction returns the value of the
+    -- ^ Accesses arguments passed through \"varargs\" areas of a function call.
+    -- The argument is a @va_list*@; this instruction returns the value of the
     -- specified type located at the target and increments the pointer.
 
   | IndirectBr (Typed (Value' lab)) [lab]
@@ -1248,38 +1247,37 @@ data Instr' lab
   | Switch (Typed (Value' lab)) lab [(Integer,lab)]
     {- ^ * Multi-way branch: the first value determines the target index
            for the jump, which is looked up in the third argument table
-           (key values are unique).  If the value is not found in the table,
-           the second argument is the default destination if the target is
-           not in the table.
+           (key values are unique).  The second argument is the default
+           destination if the target is not found in the table.
          * Ends basic block. -}
 
   | LandingPad Type (Maybe (Typed (Value' lab))) Bool [Clause' lab]
-    {- ^ Target of an exception (from the Invoke instruction).
+    {- ^ Target of an exception (from the 'Invoke' instruction).
          * Arguments:
            1. The result type (the values set by the personality function
               on re-entry to the function).
-           2. the second argument may be the personality function, which defines
+           2. The second argument may be the personality function, which defines
               values on re-entry. This is used in older LLVM versions and is
               not supplied for recent LLVM versions.
-           3. True if this block is a "cleanup"
-           4. The list of clauses to handle the exception;  The clauses are
+           3. True if this block is a "cleanup".
+           4. The list of clauses to handle the exception;  the clauses are
               used to match the exception thrown.
          * If no clause matches and cleanup not set, continue unwinding up
-           the stack (see Resume).
+           the stack (see 'Resume').
          * If cleanup is false, there must be at least one clause
      -}
 
   | Resume (Typed (Value' lab))
     {- ^ Resumes propagation of an in-flight exception whose unwinding was
-         interrupted by a LandingPad instruction.
+         interrupted by a 'LandingPad' instruction.
          * Argument: the value of the exception to propagate.
     -}
 
   | Freeze (Typed (Value' lab))
     {- ^ * Used to stop propagation of @undef@ and @poison@ values.
-         * If the argument is undef or poison, returns an arbitrary (but fixed)
-           value of that type instead, otherwise a no-op and returns its
-           argument.
+         * If the argument is @undef@ or @poison@, returns an arbitrary
+           (but fixed) value of that type instead, otherwise a no-op and
+           returns its argument.
          * Middle of basic block. -}
 
     deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
