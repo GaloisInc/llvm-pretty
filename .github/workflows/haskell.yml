@@ -28,14 +28,18 @@ jobs:
     - name: Cache
       uses: actions/cache@v4
       env:
-        cache-name: cache-cabal
+        # NB: Each `matrix.os` (e.g., `ubuntu-22.04-arm`) uniquely determines
+        # a `runner.arch` (e.g., ARM64), so there is no need to include the
+        # latter as part of the cache key
+        key: cabal-${{ matrix.os }}-ghc${{ matrix.ghc }}-cabal${{ matrix.cabal }}
       with:
-        path: ~/.cabal
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        path: |
+          ${{ steps.setup-haskell.outputs.cabal-store }}
+          dist-newstyle
+        key: |
+          ${{ env.key }}-${{ github.ref }}
         restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
+          ${{ env.key }}-
 
     - name: Install dependencies
       run: |
