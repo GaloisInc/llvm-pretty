@@ -1,6 +1,6 @@
 # Revision history for llvm-pretty
 
-## pending
+## 0.13.0.0 (March 2025)
 
 * Changed some of the signatures of helper functions in the AST to make them more
   flexible by using `Type' ident` rather than `Type` in their signatures (the
