@@ -8,46 +8,15 @@ on:
 
 jobs:
   build:
-
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: ["ubuntu-24.04"]
         ghc: ["9.4.8", "9.6.6", "9.8.4"]
         cabal: ["3.14.1.1"]
-        
+      fail-fast: false
     name: ${{ matrix.os }} - GHC ${{ matrix.ghc }} - Cabal ${{ matrix.cabal }}
-
-    steps:
-    - uses: actions/checkout@v4
-    - uses: haskell-actions/setup@v2
-      with:
-        ghc-version: ${{ matrix.ghc }}
-        cabal-version: ${{ matrix.cabal }}
-
-    - name: Cache
-      uses: actions/cache@v4
-      env:
-        # NB: Each `matrix.os` (e.g., `ubuntu-22.04-arm`) uniquely determines
-        # a `runner.arch` (e.g., ARM64), so there is no need to include the
-        # latter as part of the cache key
-        key: cabal-${{ matrix.os }}-ghc${{ matrix.ghc }}-cabal${{ matrix.cabal }}
-      with:
-        path: |
-          ${{ steps.setup-haskell.outputs.cabal-store }}
-          dist-newstyle
-        key: |
-          ${{ env.key }}-${{ github.ref }}
-        restore-keys: |
-          ${{ env.key }}-
-
-    - name: Install dependencies
-      run: |
-        cabal update
-        cabal build --only-dependencies --enable-tests --enable-benchmarks
-    - name: Check
-      run: cabal check
-    - name: Build
-      run: cabal build --enable-tests --enable-benchmarks all
-    - name: Run tests
-      run: cabal test all
+    uses: GaloisInc/.github/.github/workflows/haskell-ci.yml@v1.2
+    with:
+      cabal: ${{ matrix.cabal }}
+      ghc: ${{ matrix.ghc }}
+      os: ${{ matrix.os }}
