@@ -15,7 +15,7 @@ jobs:
         cabal: ["3.14.1.1"]
       fail-fast: false
     name: ${{ matrix.os }} - GHC ${{ matrix.ghc }} - Cabal ${{ matrix.cabal }}
-    uses: GaloisInc/.github/.github/workflows/haskell-ci.yml@v1.2
+    uses: GaloisInc/.github/.github/workflows/haskell-ci.yml@v1.4
     with:
       cabal: ${{ matrix.cabal }}
       ghc: ${{ matrix.ghc }}
