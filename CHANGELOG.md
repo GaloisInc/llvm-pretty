@@ -2,7 +2,7 @@
 
 ## pending
 
-Nothing yet.
+* Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
 
 ## 0.13.0.0 (March 2025)
 

@@ -28,6 +28,7 @@ module Text.LLVM.AST
     -- * Data Layout
   , DataLayout
   , LayoutSpec(..)
+  , FunctionPointerAlignType(..)
   , Mangling(..)
   , parseDataLayout
     -- * Inline Assembly
@@ -292,8 +293,19 @@ data LayoutSpec
   | AggregateSize !Int !Int (Maybe Int) -- ^ size, abi, pref
   | NativeIntSize [Int]
   | StackAlign    !Int -- ^ size
+  | FunctionPointerAlign !FunctionPointerAlignType !Int -- ^ type, abi
   | Mangling Mangling
     deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+-- | How should a function pointer be aligned?
+data FunctionPointerAlignType
+  = IndependentOfFunctionAlign
+    -- ^ The alignment of function pointers is independent of the alignment of
+    -- functions.
+  | MultipleOfFunctionAlign
+    -- ^ The alignment of function pointers is a multiple of the explicit
+    -- alignment specified on the function.
+  deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 data Mangling = ElfMangling
               | MipsMangling
@@ -318,6 +330,7 @@ parseDataLayout str =
            'E' -> return BigEndian
            'e' -> return LittleEndian
            'S' -> StackAlign    <$> pInt
+           'F' -> FunctionPointerAlign <$> pFunctionPointerAlignType <*> pInt
            'p' -> PointerSize   <$> pInt0 <*> pCInt <*> pCInt <*> pPref
            'i' -> IntegerSize   <$> pInt <*> pCInt <*> pPref
            'v' -> VectorSize    <$> pInt <*> pCInt <*> pPref
@@ -340,6 +353,14 @@ parseDataLayout str =
            'a' -> AggregateSize <$> pInt <*> pCInt <*> pPref
            'n' -> NativeIntSize <$> sepBy pInt (char ':')
            'm' -> Mangling      <$> (char ':' >> pMangling)
+           _   -> mzero
+
+    pFunctionPointerAlignType :: Parser FunctionPointerAlignType
+    pFunctionPointerAlignType =
+      do c <- letter
+         case c of
+           'i' -> return IndependentOfFunctionAlign
+           'n' -> return MultipleOfFunctionAlign
            _   -> mzero
 
     pMangling :: Parser Mangling
