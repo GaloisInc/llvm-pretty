@@ -216,6 +216,8 @@ ppLayoutSpec ls =
     AggregateSize sz abi pref -> char 'a' <> ppLayoutBody sz abi pref
     NativeIntSize szs         ->
       char 'n' <> hcat (punctuate (char ':') (map int szs))
+    FunctionPointerAlign ty abi ->
+      char 'F' <> ppFunctionPointerAlignType ty <> int abi
     StackAlign a              -> char 'S' <> int a
     Mangling m                -> char 'm' <> char ':' <> ppMangling m
 
@@ -226,6 +228,12 @@ ppLayoutBody size abi mb = int size <> char ':' <> int abi <> pref
   pref = case mb of
     Nothing -> empty
     Just p  -> char ':' <> int p
+
+ppFunctionPointerAlignType :: Fmt FunctionPointerAlignType
+ppFunctionPointerAlignType ty =
+  case ty of
+    IndependentOfFunctionAlign -> char 'i'
+    MultipleOfFunctionAlign -> char 'n'
 
 ppMangling :: Fmt Mangling
 ppMangling ElfMangling         = char 'e'
