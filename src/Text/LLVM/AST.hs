@@ -210,7 +210,7 @@ data Module = Module
   , modDefines    :: [Define]      -- ^ internal function declarations (with definitions)
   , modInlineAsm  :: InlineAsm
   , modAliases    :: [GlobalAlias]
-  } deriving (Data, Eq, Ord, Generic, Show, Typeable)
+  } deriving (Data, Eq, Ord, Generic, Show)
 
 -- | Combines fields pointwise.
 instance Sem.Semigroup Module where
@@ -255,7 +255,7 @@ emptyModule  = Module
 data NamedMd = NamedMd
   { nmName   :: String
   , nmValues :: [Int]
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 
 -- Unnamed Metadata ------------------------------------------------------------
@@ -264,7 +264,7 @@ data UnnamedMd = UnnamedMd
   { umIndex    :: !Int
   , umValues   :: ValMd
   , umDistinct :: Bool
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 
 -- Aliases ---------------------------------------------------------------------
@@ -275,7 +275,7 @@ data GlobalAlias = GlobalAlias
   , aliasName       :: Symbol
   , aliasType       :: Type
   , aliasTarget     :: Value
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 
 -- Data Layout -----------------------------------------------------------------
@@ -295,7 +295,7 @@ data LayoutSpec
   | StackAlign    !Int -- ^ size
   | FunctionPointerAlign !FunctionPointerAlignType !Int -- ^ type, abi
   | Mangling Mangling
-    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show)
 
 -- | How should a function pointer be aligned?
 data FunctionPointerAlignType
@@ -305,13 +305,13 @@ data FunctionPointerAlignType
   | MultipleOfFunctionAlign
     -- ^ The alignment of function pointers is a multiple of the explicit
     -- alignment specified on the function.
-  deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+  deriving (Data, Eq, Enum, Generic, Ord, Show)
 
 data Mangling = ElfMangling
               | MipsMangling
               | MachOMangling
               | WindowsCoffMangling
-                deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+                deriving (Data, Eq, Enum, Generic, Ord, Show)
 
 -- | Parse the data layout string.
 parseDataLayout :: MonadPlus m => String -> m DataLayout
@@ -396,12 +396,12 @@ data SelectionKind = ComdatAny
                    | ComdatLargest
                    | ComdatNoDuplicates
                    | ComdatSameSize
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Enum, Generic, Ord, Show)
 
 -- Identifiers -----------------------------------------------------------------
 
 newtype Ident = Ident String
-    deriving (Data, Eq, Generic, Ord, Show, Typeable, Lift)
+    deriving (Data, Eq, Generic, Ord, Show, Lift)
 
 instance IsString Ident where
   fromString = Ident
@@ -409,7 +409,7 @@ instance IsString Ident where
 -- Symbols ---------------------------------------------------------------------
 
 newtype Symbol = Symbol String
-    deriving (Data, Eq, Generic, Ord, Show, Typeable, Lift)
+    deriving (Data, Eq, Generic, Ord, Show, Lift)
 
 instance Sem.Semigroup Symbol where
   Symbol a <> Symbol b = Symbol (a <> b)
@@ -430,7 +430,7 @@ data PrimType
   | FloatType FloatType
   | X86mmx
   | Metadata
-    deriving (Data, Eq, Generic, Ord, Show, Typeable, Lift)
+    deriving (Data, Eq, Generic, Ord, Show, Lift)
 
 data FloatType
   = Half
@@ -439,7 +439,7 @@ data FloatType
   | Fp128
   | X86_fp80
   | PPC_fp128
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable, Lift)
+    deriving (Data, Eq, Enum, Generic, Ord, Show, Lift)
 
 type Type = Type' Ident
 
@@ -475,7 +475,7 @@ data Type' ident
     --
     -- 'Opaque' should not be confused with 'PtrOpaque', which is a completely
     -- separate type with a similar-sounding name.
-    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 -- | Applicatively traverse a type, updating or removing aliases.
 updateAliasesA :: (Applicative f) => (a -> f (Type' b)) -> Type' a -> f (Type' b)
@@ -631,7 +631,7 @@ fixupOpaquePtrs m
 data NullResult lab
   = HasNull (Value' lab)
   | ResolveNull Ident
-    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 primTypeNull :: PrimType -> Value' lab
 primTypeNull (Integer 1)    = ValBool False
@@ -699,7 +699,7 @@ elimSequentialType ty = case ty of
 data TypeDecl = TypeDecl
   { typeName  :: Ident
   , typeValue :: Type
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 
 -- Globals ---------------------------------------------------------------------
@@ -711,7 +711,7 @@ data Global = Global
   , globalValue    :: Maybe Value
   , globalAlign    :: Maybe Align
   , globalMetadata :: GlobalMdAttachments
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 addGlobal :: Global -> Module -> Module
 addGlobal g m = m { modGlobals = g : modGlobals m }
@@ -720,7 +720,7 @@ data GlobalAttrs = GlobalAttrs
   { gaLinkage    :: Maybe Linkage
   , gaVisibility :: Maybe Visibility
   , gaConstant   :: Bool
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 emptyGlobalAttrs :: GlobalAttrs
 emptyGlobalAttrs  = GlobalAttrs
@@ -741,7 +741,7 @@ data Declare = Declare
   , decVarArgs    :: Bool
   , decAttrs      :: [FunAttr]
   , decComdat     :: Maybe String
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 -- | The function type of this declaration
 decFunType :: Declare -> Type
@@ -763,7 +763,7 @@ data Define = Define
   , defBody       :: [BasicBlock]
   , defMetadata   :: FnMdAttachments
   , defComdat     :: Maybe String
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 defFunType :: Define -> Type
 defFunType Define { .. } =
@@ -804,14 +804,14 @@ data FunAttr
    | SSPreq
    | SSPstrong
    | UWTable
-  deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  deriving (Data, Eq, Generic, Ord, Show)
 
 -- Basic Block Labels ----------------------------------------------------------
 
 data BlockLabel
   = Named Ident
   | Anon Int
-    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show)
 
 instance IsString BlockLabel where
   fromString str = Named (fromString str)
@@ -821,7 +821,7 @@ instance IsString BlockLabel where
 data BasicBlock' lab = BasicBlock
   { bbLabel :: Maybe lab
   , bbStmts :: [Stmt' lab]
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type BasicBlock = BasicBlock' BlockLabel
 
@@ -855,23 +855,23 @@ data Linkage
   | External
   | DLLImport
   | DLLExport
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Enum, Generic, Ord, Show)
 
 data Visibility = DefaultVisibility
                 | HiddenVisibility
                 | ProtectedVisibility
-    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show)
 
 newtype GC = GC
   { getGC :: String
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 -- Typed Things ----------------------------------------------------------------
 
 data Typed a = Typed
   { typedType  :: Type
   , typedValue :: a
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 instance Foldable Typed where
   foldMap f t = f (typedValue t)
@@ -941,7 +941,7 @@ data ArithOp
     -- ^ * Floating point reminder resulting from floating point division.
     --   * The reminder has the same sign as the divident (first parameter).
 
-    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show)
 
 isIArith :: ArithOp -> Bool
 isIArith Add{}  = True
@@ -959,7 +959,7 @@ isFArith  = not . isIArith
 data UnaryArithOp
   = FNeg
     -- ^ Floating point negation.
-    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show)
 
 -- | Binary bitwise operators.
 data BitOp
@@ -996,7 +996,7 @@ data BitOp
   | And
   | Or
   | Xor
-    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show)
 
 -- | Conversions from one type to another.
 data ConvOp
@@ -1012,7 +1012,7 @@ data ConvOp
   | PtrToInt
   | IntToPtr
   | BitCast
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Enum, Generic, Ord, Show)
 
 data AtomicRWOp
   = AtomicXchg
@@ -1032,7 +1032,7 @@ data AtomicRWOp
   | AtomicFMin  -- ^ Introduced in LLVM 15
   | AtomicUIncWrap  -- ^ Introduced in LLVM 16
   | AtomicUDecWrap  -- ^ Introduced in LLVM 16
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Enum, Generic, Ord, Show)
 
 data AtomicOrdering
   = Unordered
@@ -1041,7 +1041,7 @@ data AtomicOrdering
   | Release
   | AcqRel
   | SeqCst
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Enum, Generic, Ord, Show)
 
 type Align = Int
 
@@ -1301,14 +1301,14 @@ data Instr' lab
            returns its argument.
          * Middle of basic block. -}
 
-    deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Ord, Show)
 
 type Instr = Instr' BlockLabel
 
 data Clause' lab
   = Catch  (Typed (Value' lab))
   | Filter (Typed (Value' lab))
-    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type Clause = Clause' BlockLabel
 
@@ -1338,13 +1338,13 @@ isPhi _     = False
 
 -- | Integer comparison operators.
 data ICmpOp = Ieq | Ine | Iugt | Iuge | Iult | Iule | Isgt | Isge | Islt | Isle
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Enum, Generic, Ord, Show)
 
 -- | Floating-point comparison operators.
 data FCmpOp = Ffalse  | Foeq | Fogt | Foge | Folt | Fole | Fone
             | Ford    | Fueq | Fugt | Fuge | Fult | Fule | Fune
             | Funo    | Ftrue
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Enum, Generic, Ord, Show)
 
 
 -- Values ----------------------------------------------------------------------
@@ -1370,12 +1370,12 @@ data Value' lab
   | ValAsm Bool Bool String String
   | ValMd (ValMd' lab)
   | ValPoison
-    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type Value = Value' BlockLabel
 
 data FP80Value = FP80_LongDouble Word16 Word64
-               deriving (Data, Eq, Ord, Generic, Show, Typeable)
+               deriving (Data, Eq, Ord, Generic, Show)
 
 data ValMd' lab
   = ValMdString String
@@ -1384,7 +1384,7 @@ data ValMd' lab
   | ValMdNode [Maybe (ValMd' lab)]
   | ValMdLoc (DebugLoc' lab)
   | ValMdDebugInfo (DebugInfo' lab)
-    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type ValMd = ValMd' BlockLabel
 
@@ -1398,7 +1398,7 @@ data DebugLoc' lab = DebugLoc
   , dlScope :: ValMd' lab
   , dlIA    :: Maybe (ValMd' lab)
   , dlImplicit :: Bool
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DebugLoc = DebugLoc' BlockLabel
 
@@ -1428,7 +1428,7 @@ elimValInteger _              = mzero
 data Stmt' lab
   = Result Ident (Instr' lab) [(String,ValMd' lab)]
   | Effect (Instr' lab) [(String,ValMd' lab)]
-    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type Stmt = Stmt' BlockLabel
 
@@ -1463,7 +1463,7 @@ data ConstExpr' lab
   | ConstArith ArithOp (Typed (Value' lab)) (Value' lab)
   | ConstUnaryArith UnaryArithOp (Typed (Value' lab))
   | ConstBit BitOp (Typed (Value' lab)) (Value' lab)
-    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type ConstExpr = ConstExpr' BlockLabel
 
@@ -1494,7 +1494,7 @@ data DebugInfo' lab
   | DebugInfoArgList (DIArgList' lab)
   | DebugInfoAssignID
     -- ^ Introduced in LLVM 17.
-    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DebugInfo = DebugInfo' BlockLabel
 
@@ -1504,7 +1504,7 @@ data DILabel' lab = DILabel
     , dilName  :: String
     , dilFile  :: Maybe (ValMd' lab)
     , dilLine  :: Word32
-    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DIImportedEntity = DIImportedEntity' BlockLabel
 data DIImportedEntity' lab = DIImportedEntity
@@ -1514,14 +1514,14 @@ data DIImportedEntity' lab = DIImportedEntity
     , diieFile   :: Maybe (ValMd' lab)
     , diieLine   :: Word32
     , diieName   :: Maybe String
-    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
 data DITemplateTypeParameter' lab = DITemplateTypeParameter
     { dittpName      :: Maybe String
     , dittpType      :: Maybe (ValMd' lab)
     , dittpIsDefault :: Maybe Bool         -- since LLVM 11
-    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DITemplateValueParameter = DITemplateValueParameter' BlockLabel
 data DITemplateValueParameter' lab = DITemplateValueParameter
@@ -1530,7 +1530,7 @@ data DITemplateValueParameter' lab = DITemplateValueParameter
     , ditvpType      :: Maybe (ValMd' lab)
     , ditvpIsDefault :: Maybe Bool         -- since LLVM 11
     , ditvpValue     :: ValMd' lab
-    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DINameSpace = DINameSpace' BlockLabel
 data DINameSpace' lab = DINameSpace
@@ -1538,7 +1538,7 @@ data DINameSpace' lab = DINameSpace
     , dinsScope :: ValMd' lab
     , dinsFile  :: ValMd' lab
     , dinsLine  :: Word32
-    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+    } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 -- TODO: Turn these into sum types
 -- See https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/Support/Dwarf.def
@@ -1560,7 +1560,7 @@ data DIBasicType = DIBasicType
   , dibtAlign    :: Word64
   , dibtEncoding :: DwarfAttrEncoding
   , dibtFlags    :: Maybe DIFlags
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 data DICompileUnit' lab = DICompileUnit
   { dicuLanguage           :: DwarfLang
@@ -1585,7 +1585,7 @@ data DICompileUnit' lab = DICompileUnit
   , dicuRangesBaseAddress  :: Bool
   , dicuSysRoot            :: Maybe String
   , dicuSDK                :: Maybe String
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DICompileUnit = DICompileUnit' BlockLabel
 
@@ -1612,7 +1612,7 @@ data DICompositeType' lab = DICompositeType
   , dictRank           :: Maybe (ValMd' lab)
   , dictAnnotations    :: Maybe (ValMd' lab)
     -- ^ Introduced in LLVM 14.
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DICompositeType = DICompositeType' BlockLabel
 
@@ -1635,18 +1635,18 @@ data DIDerivedType' lab = DIDerivedType
   -- space (in LLVM, the sentinel value @0@ is used for this).
   , didtAnnotations :: Maybe (ValMd' lab)
   -- ^ Introduced in LLVM 14
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DIDerivedType = DIDerivedType' BlockLabel
 
 data DIExpression = DIExpression
   { dieElements :: [Word64]
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 data DIFile = DIFile
   { difFilename  :: FilePath
   , difDirectory :: FilePath
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Generic, Ord, Show)
 
 data DIGlobalVariable' lab = DIGlobalVariable
   { digvScope                :: Maybe (ValMd' lab)
@@ -1662,14 +1662,14 @@ data DIGlobalVariable' lab = DIGlobalVariable
   , digvAlignment            :: Maybe Word32
   , digvAnnotations          :: Maybe (ValMd' lab)
     -- ^ Introduced in LLVM 14.
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DIGlobalVariable = DIGlobalVariable' BlockLabel
 
 data DIGlobalVariableExpression' lab = DIGlobalVariableExpression
   { digveVariable   :: Maybe (ValMd' lab)
   , digveExpression :: Maybe (ValMd' lab)
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DIGlobalVariableExpression = DIGlobalVariableExpression' BlockLabel
 
@@ -1678,7 +1678,7 @@ data DILexicalBlock' lab = DILexicalBlock
   , dilbFile   :: Maybe (ValMd' lab)
   , dilbLine   :: Word32
   , dilbColumn :: Word16
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DILexicalBlock = DILexicalBlock' BlockLabel
 
@@ -1686,7 +1686,7 @@ data DILexicalBlockFile' lab = DILexicalBlockFile
   { dilbfScope         :: ValMd' lab
   , dilbfFile          :: Maybe (ValMd' lab)
   , dilbfDiscriminator :: Word32
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DILexicalBlockFile = DILexicalBlockFile' BlockLabel
 
@@ -1702,7 +1702,7 @@ data DILocalVariable' lab = DILocalVariable
     -- ^ Introduced in LLVM 4.
   , dilvAnnotations :: Maybe (ValMd' lab)
     -- ^ Introduced in LLVM 14.
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DILocalVariable = DILocalVariable' BlockLabel
 
@@ -1729,7 +1729,7 @@ data DISubprogram' lab = DISubprogram
   , dispThrownTypes    :: Maybe (ValMd' lab)
   , dispAnnotations    :: Maybe (ValMd' lab)
     -- ^ Introduced in LLVM 14.
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DISubprogram = DISubprogram' BlockLabel
 
@@ -1761,21 +1761,21 @@ data DISubrange' lab = DISubrange
   , disrLowerBound :: Maybe (ValMd' lab)
   , disrUpperBound :: Maybe (ValMd' lab)
   , disrStride     :: Maybe (ValMd' lab)
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DISubrange = DISubrange' BlockLabel
 
 data DISubroutineType' lab = DISubroutineType
   { distFlags     :: DIFlags
   , distTypeArray :: Maybe (ValMd' lab)
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DISubroutineType = DISubroutineType' BlockLabel
 
 -- | See <https://releases.llvm.org/13.0.0/docs/LangRef.html#diarglist>.
 newtype DIArgList' lab = DIArgList
   { dialArgs :: [ValMd' lab]
-  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DIArgList = DIArgList' BlockLabel
 
@@ -1785,7 +1785,7 @@ data IndexResult
   = Invalid                             -- ^ An invalid use of GEP
   | HasType Type                        -- ^ A resolved type
   | Resolve Ident (Type -> IndexResult) -- ^ Continue, after resolving an alias
-  deriving (Generic, Typeable)
+  deriving (Generic)
 
 isInvalid :: IndexResult -> Bool
 isInvalid ir = case ir of
