@@ -395,14 +395,14 @@ parseDataLayout str =
            's' -> StackObjSize <$> pStorage -- Obsoleted in LLVM4
            'a' -> alphaNum >>= \case
              ':' -> AggregateSize Nothing <$> pAlignment
-             d   -> AggregateSize <$> (Just <$> pInt' d)
+             d   -> AggregateSize <$> (Just <$> pIntWithFirstDigit d)
                     <* char ':' <*> pAlignment
            'F' -> FunctionPointerAlign <$> pFunctionPointerAlignType <*> pInt -- Added in LLVM9
            'm' -> Mangling <$ char ':' <*> pMangling
            'n' -> alphaNum >>= \case
              'i' -> char ':'
                     >> (NonIntegralPointerSpaces <$> sepBy pInt (char ':'))
-             d -> do fs <- pInt' d
+             d -> do fs <- pIntWithFirstDigit d
                      ss <- char ':' *> sepBy pInt (char ':')
                      return $ NativeIntSize $ fs : ss
            _   -> mzero
@@ -437,8 +437,8 @@ parseDataLayout str =
     pInt :: Parser Int
     pInt = read <$> many1 digit
 
-    pInt' :: Char -> Parser Int
-    pInt' d0 = read . (d0:) <$> many digit
+    pIntWithFirstDigit :: Char -> Parser Int
+    pIntWithFirstDigit d0 = read . (d0:) <$> many digit
 
     pCInt :: Parser Int
     pCInt = char ':' >> pInt
