@@ -9,12 +9,15 @@ At the same time, while the AST coverage is fairly extensive, it is also
 incomplete: there are some values that new LLVM versions would accept but are
 not yet represented here.
 -}
+
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveDataTypeable, DeriveFunctor, DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveLift #-}
+
 module Text.LLVM.AST
   ( -- * Modules
     Module(..)
@@ -28,7 +31,10 @@ module Text.LLVM.AST
     -- * Data Layout
   , DataLayout
   , LayoutSpec(..)
+  , Alignment(..)
   , FunctionPointerAlignType(..)
+  , Storage(..)
+  , PointerSize(..)
   , Mangling(..)
   , parseDataLayout
     -- * Inline Assembly
@@ -279,23 +285,34 @@ data GlobalAlias = GlobalAlias
 
 
 -- Data Layout -----------------------------------------------------------------
+-- https://releases.llvm.org/19.1.0/docs/LangRef.html#data-layout
 
 type DataLayout = [LayoutSpec]
 
 data LayoutSpec
   = BigEndian
   | LittleEndian
-  | PointerSize   !Int !Int !Int (Maybe Int) -- ^ address space, size, abi, pref
-  | IntegerSize   !Int !Int (Maybe Int) -- ^ size, abi, pref
-  | VectorSize    !Int !Int (Maybe Int) -- ^ size, abi, pref
-  | FloatSize     !Int !Int (Maybe Int) -- ^ size, abi, pref
-  | StackObjSize  !Int !Int (Maybe Int) -- ^ size, abi, pref
-  | AggregateSize !Int !Int (Maybe Int) -- ^ size, abi, pref
-  | NativeIntSize [Int]
-  | StackAlign    !Int -- ^ size
-  | FunctionPointerAlign !FunctionPointerAlignType !Int -- ^ type, abi
+  | PointerSize PointerSize
+  | IntegerSize Storage
+  | VectorSize Storage
+  | FloatSize Storage
+  | StackObjSize  Storage
+  | AggregateSize (Maybe Int) !Alignment -- n.b. first Int present pre-LLVM4
+  | NativeIntSize [NumBits]
+  | StackAlign    !NumBits -- ^ size
+  | ProgramAddrSpace !AddressSpace
+  | GlobalAddrSpace !AddressSpace
+  | AllocaAddrSpace !AddressSpace
+  | FunctionPointerAlign !FunctionPointerAlignType !NumBits -- ^ type, abi
   | Mangling Mangling
+  | NonIntegralPointerSpaces [AddressSpace]
     deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+data Alignment = Alignment
+  { alignABI :: !NumBits
+  , alignPreferred :: Maybe NumBits  -- ^ default = alignABI
+  }
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 -- | How should a function pointer be aligned?
 data FunctionPointerAlignType
@@ -307,17 +324,36 @@ data FunctionPointerAlignType
     -- alignment specified on the function.
   deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
+data Storage = Storage
+  { storageSize :: !NumBits  -- ^ valid range [1,2^24)
+  , storageAlignment :: Alignment
+  }
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+data PointerSize = PtrSize
+  { ptrAddrSpace :: !AddressSpace
+  , ptrStorage :: Storage
+  , ptrAddrIndexSize :: Maybe NumBits  -- ^ m.b. <= ptrSize, default = ptrSize
+  }
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+type AddressSpace = Int
+type NumBits = Int
+
 data Mangling = ElfMangling
+              | GOFFMangling
               | MipsMangling
               | MachOMangling
               | WindowsCoffMangling
+              | WindowsX86CoffMangling
+              | XCOFFMangling
                 deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 -- | Parse the data layout string.
 parseDataLayout :: MonadPlus m => String -> m DataLayout
 parseDataLayout str =
   case parse (pDataLayout <* eof) "<internal>" str of
-    Left _err -> mzero
+    Left _err -> {- debugging: trace (show err) -} mzero
     Right specs -> return specs
   where
     pDataLayout :: Parser DataLayout
@@ -329,12 +365,17 @@ parseDataLayout str =
          case c of
            'E' -> return BigEndian
            'e' -> return LittleEndian
-           'S' -> StackAlign    <$> pInt
-           'F' -> FunctionPointerAlign <$> pFunctionPointerAlignType <*> pInt
-           'p' -> PointerSize   <$> pInt0 <*> pCInt <*> pCInt <*> pPref
-           'i' -> IntegerSize   <$> pInt <*> pCInt <*> pPref
-           'v' -> VectorSize    <$> pInt <*> pCInt <*> pPref
-           'f' -> FloatSize     <$> pInt <*> pCInt <*> pPref  -- size of float, abi-align, pref-align
+           'S' -> StackAlign <$> pInt
+           'P' -> ProgramAddrSpace <$> pInt -- Added in LLVM7
+           'G' -> GlobalAddrSpace <$> pInt -- Added in LLVM11
+           'A' -> AllocaAddrSpace <$> pInt -- Added in LLVM11
+           'p' -> do as <- pInt <|> return 0
+                     st <- char ':' >> pStorage
+                     idx <- pCOInt -- Added in LLVM7
+                     return $ PointerSize $ PtrSize as st idx
+           'i' -> IntegerSize <$> pStorage
+           'v' -> VectorSize <$> pStorage
+           'f' -> FloatSize <$> pStorage
                   -- Note that the data layout specified in the LLVM
                   -- BC/IR file is not a directive to the backend, but
                   -- is instead an indication of what the particular
@@ -349,10 +390,19 @@ parseDataLayout str =
                   -- (for example) references to LongDoubleWidth and
                   -- LongDoubleFormat in
                   -- https://github.com/llvm/llvm-project/blob/release_60/clang/lib/Basic/Targets/X86.h
-           's' -> StackObjSize  <$> pInt <*> pCInt <*> pPref
-           'a' -> AggregateSize <$> pInt <*> pCInt <*> pPref
-           'n' -> NativeIntSize <$> sepBy pInt (char ':')
-           'm' -> Mangling      <$> (char ':' >> pMangling)
+           's' -> StackObjSize <$> pStorage -- Obsoleted in LLVM4
+           'a' -> alphaNum >>= \case
+             ':' -> AggregateSize Nothing <$> pAlignment
+             d   -> AggregateSize <$> (Just <$> pInt' d)
+                    <* char ':' <*> pAlignment
+           'F' -> FunctionPointerAlign <$> pFunctionPointerAlignType <*> pInt
+           'm' -> Mangling <$ char ':' <*> pMangling
+           'n' -> alphaNum >>= \case
+             'i' -> char ':'
+                    >> (NonIntegralPointerSpaces <$> sepBy pInt (char ':'))
+             d -> do fs <- pInt' d
+                     ss <- char ':' *> sepBy pInt (char ':')
+                     return $ NativeIntSize $ fs : ss
            _   -> mzero
 
     pFunctionPointerAlignType :: Parser FunctionPointerAlignType
@@ -368,22 +418,31 @@ parseDataLayout str =
       do c <- letter
          case c of
            'e' -> return ElfMangling
+           'l' -> return GOFFMangling
            'm' -> return MipsMangling
            'o' -> return MachOMangling
            'w' -> return WindowsCoffMangling
+           'x' -> return WindowsX86CoffMangling
+           'a' -> return XCOFFMangling
            _   -> mzero
+
+    pAlignment :: Parser Alignment
+    pAlignment = Alignment <$> pInt <*> pCOInt
+
+    pStorage :: Parser Storage
+    pStorage = Storage <$> pInt <* char ':' <*> pAlignment
 
     pInt :: Parser Int
     pInt = read <$> many1 digit
 
-    pInt0 :: Parser Int
-    pInt0 = pInt <|> return 0
+    pInt' :: Char -> Parser Int
+    pInt' d0 = read . (d0:) <$> many digit
 
     pCInt :: Parser Int
     pCInt = char ':' >> pInt
 
-    pPref :: Parser (Maybe Int)
-    pPref = optionMaybe pCInt
+    pCOInt :: Parser (Maybe Int)
+    pCOInt = optionMaybe pCInt
 
 -- Inline Assembly -------------------------------------------------------------
 

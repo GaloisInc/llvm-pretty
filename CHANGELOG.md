@@ -1,8 +1,34 @@
 # Revision history for llvm-pretty
 
-## pending
+## 0.14.0.0 (pending)
 
-* Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
+* Changes to support LLVM 19
+  * Added a list of `GEPOptionalFlag` with values of `GEP_Inline`, `GEP_NUSW`,
+    and `GEP_NUW` to replace the older "inline" `Bool` for `ConstGEP`.  This
+    reflects the corresponding change in LLVM 18 for specifying rules that
+    determine if the result value is poison.  See
+    https://llvm.org/docs/LangRef.html#getelementptr-instruction for more
+    details.
+  * `ConstGEP` range changed from a simple index (`Word64`) to a sum-type
+    `RangeSpec` of `RangeIndex Word64` (to support the original) and `Range Int
+    Integer Integer` to specify the integer precision, followed by the lower
+    bound and upper bounds in that precision.
+  * Changes to `LayoutSpec` for DataLayout:
+    * Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
+    * Size specification fields use a common sub-structure `Storage` which itself
+      contains an `Alignment` common sub-structure.: `IntegerSize`, `VectorSize`,
+      `FloatSize`, and `StackObjSize`.
+    * The pointer size specification field uses a `PointerSize` sub-structure
+      that itself contains a `Storage` sub-structure.
+    * Updated `AggregateSize` to make first field optional (it was dropped in
+      LLVM 4) and the remaining fields are now provided via the `Alignment`
+      sub-structure.
+    * Added `ProgramAddrSpace`, `GlobalAddrSpace`, and `AllocaAddrSpace`
+      constructors, each defined via an `AddressSpace` sub-structure.
+    * Added `NonIntegralPointerSpaces` to record address spaces with an
+      unspecified bitwise representation.
+    * Added `GOFFMangling`, `WindowsX86CoffMangling`, and `XCOFFMangling` forms
+      of Mangling.
 
 ## 0.13.0.0 (March 2025)
 
