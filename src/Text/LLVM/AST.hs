@@ -35,6 +35,8 @@ module Text.LLVM.AST
   , FunctionPointerAlignType(..)
   , Storage(..)
   , PointerSize(..)
+  , AddressSpace
+  , NumBits
   , Mangling(..)
   , parseDataLayout
     -- * Inline Assembly
