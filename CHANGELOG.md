@@ -3,16 +3,6 @@
 ## 0.14.0.0 (pending)
 
 * Changes to support LLVM 19
-  * Added a list of `GEPOptionalFlag` with values of `GEP_Inline`, `GEP_NUSW`,
-    and `GEP_NUW` to replace the older "inline" `Bool` for `ConstGEP`.  This
-    reflects the corresponding change in LLVM 18 for specifying rules that
-    determine if the result value is poison.  See
-    https://llvm.org/docs/LangRef.html#getelementptr-instruction for more
-    details.
-  * `ConstGEP` range changed from a simple index (`Word64`) to a sum-type
-    `RangeSpec` of `RangeIndex Word64` (to support the original) and `Range Int
-    Integer Integer` to specify the integer precision, followed by the lower
-    bound and upper bounds in that precision.
   * Changes to `LayoutSpec` for DataLayout:
     * Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
     * Size specification fields use a common sub-structure `Storage` which itself
