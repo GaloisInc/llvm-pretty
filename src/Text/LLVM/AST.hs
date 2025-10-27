@@ -395,7 +395,7 @@ parseDataLayout str =
              ':' -> AggregateSize Nothing <$> pAlignment
              d   -> AggregateSize <$> (Just <$> pInt' d)
                     <* char ':' <*> pAlignment
-           'F' -> FunctionPointerAlign <$> pFunctionPointerAlignType <*> pInt
+           'F' -> FunctionPointerAlign <$> pFunctionPointerAlignType <*> pInt -- Added in LLVM9
            'm' -> Mangling <$ char ':' <*> pMangling
            'n' -> alphaNum >>= \case
              'i' -> char ':'
