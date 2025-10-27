@@ -1,6 +1,6 @@
 Cabal-version:       2.2
 Name:                llvm-pretty
-Version:             0.13.0.0.99
+Version:             0.13.0.0.100
 License:             BSD-3-Clause
 License-file:        LICENSE
 Author:              Trevor Elliott
@@ -25,6 +25,7 @@ common common
   Default-language:    Haskell2010
   Ghc-options:
     -Wall
+    -fhide-source-paths
 
 Library
   Import:              common
@@ -62,6 +63,7 @@ Test-suite llvm-pretty-test
   Type: exitcode-stdio-1.0
   Main-is: Main.hs
   Other-modules:
+    DataLayout
     Output
     Triple
     TQQDefs

@@ -206,28 +206,44 @@ ppLayoutSpec ls =
   case ls of
     BigEndian                 -> char 'E'
     LittleEndian              -> char 'e'
-    PointerSize 0 sz abi pref -> char 'p' <> char ':' <> ppLayoutBody sz abi pref
-    PointerSize n sz abi pref -> char 'p' <> int n <> char ':'
-                                          <> ppLayoutBody sz abi pref
-    IntegerSize   sz abi pref -> char 'i' <> ppLayoutBody sz abi pref
-    VectorSize    sz abi pref -> char 'v' <> ppLayoutBody sz abi pref
-    FloatSize     sz abi pref -> char 'f' <> ppLayoutBody sz abi pref
-    StackObjSize  sz abi pref -> char 's' <> ppLayoutBody sz abi pref
-    AggregateSize sz abi pref -> char 'a' <> ppLayoutBody sz abi pref
+    PointerSize ps            -> char 'p' <> ppPointerSize ps
+    IntegerSize sz            -> char 'i' <> ppStorage sz
+    VectorSize  sz            -> char 'v' <> ppStorage sz
+    FloatSize   sz            -> char 'f' <> ppStorage sz
+    StackObjSize sz           -> char 's' <> ppStorage sz
+    AggregateSize Nothing a   -> char 'a' <> char ':' <> ppAlignment a
+    AggregateSize (Just s) a  -> char 'a' <> int s <> char ':' <> ppAlignment a
     NativeIntSize szs         ->
       char 'n' <> hcat (punctuate (char ':') (map int szs))
+    StackAlign a              -> char 'S' <> int a
+    ProgramAddrSpace as       -> char 'P' <> int as
+    GlobalAddrSpace as        -> char 'G' <> int as
+    AllocaAddrSpace as        -> char 'A' <> int as
     FunctionPointerAlign ty abi ->
       char 'F' <> ppFunctionPointerAlignType ty <> int abi
-    StackAlign a              -> char 'S' <> int a
     Mangling m                -> char 'm' <> char ':' <> ppMangling m
+    NonIntegralPointerSpaces asl ->
+      "ni:" <> hcat (punctuate (char ':') (map int asl))
 
--- | Pretty-print the common case for data layout specifications.
-ppLayoutBody :: Int -> Int -> Fmt (Maybe Int)
-ppLayoutBody size abi mb = int size <> char ':' <> int abi <> pref
-  where
-  pref = case mb of
-    Nothing -> empty
-    Just p  -> char ':' <> int p
+ppPointerSize :: Fmt PointerSize
+ppPointerSize ps =
+  if ptrAddrSpace ps == 0
+  then char ':' <> ppStorage (ptrStorage ps)
+       <> ppOptColonInt (ptrAddrIndexSize ps)
+  else int (ptrAddrSpace ps) <> char ':' <> ppStorage (ptrStorage ps)
+       <> ppOptColonInt (ptrAddrIndexSize ps)
+
+ppStorage :: Fmt Storage
+ppStorage s = int (storageSize s) <> char ':'
+              <> ppAlignment (storageAlignment s)
+
+ppAlignment :: Fmt Alignment
+ppAlignment a = int (alignABI a) <> ppOptColonInt (alignPreferred a)
+
+ppOptColonInt :: Fmt (Maybe Int)
+ppOptColonInt = \case
+  Nothing -> empty
+  Just i  -> char ':' <> int i
 
 ppFunctionPointerAlignType :: Fmt FunctionPointerAlignType
 ppFunctionPointerAlignType ty =
@@ -237,9 +253,12 @@ ppFunctionPointerAlignType ty =
 
 ppMangling :: Fmt Mangling
 ppMangling ElfMangling         = char 'e'
+ppMangling GoffMangling        = char 'l'
 ppMangling MipsMangling        = char 'm'
 ppMangling MachOMangling       = char 'o'
 ppMangling WindowsCoffMangling = char 'w'
+ppMangling WindowsX86CoffMangling = char 'x'
+ppMangling XCoffMangling       = char 'a'
 
 
 -- Inline Assembly -------------------------------------------------------------

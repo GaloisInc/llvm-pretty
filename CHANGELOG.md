@@ -1,8 +1,24 @@
 # Revision history for llvm-pretty
 
-## pending
+## 0.14.0.0 (pending)
 
-* Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
+* Changes to support LLVM 19
+  * Changes to `LayoutSpec` for DataLayout:
+    * Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
+    * Size specification fields use a common sub-structure `Storage` which itself
+      contains an `Alignment` common sub-structure: `IntegerSize`, `VectorSize`,
+      `FloatSize`, and `StackObjSize`.
+    * The pointer size specification field uses a `PointerSize` sub-structure
+      that itself contains a `Storage` sub-structure.
+    * Updated `AggregateSize` to make first field optional (it was dropped in
+      LLVM 4) and the remaining fields are now provided via the `Alignment`
+      sub-structure.
+    * Added `ProgramAddrSpace`, `GlobalAddrSpace`, and `AllocaAddrSpace`
+      constructors, each defined via an `AddressSpace` sub-structure.
+    * Added `NonIntegralPointerSpaces` to record address spaces with an
+      unspecified bitwise representation.
+    * Added `GoffMangling`, `WindowsX86CoffMangling`, and `XCoffMangling` forms
+      of Mangling.
 
 ## 0.13.0.0 (March 2025)
 
