@@ -17,7 +17,7 @@
       constructors, each defined via an `AddressSpace` sub-structure.
     * Added `NonIntegralPointerSpaces` to record address spaces with an
       unspecified bitwise representation.
-    * Added `GOFFMangling`, `WindowsX86CoffMangling`, and `XCOFFMangling` forms
+    * Added `GoffMangling`, `WindowsX86CoffMangling`, and `XCoffMangling` forms
       of Mangling.
 
 ## 0.13.0.0 (March 2025)
