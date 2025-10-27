@@ -25,6 +25,7 @@ common common
   Default-language:    Haskell2010
   Ghc-options:
     -Wall
+    -fhide-source-paths
 
 Library
   Import:              common
