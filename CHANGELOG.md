@@ -16,7 +16,7 @@
   * Changes to `LayoutSpec` for DataLayout:
     * Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
     * Size specification fields use a common sub-structure `Storage` which itself
-      contains an `Alignment` common sub-structure.: `IntegerSize`, `VectorSize`,
+      contains an `Alignment` common sub-structure: `IntegerSize`, `VectorSize`,
       `FloatSize`, and `StackObjSize`.
     * The pointer size specification field uses a `PointerSize` sub-structure
       that itself contains a `Storage` sub-structure.
