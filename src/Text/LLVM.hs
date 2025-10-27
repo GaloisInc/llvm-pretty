@@ -40,6 +40,7 @@ module Text.LLVM (
 
     -- * Basic Blocks
   , BB()
+  , runBB
   , freshLabel
   , label
   , comment
