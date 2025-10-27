@@ -253,12 +253,12 @@ ppFunctionPointerAlignType ty =
 
 ppMangling :: Fmt Mangling
 ppMangling ElfMangling         = char 'e'
-ppMangling GOFFMangling        = char 'l'
+ppMangling GoffMangling        = char 'l'
 ppMangling MipsMangling        = char 'm'
 ppMangling MachOMangling       = char 'o'
 ppMangling WindowsCoffMangling = char 'w'
 ppMangling WindowsX86CoffMangling = char 'x'
-ppMangling XCOFFMangling       = char 'a'
+ppMangling XCoffMangling       = char 'a'
 
 
 -- Inline Assembly -------------------------------------------------------------

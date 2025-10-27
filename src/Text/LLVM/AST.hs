@@ -343,12 +343,12 @@ type AddressSpace = Int
 type NumBits = Int
 
 data Mangling = ElfMangling
-              | GOFFMangling
+              | GoffMangling
               | MipsMangling
               | MachOMangling
               | WindowsCoffMangling
               | WindowsX86CoffMangling
-              | XCOFFMangling
+              | XCoffMangling
                 deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 -- | Parse the data layout string.
@@ -420,12 +420,12 @@ parseDataLayout str =
       do c <- letter
          case c of
            'e' -> return ElfMangling
-           'l' -> return GOFFMangling
+           'l' -> return GoffMangling
            'm' -> return MipsMangling
            'o' -> return MachOMangling
            'w' -> return WindowsCoffMangling
            'x' -> return WindowsX86CoffMangling
-           'a' -> return XCOFFMangling
+           'a' -> return XCoffMangling
            _   -> mzero
 
     pAlignment :: Parser Alignment
