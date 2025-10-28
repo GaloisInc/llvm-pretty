@@ -19,6 +19,9 @@
       unspecified bitwise representation.
     * Added `GoffMangling`, `WindowsX86CoffMangling`, and `XCoffMangling` forms
       of Mangling.
+  * Changes to cast-related instructions:
+    * Add a `Bool` field to `ZExt` which, if `True`, indicates that the
+      argument must be non-negative.
 
 ## 0.13.0.0 (March 2025)
 
