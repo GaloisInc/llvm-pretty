@@ -36,6 +36,8 @@
 * Changes to cast-related instructions:
   * Add a `Bool` field to `ZExt` which, if `True`, indicates that the
     argument must be non-negative. This is used by LLVM 18 and up.
+  * Add a `Bool` field to `UiToFp` which, if `True`, indicates that the
+    argument must be non-negative. This is used by LLVM 19 and up.
 
 ## 0.13.1.0 (October 2025)
 
