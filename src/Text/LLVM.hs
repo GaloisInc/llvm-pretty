@@ -661,7 +661,7 @@ fptosi :: IsValue a => Typed a -> Type -> BB (Typed Value)
 fptosi  = convop (Conv FpToSi)
 
 uitofp :: IsValue a => Typed a -> Type -> BB (Typed Value)
-uitofp  = convop (Conv UiToFp)
+uitofp  = convop (Conv (UiToFp False))
 
 sitofp :: IsValue a => Typed a -> Type -> BB (Typed Value)
 sitofp  = convop (Conv SiToFp)
