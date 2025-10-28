@@ -643,7 +643,7 @@ trunc :: IsValue a => Typed a -> Type -> BB (Typed Value)
 trunc  = convop (Conv Trunc)
 
 zext :: IsValue a => Typed a -> Type -> BB (Typed Value)
-zext  = convop (Conv ZExt)
+zext  = convop (Conv (ZExt False))
 
 sext :: IsValue a => Typed a -> Type -> BB (Typed Value)
 sext  = convop (Conv SExt)

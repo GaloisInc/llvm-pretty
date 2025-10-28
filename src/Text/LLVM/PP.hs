@@ -560,7 +560,7 @@ ppBitOp Xor           = "xor"
 
 ppConvOp :: Fmt ConvOp
 ppConvOp Trunc    = "trunc"
-ppConvOp ZExt     = "zext"
+ppConvOp (ZExt nneg)  = "zext" <+> opt nneg "nneg"
 ppConvOp SExt     = "sext"
 ppConvOp FpTrunc  = "fptrunc"
 ppConvOp FpExt    = "fpext"

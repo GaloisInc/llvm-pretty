@@ -1074,7 +1074,16 @@ data BitOp
 -- | Conversions from one type to another.
 data ConvOp
   = Trunc
-  | ZExt
+  | ZExt Bool
+    -- ^ Zero extension.
+    --
+    -- The 'Bool' field (added in LLVM 18) encodes whether to enforce that the
+    -- argument is non-negative. If the 'Bool' is 'True' and the argument is
+    -- negative, then the result is poisoned.
+    --
+    -- This field can only ever 'True' in 'Conv' instructions in LLVM 18 or
+    -- later. This field is always 'False' in 'ConstConv' constant expressions
+    -- or if the LLVM version is older than 18.
   | SExt
   | FpTrunc
   | FpExt
@@ -1085,7 +1094,7 @@ data ConvOp
   | PtrToInt
   | IntToPtr
   | BitCast
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data AtomicRWOp
   = AtomicXchg
