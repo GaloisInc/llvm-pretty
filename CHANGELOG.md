@@ -24,6 +24,8 @@
       argument must be non-negative.
     * Add a `Bool` field to `UiToFp` which, if `True`, indicates that the
       argument must be non-negative.
+    * Add `Bool` fields to `Trunc` to check if the truncation would cause
+      unsigned or signed overflow.
 
 ## 0.13.0.0 (March 2025)
 
