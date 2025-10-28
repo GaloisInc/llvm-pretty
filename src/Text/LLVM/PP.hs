@@ -24,7 +24,7 @@ import Text.LLVM.Triple.Print (printTriple)
 import Control.Applicative ((<|>))
 import Data.Bits ( shiftR, (.&.) )
 import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
-import Data.List (intersperse)
+import Data.List ( intersperse, nub )
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes,fromMaybe,isJust)
 import GHC.Float (castDoubleToWord64, castFloatToWord32)

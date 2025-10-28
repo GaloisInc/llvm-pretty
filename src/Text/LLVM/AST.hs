@@ -138,6 +138,7 @@ module Text.LLVM.AST
     -- * Statements
   , Stmt'(..), Stmt
   , stmtInstr
+  , stmtMetadata
   , extendMetadata
   , addDebugRecord
     -- * Constant Expressions
@@ -1572,6 +1573,11 @@ type Stmt = Stmt' BlockLabel
 -- 1:1 correspondence between Stmt and Instr, it is cleaner to attach the
 -- DebugRecords to the Stmt to keep the Instrs from getting additional
 -- complications.
+
+stmtMetadata :: Stmt' lab -> [(String, ValMd' lab)]
+stmtMetadata = \case
+  Result _ _ _ mds -> mds
+  Effect _ _ mds   -> mds
 
 stmtInstr :: Stmt' lab -> Instr' lab
 stmtInstr (Result _ i _ _) = i
