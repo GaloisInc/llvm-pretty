@@ -1,6 +1,6 @@
 # Revision history for llvm-pretty
 
-## pending
+## 0.13.1.0 (October 2025)
 
 * Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
 
