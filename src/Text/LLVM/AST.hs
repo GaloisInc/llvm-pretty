@@ -138,8 +138,8 @@ module Text.LLVM.AST
     -- * Statements
   , Stmt'(..), Stmt
   , stmtInstr
-  , stmtMetadata
   , extendMetadata
+  , addDebugRecord
     -- * Constant Expressions
   , ConstExpr'(..), ConstExpr
   , GEPOptionalFlag(..)
@@ -173,6 +173,13 @@ module Text.LLVM.AST
   , DISubrange'(..), DISubrange
   , DISubroutineType'(..), DISubroutineType
   , DIArgList'(..), DIArgList
+  , dwarf_DW_APPLE_ENUM_KIND_invalid
+  , DebugRecord'(..)
+  , DbgRecAssign'(..)
+  , DbgRecDeclare'(..)
+  , DbgRecLabel'(..)
+  , DbgRecValueSimple'(..)
+  , DbgRecValue'(..)
     -- * Aggregate Utilities
   , IndexResult(..)
   , isInvalid
@@ -184,18 +191,19 @@ module Text.LLVM.AST
   , resolveValueIndex
   ) where
 
-import Data.Functor.Identity (Identity(..))
+import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
+import Data.Bits ( complement )
 import Data.Coerce (coerce)
 import Data.Data (Data)
-import Data.Typeable (Typeable)
-import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
-import Data.Int (Int32,Int64)
+import Data.Functor.Identity (Identity(..))
 import Data.Generics (everywhere, extQ, mkT, something)
+import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import Data.Semigroup as Sem
 import Data.String (IsString(fromString))
+import Data.Typeable (Typeable)
 import Data.Word (Word8,Word16,Word32,Word64)
 import GHC.Generics (Generic, Generic1)
 import Language.Haskell.TH.Syntax (Lift)
@@ -1411,6 +1419,63 @@ data FCmpOp = Ffalse  | Foeq | Fogt | Foge | Folt | Fole | Fone
     deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 
+-- Debug Instructions ----------------------------------------------------------
+
+data DebugRecord' lab
+  = DebugRecordValue (DbgRecValue' lab)
+  | DebugRecordDeclare (DbgRecDeclare' lab)
+  | DebugRecordAssign (DbgRecAssign' lab)
+  | DebugRecordValueSimple (DbgRecValueSimple' lab)
+  | DebugRecordLabel (DbgRecLabel' lab)
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+data DbgRecValue' lab = DbgRecValue
+  {
+    drvLocation :: ValMd' lab -- DILocation
+  , drvLocalVariable :: ValMd' lab -- DILocalVariable
+  , drvExpression :: ValMd' lab -- DIExpression
+  , drvValAsMetadata :: ValMd' lab -- Metadata*
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+data DbgRecValueSimple' lab = DbgRecValueSimple
+  {
+    drvsLocation :: ValMd' lab -- DILocation
+  , drvsLocalVariable :: ValMd' lab -- DILocalVariable
+  , drvsExpression :: ValMd' lab -- DIExpression
+  , drvsValue :: Typed (Value' lab)
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+data DbgRecDeclare' lab = DbgRecDeclare
+  {
+    drdLocation :: ValMd' lab -- DILocation
+  , drdLocalVariable :: ValMd' lab -- DILocalVariable
+  , drdExpression :: ValMd' lab -- DIExpression
+  , drdValAsMetadata :: ValMd' lab -- Metadata*
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+data DbgRecAssign' lab = DbgRecAssign
+  {
+    draLocation :: ValMd' lab -- DILocation
+  , draLocalVariable :: ValMd' lab -- DILocalVariable
+  , draExpression :: ValMd' lab -- DIExpression
+  , draValAsMetadata :: ValMd' lab -- Metadata*
+  , draAssignID :: ValMd' lab -- DIAssignID
+  , draExpressionAddr :: ValMd' lab -- DIExpression
+  , draValAsMetadataAddr :: ValMd' lab -- Metadata*
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+data DbgRecLabel' lab = DbgRecLabel
+  {
+    drlLocation :: ValMd' lab -- DILocation
+  , drlLabel :: ValMd' lab -- DILabel
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+
 -- Values ----------------------------------------------------------------------
 
 data Value' lab
@@ -1490,26 +1555,37 @@ elimValInteger _              = mzero
 -- Statements ------------------------------------------------------------------
 
 data Stmt' lab
-  = Result Ident (Instr' lab) [(String,ValMd' lab)]
-  | Effect (Instr' lab) [(String,ValMd' lab)]
+  = Result Ident (Instr' lab) [DebugRecord' lab] [(String, ValMd' lab)]
+  | Effect (Instr' lab) [DebugRecord' lab] [(String, ValMd' lab)]
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type Stmt = Stmt' BlockLabel
 
+-- See llvm-project/llvm/docs/RemoveDIsDebugInfo.md for discussion on the added
+-- [DebugRecord] fields.  Note that DebugRecords and debug intrinsics may not be
+-- mixed in a module; the former is new and preferred over the latter.
+--
+-- Technically, DebugRecords are attached to Instructions, but since there's a
+-- 1:1 correspondence between Stmt and Instr, it is cleaner to attach the
+-- DebugRecords to the Stmt to keep the Instrs from getting additional
+-- complications.
+
 stmtInstr :: Stmt' lab -> Instr' lab
-stmtInstr (Result _ i _) = i
-stmtInstr (Effect i _)   = i
+stmtInstr (Result _ i _ _) = i
+stmtInstr (Effect i _ _)   = i
 
-stmtMetadata :: Stmt' lab -> [(String,ValMd' lab)]
-stmtMetadata stmt = case stmt of
-  Result _ _ mds -> mds
-  Effect _ mds   -> mds
-
-extendMetadata :: (String,ValMd' lab) -> Stmt' lab -> Stmt' lab
+extendMetadata :: Show lab => (String, ValMd' lab) -> Stmt' lab -> Stmt' lab
 extendMetadata md stmt = case stmt of
-  Result r i mds -> Result r i (md:mds)
-  Effect i mds   -> Effect i (md:mds)
+  Result r i [] mds -> Result r i [] (md:mds)
+  Result _ _ _ _ -> error $ "Adding MD " <> show md <> " after DebugRecord"
+  Effect i drs mds   -> Effect i drs (md:mds)
 
+addDebugRecord :: DebugRecord' lab -> Stmt' lab -> Stmt' lab
+addDebugRecord dr = \case
+  Result r i drs mds -> Result r i (snoc dr drs) mds
+  Effect i drs mds   -> Effect i (snoc dr drs) mds
+  where
+    snoc e ls = ls <> [e]
 
 -- Constant Expressions --------------------------------------------------------
 
@@ -1611,8 +1687,7 @@ data DebugInfo' lab
   | DebugInfoImportedEntity (DIImportedEntity' lab)
   | DebugInfoLabel (DILabel' lab)
   | DebugInfoArgList (DIArgList' lab)
-  | DebugInfoAssignID
-    -- ^ Introduced in LLVM 17.
+  | DebugInfoAssignID -- ^ Introduced in LLVM 17.
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugInfo = DebugInfo' BlockLabel
@@ -1672,6 +1747,10 @@ type DIFlags = Word32
 -- it stabilizes.
 type DIEmissionKind = Word8
 
+-- See https://github.com/llvm-mirror/llvm/blobl/release_?/include/llvm/BinaryFormat/Dwarf.h
+dwarf_DW_APPLE_ENUM_KIND_invalid :: Word64
+dwarf_DW_APPLE_ENUM_KIND_invalid = complement (0 :: Word64) -- LLVM 19
+
 data DIBasicType = DIBasicType
   { dibtTag      :: DwarfTag
   , dibtName     :: String
@@ -1729,8 +1808,11 @@ data DICompositeType' lab = DICompositeType
   , dictAssociated     :: Maybe (ValMd' lab)
   , dictAllocated      :: Maybe (ValMd' lab)
   , dictRank           :: Maybe (ValMd' lab)
-  , dictAnnotations    :: Maybe (ValMd' lab)
-    -- ^ Introduced in LLVM 14.
+  , dictAnnotations    :: Maybe (ValMd' lab) -- ^ Introduced in LLVM 14.
+  , dictNumExtraInhabitants :: Word64        -- ^ added in LLVM 19.
+  , dictSpecification  :: Maybe (ValMd' lab) -- ^ added in LLVM 19.
+  , dictEnumKind       :: Maybe Word64       -- ^ added in LLVM 19.
+  , dictBitStride      :: Maybe (ValMd' lab) -- ^ added in LLVM 19.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DICompositeType = DICompositeType' BlockLabel

@@ -33,8 +33,9 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
         s1, s2 :: Stmt
         s1 = Effect
              (GEP [GEP_Inbounds] (Alias (Ident "hi")) (Typed Opaque dcu) [])
-             []
+             mempty []
         s2 = Effect (Load PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
+             mempty
              [ ("location", ValMdLoc $ DebugLoc { dlLine = 12
                                                 , dlCol = 34
                                                 , dlScope = ValMdRef 5
@@ -75,10 +76,10 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
                                         }
         blk1 = BasicBlock { bbLabel = Just $ Named $ Ident "blk1"
                           , bbStmts =
-                            [ Result (Ident "r1") (Comment "insanity follows...") []
-                            , Effect (Jump $ Named $ Ident "blk1") []
-                            , Result (Ident "oh no") RetVoid []
-                            , Effect (Br (Typed (PrimType Metadata) ValZeroInit) (Anon 3) (Named "oh no")) []
+                            [ Result (Ident "r1") (Comment "insanity follows...") mempty []
+                            , Effect (Jump $ Named $ Ident "blk1") mempty []
+                            , Result (Ident "oh no") RetVoid mempty []
+                            , Effect (Br (Typed (PrimType Metadata) ValZeroInit) (Anon 3) (Named "oh no")) mempty []
                             ]
                           }
         blk2 = BasicBlock { bbLabel = Just $ Anon 123

@@ -340,7 +340,14 @@ ppGlobal g = ppSymbol (globalSym g) <+> char '='
          <+> ppGlobalAttrs (isJust $ globalValue g) (globalAttrs g)
          <+> ppType (globalType g) <+> ppMaybe ppValue (globalValue g)
           <> ppAlign (globalAlign g)
-          <> ppAttachedMetadata (Map.toList (globalMetadata g))
+          <> ppGlobalMetadata (Map.toList (globalMetadata g))
+
+ppGlobalMetadata :: Fmt [(String, ValMd' BlockLabel)]
+ppGlobalMetadata mds
+  | null mds  = empty
+  | otherwise = comma <+> commas (map step mds)
+  where
+  step (l,md) = ppMetadata (text l) <+> ppValMd md
 
 -- | Pretty-print Global Attributes (usually associated with a global variable
 -- declaration). The first argument to ppGlobalAttrs indicates whether there is a
@@ -470,9 +477,11 @@ ppBasicBlock bb = ppMaybe ppLabelDef (bbLabel bb)
 
 ppStmt :: Fmt Stmt
 ppStmt stmt = case stmt of
-  Result var i mds -> ppIdent var <+> char '=' <+> ppInstr i
-                   <> ppAttachedMetadata mds
-  Effect i mds     -> ppInstr i <> ppAttachedMetadata mds
+  Result var i drs mds -> ppDebugRecords drs (ppIdent var <+> char '='
+                                              <+> ppInstr i
+                                               <> ppAttachedMetadata mds)
+  Effect i drs mds     -> ppDebugRecords drs (ppInstr i
+                                              <> ppAttachedMetadata mds)
 
 ppAttachedMetadata :: Fmt [(String,ValMd)]
 ppAttachedMetadata mds
@@ -1030,6 +1039,68 @@ ppDebugInfo' pp di = case di of
   DebugInfoLabel dil            -> ppDILabel' pp dil
   DebugInfoArgList args         -> ppDIArgList' pp args
   DebugInfoAssignID             -> "!DIAssignID()"
+  -- DebugRecordDeclare drd        -> ppDbgRecDeclare' pp drd
+
+-- Prints DebugRecords (introduced in LLVM 19) which replace debug intrinsics and
+-- unlike the intrinsics that follow the instruction, the debug records *preceed*
+-- the Instruction they affect.
+ppDebugRecords :: [DebugRecord' BlockLabel] -> Fmt Doc
+ppDebugRecords [] = id
+ppDebugRecords drs = ((nest 4 $ vcat (ppDebugRecord' ppLabel <$> drs)) $$)
+
+ppDebugRecord' :: Fmt lab -> Fmt (DebugRecord' lab)
+ppDebugRecord' pl = \case
+  DebugRecordValue drv -> ppDbgRecValue' pl drv
+  DebugRecordDeclare drd -> ppDbgRecDeclare' pl drd
+  DebugRecordAssign dra -> ppDbgRecAssign' pl dra
+  DebugRecordValueSimple dvs -> ppDbgRecValueSimple' pl dvs
+  DebugRecordLabel drl -> ppDbgRecLabel' pl drl
+
+ppDbgRecValue' :: Fmt lab -> Fmt (DbgRecValue' lab)
+ppDbgRecValue' pl dr =
+  "#dbg_value"
+  <> parens (commas [ ppValMd' pl $ drvValAsMetadata dr
+                    , ppValMd' pl $ drvLocalVariable dr
+                    , ppValMd' pl $ drvExpression dr
+                    , ppValMd' pl $ drvLocation dr
+                    ])
+
+ppDbgRecDeclare' :: Fmt lab -> Fmt (DbgRecDeclare' lab)
+ppDbgRecDeclare' pl dr =
+  "#dbg_declare"
+  <> parens (commas [ ppValMd' pl $ drdValAsMetadata dr
+                    , ppValMd' pl $ drdLocalVariable dr
+                    , ppValMd' pl $ drdExpression dr
+                    , ppValMd' pl $ drdLocation dr
+                    ])
+
+ppDbgRecAssign' :: Fmt lab -> Fmt (DbgRecAssign' lab)
+ppDbgRecAssign' pl dr =
+  "#dbg_assign"
+  <> parens (commas [ ppValMd' pl $ draValAsMetadata dr
+                    , ppValMd' pl $ draLocalVariable dr
+                    , ppValMd' pl $ draExpression dr
+                    , ppValMd' pl $ draAssignID dr
+                    , ppValMd' pl $ draValAsMetadataAddr dr
+                    , ppValMd' pl $ draExpressionAddr dr
+                    , ppValMd' pl $ draLocation dr
+                    ])
+
+ppDbgRecValueSimple' :: Fmt lab -> Fmt (DbgRecValueSimple' lab)
+ppDbgRecValueSimple' pl dr =
+  "#dbg_value"
+  <> parens (commas [ ppTyped (ppValue' pl) $ drvsValue dr
+                    , ppValMd' pl $ drvsLocalVariable dr
+                    , ppValMd' pl $ drvsExpression dr
+                    , ppValMd' pl $ drvsLocation dr
+                    ])
+
+ppDbgRecLabel' :: Fmt lab -> Fmt (DbgRecLabel' lab)
+ppDbgRecLabel' pl dr =
+  "#dbg_label"
+  <> parens (commas [ ppValMd' pl $ drlLabel dr
+                    , ppValMd' pl $ drlLocation dr
+                    ])
 
 ppDebugInfo :: Fmt DebugInfo
 ppDebugInfo = ppDebugInfo' ppLabel
