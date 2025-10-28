@@ -640,7 +640,7 @@ convop :: IsValue a
 convop k a ty = observe ty (k (toValue `fmap` a) ty)
 
 trunc :: IsValue a => Typed a -> Type -> BB (Typed Value)
-trunc  = convop (Conv Trunc)
+trunc  = convop (Conv (Trunc False False))
 
 zext :: IsValue a => Typed a -> Type -> BB (Typed Value)
 zext  = convop (Conv (ZExt False))
