@@ -559,7 +559,7 @@ ppBitOp Or            = "or"
 ppBitOp Xor           = "xor"
 
 ppConvOp :: Fmt ConvOp
-ppConvOp Trunc    = "trunc"
+ppConvOp (Trunc nuw nsw) = "trunc" <+> ppSignBits nuw nsw
 ppConvOp (ZExt nneg)  = "zext" <+> opt nneg "nneg"
 ppConvOp SExt     = "sext"
 ppConvOp FpTrunc  = "fptrunc"

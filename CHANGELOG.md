@@ -38,6 +38,8 @@
     argument must be non-negative. This is used by LLVM 18 and up.
   * Add a `Bool` field to `UiToFp` which, if `True`, indicates that the
     argument must be non-negative. This is used by LLVM 19 and up.
+  * Add `Bool` fields to `Trunc` to check if the truncation would cause
+    unsigned or signed overflow. These are used by LLVM 20 and up.
 
 ## 0.13.1.0 (October 2025)
 

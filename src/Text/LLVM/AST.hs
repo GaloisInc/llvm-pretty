@@ -1073,7 +1073,20 @@ data BitOp
 
 -- | Conversions from one type to another.
 data ConvOp
-  = Trunc
+  = Trunc Bool Bool
+    -- ^ Truncate an integer value to a smaller integer type.
+    --
+    -- The 'Bool' fields (added in in LLVM 20) encode whether to perform
+    -- overflow-related checks:
+    --
+    -- * First 'Bool': check for unsigned overflow.
+    -- * Second 'Bool': check for signed overflow.
+    --
+    -- If the checks fail, then the result is poisoned.
+    --
+    -- These fields can only ever 'True' in 'Conv' instructions in LLVM 20 or
+    -- later. These fields are always 'False' in 'ConstConv' constant
+    -- expressions or if the LLVM version is older than 20.
   | ZExt Bool
     -- ^ Zero extension.
     --
