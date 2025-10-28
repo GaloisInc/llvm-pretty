@@ -32,7 +32,7 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
         -- output are seen.
         s1, s2 :: Stmt
         s1 = Effect
-             (GEP True (Alias (Ident "hi")) (Typed Opaque dcu) [])
+             (GEP [GEP_Inbounds] (Alias (Ident "hi")) (Typed Opaque dcu) [])
              []
         s2 = Effect (Load PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
              [ ("location", ValMdLoc $ DebugLoc { dlLine = 12
@@ -148,6 +148,51 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
 
   , testCase "Stmt 1, LLVM 11" $
     assertEqLines (ppToText $ ppLLVM 11 $ ppStmt s1) [sq|
+      In LLVM 11, DICompileUnit adds rangesBaseAddress, sysroot, and sdk
+      ----
+      getelementptr inbounds %hi, opaque !DICompileUnit(language: 12,
+                                                        producer: "llvm-pretty-test",
+                                                        isOptimized: true,
+                                                        flags: "some flags",
+                                                        runtimeVersion: 3,
+                                                        emissionKind: 1,
+                                                        enums: !DITemplateTypeParameter(name: ttp),
+                                                        dwoId: 2,
+                                                        splitDebugInlining: false,
+                                                        debugInfoForProfiling: true,
+                                                        nameTableKind: 4,
+                                                        rangesBaseAddress: true,
+                                                        sysroot: "the root",
+                                                        sdk: "SDK")
+      ----
+      |]
+
+  , testCase "Stmt 1, LLVM 16" $
+    assertEqLines (ppToText $ ppLLVM 16 $ ppStmt s1) [sq|
+      In LLVM 11, DICompileUnit adds rangesBaseAddress, sysroot, and sdk
+      ----
+      getelementptr inbounds %hi, opaque !DICompileUnit(language: 12,
+                                                        producer: "llvm-pretty-test",
+                                                        isOptimized: true,
+                                                        flags: "some flags",
+                                                        runtimeVersion: 3,
+                                                        emissionKind: 1,
+                                                        enums: !DITemplateTypeParameter(name: ttp),
+                                                        dwoId: 2,
+                                                        splitDebugInlining: false,
+                                                        debugInfoForProfiling: true,
+                                                        nameTableKind: 4,
+                                                        rangesBaseAddress: true,
+                                                        sysroot: "the root",
+                                                        sdk: "SDK")
+      ----
+      |]
+
+  , testCase "Stmt 1, LLVM 17" $
+    -- LLVM 17 is notable in that the GEP instruction "inbounds" is no longer a
+    -- boolean but a flag with multiple possible values (only one is checked
+    -- here).
+    assertEqLines (ppToText $ ppLLVM 16 $ ppStmt s1) [sq|
       In LLVM 11, DICompileUnit adds rangesBaseAddress, sysroot, and sdk
       ----
       getelementptr inbounds %hi, opaque !DICompileUnit(language: 12,

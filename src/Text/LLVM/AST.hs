@@ -142,6 +142,9 @@ module Text.LLVM.AST
   , extendMetadata
     -- * Constant Expressions
   , ConstExpr'(..), ConstExpr
+  , GEPOptionalFlag(..)
+  , orderedGEPOptionalFlags
+  , RangeSpec(RangeIndex, Range)
     -- * DWARF Debug Info
   , DebugInfo'(..), DebugInfo
   , DILabel, DILabel'(..)
@@ -1227,7 +1230,7 @@ data Instr' lab
          * Middle of basic block.
          * Returns a value of the specified type. -}
 
-  | GEP Bool Type (Typed (Value' lab)) [Typed (Value' lab)]
+  | GEP [GEPOptionalFlag] Type (Typed (Value' lab)) [Typed (Value' lab)]
     {- ^ * "Get element pointer",
             compute the address of a field in a structure:
             inbounds check (value poisoned if this fails);
@@ -1511,11 +1514,14 @@ extendMetadata md stmt = case stmt of
 -- Constant Expressions --------------------------------------------------------
 
 data ConstExpr' lab
-  = ConstGEP Bool (Maybe Word64) Type (Typed (Value' lab)) [Typed (Value' lab)]
+  = ConstGEP [GEPOptionalFlag] (Maybe RangeSpec) Type (Typed (Value' lab)) [Typed (Value' lab)]
   -- ^ Since LLVM 3.7, constant @getelementptr@ expressions include an explicit
   -- type to use as a basis for calculations. For older versions of LLVM, this
   -- type can be reconstructed by inspecting the pointee type of the parent
   -- pointer value.
+  --
+  -- Since LLVM 19, the bool "inbounds" is now [GEPOptionalFlag] and range is via
+  -- RangeSpec instead of just Word64.
   | ConstConv ConvOp (Typed (Value' lab)) Type
   | ConstSelect (Typed (Value' lab)) (Typed (Value' lab)) (Typed (Value' lab))
   | ConstBlockAddr (Typed (Value' lab)) lab
@@ -1527,6 +1533,58 @@ data ConstExpr' lab
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type ConstExpr = ConstExpr' BlockLabel
+
+-- | Attributes imposing rules on the GEP; violating any rule results in a poison
+-- value.  If the base is a vector of pointers, the attributes apply to each
+-- computation element-wise.  See
+-- https://llvm.org/docs/LangRef.html#getelementptr-instruction for more
+-- information.
+data GEPOptionalFlag
+  = GEP_Inbounds
+    -- ^ Rules:
+    -- * Base pointer has an in_bounds (but not necessarily live) address of the
+    --   allocated object it is based on (i.e. points into that allocation or to
+    --   its end.  Size for a growable allocated object is the max size, not the
+    --   current size.
+    -- * Pointer must remain inbounds at all times when adding the offsets
+    -- * Implies NUSW
+  | GEP_NUSW
+    -- ^ No unsigned signed wrap.
+    -- Rules:
+    -- * If type of index is larger than ptr index type, truncation preserves
+    --   the signed value.
+    -- * Multiplication of an index by the type size does not wrap in a
+    --   signed sense.
+    -- * Offset additions (excluding base address) does not wrap in a
+    --   signed sense
+    -- * Addition of the current address (as unsigned, truncated to ptr
+    --   index type) and each offset (as signed) does not wrap the ptr
+    --   index type.
+  | GEP_NUW
+    -- ^ No unsigned wrap
+    -- Rules:
+    -- * If type of index is larger than ptr index type, truncation preserves
+    --   the unsigned value.
+    -- * Multiplication of an index by the type size does not wrap in an
+    --   unsigned sense.
+    -- * Offset additions (excluding base address) does not wrap in an
+    --   unsigned sense
+    -- * Addition of the current address (as unsigned, truncated to ptr
+    --   index type) and each offset (as unsigned) does not wrap the ptr
+    --   index type.
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+orderedGEPOptionalFlags :: [GEPOptionalFlag]
+orderedGEPOptionalFlags = [GEP_Inbounds, GEP_NUSW, GEP_NUW] -- bit0, bit1, ...
+
+data RangeSpec
+  = RangeIndex Word64
+    -- ^ index of range
+  | Range Int Integer Integer
+    -- ^ width of arbitrary-precision integer (in bits) and lower and upper
+    -- arbitrary-precision integer bounds of that size
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
 
 -- DWARF Debug Info ------------------------------------------------------------
 

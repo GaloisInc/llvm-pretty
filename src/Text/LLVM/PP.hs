@@ -643,7 +643,7 @@ ppInstr instr = case instr of
   ShuffleVector a b m    -> "shufflevector" <+> ppTyped ppValue a
                          <> comma <+> ppTyped ppValue (b <$ a)
                          <> comma <+> ppTyped ppValue m
-  GEP ib ty ptr ixs      -> ppGEP ib ty ptr ixs
+  GEP gf ty ptr ixs      -> ppGEP gf ty ptr ixs
   Comment str            -> char ';' <+> text str
   Jump i                 -> "br"
                         <+> ppTypedLabel i
@@ -798,18 +798,19 @@ ppCallSym ty val = pp_ty <+> ppValue val
           -> ppType res
         _ -> ppType ty
 
-ppGEP :: Bool -> Type -> Typed Value -> Fmt [Typed Value]
-ppGEP ib ty ptr ixs =
-  "getelementptr" <+> inbounds
+ppGEP :: [GEPOptionalFlag] -> Type -> Typed Value -> Fmt [Typed Value]
+ppGEP gf ty ptr ixs =
+  "getelementptr"
+    <+> (if inlineIsBool
+         then (if GEP_Inbounds `elem` gf then "inbounds" else empty)
+         else ppGepFlags gf)
     <+> (if isExplicit then explicit else empty)
     <+> commas (map (ppTyped ppValue) (ptr:ixs))
   where
   isExplicit = llvmVer >= llvmV3_7
+  inlineIsBool = llvmVer < 19
 
   explicit = ppType ty <> comma
-
-  inbounds | ib        = "inbounds"
-           | otherwise = empty
 
 ppInvoke :: Type -> Value -> [Typed Value] -> BlockLabel -> Fmt BlockLabel
 ppInvoke ty f args to uw = body
@@ -961,9 +962,10 @@ ppAsm s a i c =
 ppConstExpr' :: Fmt i -> Fmt (ConstExpr' i)
 ppConstExpr' pp expr =
   case expr of
-    ConstGEP inb _mix ty ptr ixs  ->
+    ConstGEP optflgs mrng ty ptr ixs  ->
       "getelementptr"
-        <+> opt inb "inbounds"
+        <+> ppGepFlags optflgs
+        <+> ppRange mrng
         <+> parens (commas (ppType ty : map ppTyp' (ptr:ixs)))
     ConstConv op tv t  -> ppConvOp op <+> parens (ppTyp' tv <+> "to" <+> ppType t)
     ConstSelect c l r  ->
@@ -978,6 +980,26 @@ ppConstExpr' pp expr =
         ppTupleT a b = parens $ ppTyped ppVal' a <> comma <+> ppTyp' b
         ppVal'       = ppValue' pp
         ppTyp'       = ppTyped ppVal'
+        ppRange =
+          let ppR = \case
+                RangeIndex i -> "index(" <+> integral i <+> ")" -- TODO FIXME
+                Range _ l u ->
+                  "inrange(" <> integral l <> ", " <> integral u <> ")"
+          in maybe empty ppR
+
+ppGepFlags :: Fmt [GEPOptionalFlag]
+ppGepFlags s =
+  let fltr = if GEP_Inbounds `elem` s
+             then
+               -- inbounds implies nusw, but LLVM stipulates that if
+               -- inbounds is present, nusw is not also printed.
+               filter (/= GEP_NUSW)
+             else id
+      ppF = \case
+        GEP_Inbounds -> "inbounds"
+        GEP_NUSW -> "nusw"
+        GEP_NUW -> "nuw"
+  in foldl (\o f -> o <+> ppF f) empty $ fltr s
 
 ppConstExpr :: Fmt ConstExpr
 ppConstExpr = ppConstExpr' ppLabel
