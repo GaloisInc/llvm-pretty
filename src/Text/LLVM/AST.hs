@@ -1089,7 +1089,17 @@ data ConvOp
   | FpExt
   | FpToUi
   | FpToSi
-  | UiToFp
+  | UiToFp Bool
+    -- ^ Convert the argument from an unsigned integer to a floating-point
+    -- value.
+    --
+    -- The 'Bool' field (added in LLVM 19) encodes whether to enforce that the
+    -- argument is non-negative. If the 'Bool' is 'True' and the argument is
+    -- negative, then the result is poisoned.
+    --
+    -- This field can only ever 'True' in 'Conv' instructions in LLVM 19 or
+    -- later. This field is always 'False' in 'ConstConv' constant expressions
+    -- or if the LLVM version is older than 19.
   | SiToFp
   | PtrToInt
   | IntToPtr
