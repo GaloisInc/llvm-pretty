@@ -807,7 +807,7 @@ ppCallSym ty val = pp_ty <+> ppValue val
           -> ppType res
         _ -> ppType ty
 
-ppGEP :: [GEPOptionalFlag] -> Type -> Typed Value -> Fmt [Typed Value]
+ppGEP :: [GEPAttr] -> Type -> Typed Value -> Fmt [Typed Value]
 ppGEP gf ty ptr ixs =
   "getelementptr"
     <+> (if inlineIsBool
@@ -996,7 +996,7 @@ ppConstExpr' pp expr =
                   "inrange(" <> integral l <> ", " <> integral u <> ")"
           in maybe empty ppR
 
-ppGepFlags :: Fmt [GEPOptionalFlag]
+ppGepFlags :: Fmt [GEPAttr]
 ppGepFlags s =
   let fltr = if GEP_Inbounds `elem` s
              then
@@ -1008,7 +1008,7 @@ ppGepFlags s =
         GEP_Inbounds -> "inbounds"
         GEP_NUSW -> "nusw"
         GEP_NUW -> "nuw"
-  in foldl (\o f -> o <+> ppF f) empty $ fltr s
+  in foldl (\o f -> o <+> ppF f) empty $ fltr $ nub s
 
 ppConstExpr :: Fmt ConstExpr
 ppConstExpr = ppConstExpr' ppLabel

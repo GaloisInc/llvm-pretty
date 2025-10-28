@@ -142,8 +142,8 @@ module Text.LLVM.AST
   , addDebugRecord
     -- * Constant Expressions
   , ConstExpr'(..), ConstExpr
-  , GEPOptionalFlag(..)
-  , orderedGEPOptionalFlags
+  , GEPAttr(..)
+  , orderedGEPAttrs
   , RangeSpec(RangeIndex, Range)
     -- * DWARF Debug Info
   , DebugInfo'(..), DebugInfo
@@ -1238,15 +1238,18 @@ data Instr' lab
          * Middle of basic block.
          * Returns a value of the specified type. -}
 
-  | GEP [GEPOptionalFlag] Type (Typed (Value' lab)) [Typed (Value' lab)]
+  | GEP [GEPAttr] Type (Typed (Value' lab)) [Typed (Value' lab)]
     {- ^ * "Get element pointer",
             compute the address of a field in a structure:
-            inbounds check (value poisoned if this fails);
+            inbounds check attr (value poisoned if this fails);
             type to use as a basis for calculations;
             pointer to parent structure;
             path to a sub-component of a structure.
          * Middle of basic block.
          * Returns the address of the requested member.
+
+    It's recommended that the GEPAttr list should be normalized (i.e. only one of
+    each entry).
 
     The types in path are the types of the index, not the fields.
 
@@ -1590,14 +1593,15 @@ addDebugRecord dr = \case
 -- Constant Expressions --------------------------------------------------------
 
 data ConstExpr' lab
-  = ConstGEP [GEPOptionalFlag] (Maybe RangeSpec) Type (Typed (Value' lab)) [Typed (Value' lab)]
+  = ConstGEP [GEPAttr] (Maybe RangeSpec) Type (Typed (Value' lab)) [Typed (Value' lab)]
   -- ^ Since LLVM 3.7, constant @getelementptr@ expressions include an explicit
   -- type to use as a basis for calculations. For older versions of LLVM, this
   -- type can be reconstructed by inspecting the pointee type of the parent
   -- pointer value.
   --
-  -- Since LLVM 19, the bool "inbounds" is now [GEPOptionalFlag] and range is via
-  -- RangeSpec instead of just Word64.
+  -- Since LLVM 19, the bool "inbounds" is now [GEPAttr] and range is via
+  -- RangeSpec instead of just Word64.  It's recommended that the GEPAttr list
+  -- should be normalized (i.e. only one of each entry).
   | ConstConv ConvOp (Typed (Value' lab)) Type
   | ConstSelect (Typed (Value' lab)) (Typed (Value' lab)) (Typed (Value' lab))
   | ConstBlockAddr (Typed (Value' lab)) lab
@@ -1615,15 +1619,15 @@ type ConstExpr = ConstExpr' BlockLabel
 -- computation element-wise.  See
 -- https://llvm.org/docs/LangRef.html#getelementptr-instruction for more
 -- information.
-data GEPOptionalFlag
+data GEPAttr
   = GEP_Inbounds
     -- ^ Rules:
-    -- * Base pointer has an in_bounds (but not necessarily live) address of the
+    -- * Base pointer has an inbounds (but not necessarily live) address of the
     --   allocated object it is based on (i.e. points into that allocation or to
     --   its end.  Size for a growable allocated object is the max size, not the
     --   current size.
     -- * Pointer must remain inbounds at all times when adding the offsets
-    -- * Implies NUSW
+    -- * Implies 'GEP_NUSW'
   | GEP_NUSW
     -- ^ No unsigned signed wrap.
     -- Rules:
@@ -1650,8 +1654,8 @@ data GEPOptionalFlag
     --   index type.
     deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
-orderedGEPOptionalFlags :: [GEPOptionalFlag]
-orderedGEPOptionalFlags = [GEP_Inbounds, GEP_NUSW, GEP_NUW] -- bit0, bit1, ...
+orderedGEPAttrs :: [GEPAttr]
+orderedGEPAttrs = [GEP_Inbounds, GEP_NUSW, GEP_NUW] -- bit0, bit1, ...
 
 data RangeSpec
   = RangeIndex Word64
