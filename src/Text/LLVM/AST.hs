@@ -1680,7 +1680,8 @@ orderedGEPAttrs = [GEP_Inbounds, GEP_NUSW, GEP_NUW] -- bit0, bit1, ...
 
 data RangeSpec
   = RangeIndex Word64
-    -- ^ index of range
+    -- ^ index of valid range as used in pre-LLVM19 for when "inbounds" as a
+    -- boolean was True.  Deprecated.
   | Range Int Integer Integer
     -- ^ width of arbitrary-precision integer (in bits) and lower and upper
     -- arbitrary-precision integer bounds of that size as [lower, upper).
