@@ -73,7 +73,7 @@ llvmV3_8 = 3
 -- this is used for defaulting and otherwise reporting the maximum LLVM version
 -- known to be supported.
 llvmVlatest :: LLVMVer
-llvmVlatest = 17
+llvmVlatest = 19
 
 
 -- | The differences between various versions of the llvm textual AST.
@@ -1042,7 +1042,7 @@ ppDebugInfo' pp di = case di of
   -- DebugRecordDeclare drd        -> ppDbgRecDeclare' pp drd
 
 -- Prints DebugRecords (introduced in LLVM 19) which replace debug intrinsics and
--- unlike the intrinsics that follow the instruction, the debug records *preceed*
+-- unlike the intrinsics that follow the instruction, the debug records *precede*
 -- the Instruction they affect.
 ppDebugRecords :: [DebugRecord' BlockLabel] -> Fmt Doc
 ppDebugRecords [] = id

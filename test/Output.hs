@@ -168,9 +168,11 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
       ----
       |]
 
-  , testCase "Stmt 1, LLVM 16" $
-    assertEqLines (ppToText $ ppLLVM 16 $ ppStmt s1) [sq|
-      In LLVM 11, DICompileUnit adds rangesBaseAddress, sysroot, and sdk
+  , testCase "Stmt 1, LLVM 18" $
+    assertEqLines (ppToText $ ppLLVM 18 $ ppStmt s1) [sq|
+      Significant changes occur in LLVM 19; ensure that the output is as
+      expected just prior to those changes to properly capture the
+      inflection point.
       ----
       getelementptr inbounds %hi, opaque !DICompileUnit(language: 12,
                                                         producer: "llvm-pretty-test",
@@ -189,12 +191,10 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
       ----
       |]
 
-  , testCase "Stmt 1, LLVM 17" $
-    -- LLVM 17 is notable in that the GEP instruction "inbounds" is no longer a
-    -- boolean but a flag with multiple possible values (only one is checked
-    -- here).
-    assertEqLines (ppToText $ ppLLVM 16 $ ppStmt s1) [sq|
-      In LLVM 11, DICompileUnit adds rangesBaseAddress, sysroot, and sdk
+  , testCase "Stmt 1, LLVM 19" $
+    assertEqLines (ppToText $ ppLLVM 19 $ ppStmt s1) [sq|
+      In LLVM 19, the GEP instruction "inbounds" is no longer a boolean
+      but a flag with multiple possible values (only one is checked here).
       ----
       getelementptr inbounds %hi, opaque !DICompileUnit(language: 12,
                                                         producer: "llvm-pretty-test",
