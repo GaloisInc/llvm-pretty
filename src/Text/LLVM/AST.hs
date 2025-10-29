@@ -1425,6 +1425,11 @@ data FCmpOp = Ffalse  | Foeq | Fogt | Foge | Folt | Fole | Fone
 
 -- Debug Instructions ----------------------------------------------------------
 
+-- | Debug Instructions
+--
+-- In LLVM 19, debug instructions were added as a replacement for the intrinsic
+-- functions previously used.  This addition is described in
+-- llvm-project/llvm/docs/RemoveDIsDebugInfo.md in the LLVM repository.
 data DebugRecord' lab
   = DebugRecordValue (DbgRecValue' lab)
   | DebugRecordDeclare (DbgRecDeclare' lab)
@@ -1558,14 +1563,11 @@ elimValInteger _              = mzero
 
 -- Statements ------------------------------------------------------------------
 
-data Stmt' lab
-  = Result Ident (Instr' lab) [DebugRecord' lab] [(String, ValMd' lab)]
-  | Effect (Instr' lab) [DebugRecord' lab] [(String, ValMd' lab)]
-    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
-
-type Stmt = Stmt' BlockLabel
-
--- See llvm-project/llvm/docs/RemoveDIsDebugInfo.md for discussion on the added
+-- | Each statement, which can return a value (`Result`) referenced by the
+-- `Ident` or else it has no return value (`Effect`).  The statement has a single
+-- Instruction, followed by any Debug Records or associated metadata.
+--
+-- See llvm-project/llvm/docs/RemoveDIsDebugInfo.md for discussion on the
 -- [DebugRecord] fields.  Note that DebugRecords and debug intrinsics may not be
 -- mixed in a module; the former is new and preferred over the latter.
 --
@@ -1573,6 +1575,19 @@ type Stmt = Stmt' BlockLabel
 -- 1:1 correspondence between Stmt and Instr, it is cleaner to attach the
 -- DebugRecords to the Stmt to keep the Instrs from getting additional
 -- complications.
+--
+-- Each statement may have both Debug Records (2nd-to-last field) and a list of
+-- metadata attributes (last field).  As noted above, bitcode file should not mix
+-- Debug Records and intrinsics; if Debug Records are used, the metadata
+-- attribute list should not contain intrinsics (although it may contain other
+-- metadata associated with this statement).
+
+data Stmt' lab
+  = Result Ident (Instr' lab) [DebugRecord' lab] [(String, ValMd' lab)]
+  | Effect (Instr' lab) [DebugRecord' lab] [(String, ValMd' lab)]
+    deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+
+type Stmt = Stmt' BlockLabel
 
 stmtMetadata :: Stmt' lab -> [(String, ValMd' lab)]
 stmtMetadata = \case
@@ -1668,7 +1683,7 @@ data RangeSpec
     -- ^ index of range
   | Range Int Integer Integer
     -- ^ width of arbitrary-precision integer (in bits) and lower and upper
-    -- arbitrary-precision integer bounds of that size
+    -- arbitrary-precision integer bounds of that size as [lower, upper).
   deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 
@@ -1757,9 +1772,9 @@ type DIFlags = Word32
 -- it stabilizes.
 type DIEmissionKind = Word8
 
--- See https://github.com/llvm-mirror/llvm/blobl/release_?/include/llvm/BinaryFormat/Dwarf.h
+-- See https://github.com/llvm/llvm-project/commit/eb8901bda11fd55deeecd067fc4c9dcc0fb89984
 dwarf_DW_APPLE_ENUM_KIND_invalid :: Word64
-dwarf_DW_APPLE_ENUM_KIND_invalid = complement (0 :: Word64) -- LLVM 19
+dwarf_DW_APPLE_ENUM_KIND_invalid = complement (0 :: Word64) -- ~ LLVM 19
 
 data DIBasicType = DIBasicType
   { dibtTag      :: DwarfTag

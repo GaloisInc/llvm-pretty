@@ -368,7 +368,7 @@ localVariableNameDeclarations mdMap def =
     aux ( Effect (Store src dst _ _) _ _
         : Effect (Call _ _ (ValSymbol (Symbol what)) [var,md,_]) _ _
         : _) sofar
-      | what == "llvm.dbg.declare"  -- OLD: intrinsic declaration
+      | what == "llvm.dbg.declare"  -- pre-LLVM19: intrinsic declaration match
       , Just dstIdent <- extractIdent dst
       , Just srcIdent <- extractIdent src
       , Just varIdent <- extractIdent var
@@ -378,7 +378,7 @@ localVariableNameDeclarations mdMap def =
 
     aux ( Effect (Call _ _ (ValSymbol (Symbol what)) [var,_,md,_]) _ _
         : _) sofar
-      | what == "llvm.dbg.value"  -- OLD: intrinsic declaration
+      | what == "llvm.dbg.value"  -- pre-LLVM19: intrinsic declaration match
       , Just key  <- extractIdent var
       , Just name <- extractLvName md
       = Map.insert name key sofar

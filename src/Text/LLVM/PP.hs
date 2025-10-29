@@ -1046,7 +1046,7 @@ ppDebugInfo' pp di = case di of
 -- the Instruction they affect.
 ppDebugRecords :: [DebugRecord' BlockLabel] -> Fmt Doc
 ppDebugRecords [] = id
-ppDebugRecords drs = ((nest 4 $ vcat (ppDebugRecord' ppLabel <$> drs)) $$)
+ppDebugRecords drs = ((nest 2 $ vcat (ppDebugRecord' ppLabel <$> drs)) $$)
 
 ppDebugRecord' :: Fmt lab -> Fmt (DebugRecord' lab)
 ppDebugRecord' pl = \case
