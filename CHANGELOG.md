@@ -26,6 +26,8 @@
       argument must be non-negative.
     * Add `Bool` fields to `Trunc` to check if the truncation would cause
       unsigned or signed overflow.
+  * Add a `Bool` field to `ICmp`, which indicates that the arguments must have
+    the same sign.
 
 ## 0.13.0.0 (March 2025)
 

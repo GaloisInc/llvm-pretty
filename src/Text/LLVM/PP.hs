@@ -635,7 +635,7 @@ ppInstr instr = case instr of
                          <> comma <+> ppTyped ppValue a
                          <+> ppScope s
                          <+> ppAtomicOrdering o
-  ICmp op l r            -> "icmp" <+> ppICmpOp op
+  ICmp samesign op l r   -> "icmp" <+> opt samesign "samesign" <+> ppICmpOp op
                         <+> ppTyped ppValue l <> comma <+> ppValue r
   FCmp op l r            -> "fcmp" <+> ppFCmpOp op
                         <+> ppTyped ppValue l <> comma <+> ppValue r
