@@ -60,7 +60,8 @@ instance HasLabel Instr' where
                                 <*> traverse (relabel f) a
                                 <*> pure s
                                 <*> pure o
-  relabel f (ICmp op l r)         = ICmp op
+  relabel f (ICmp samesign op l r)
+                                  = ICmp samesign op
                                 <$> traverse (relabel f) l
                                 <*> relabel f r
   relabel f (FCmp op l r)         = FCmp op
