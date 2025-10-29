@@ -1440,47 +1440,47 @@ data DebugRecord' lab
 
 data DbgRecValue' lab = DbgRecValue
   {
-    drvLocation :: ValMd' lab -- DILocation
-  , drvLocalVariable :: ValMd' lab -- DILocalVariable
-  , drvExpression :: ValMd' lab -- DIExpression
-  , drvValAsMetadata :: ValMd' lab -- Metadata*
+    drvLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , drvLocalVariable :: ValMd' lab -- ^ Expected to be a DILocalVariable
+  , drvExpression :: ValMd' lab -- ^ Expected to be a DIExpression
+  , drvValAsMetadata :: ValMd' lab
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
 data DbgRecValueSimple' lab = DbgRecValueSimple
   {
-    drvsLocation :: ValMd' lab -- DILocation
-  , drvsLocalVariable :: ValMd' lab -- DILocalVariable
-  , drvsExpression :: ValMd' lab -- DIExpression
+    drvsLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , drvsLocalVariable :: ValMd' lab -- ^ Expected to be a DILocalVariable
+  , drvsExpression :: ValMd' lab -- ^ Expected to be a DIExpression
   , drvsValue :: Typed (Value' lab)
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
 data DbgRecDeclare' lab = DbgRecDeclare
   {
-    drdLocation :: ValMd' lab -- DILocation
-  , drdLocalVariable :: ValMd' lab -- DILocalVariable
-  , drdExpression :: ValMd' lab -- DIExpression
-  , drdValAsMetadata :: ValMd' lab -- Metadata*
+    drdLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , drdLocalVariable :: ValMd' lab -- ^ Expected to be a DILocalVariable
+  , drdExpression :: ValMd' lab -- ^ Expected to be a DIExpression
+  , drdValAsMetadata :: ValMd' lab
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
 data DbgRecAssign' lab = DbgRecAssign
   {
-    draLocation :: ValMd' lab -- DILocation
-  , draLocalVariable :: ValMd' lab -- DILocalVariable
-  , draExpression :: ValMd' lab -- DIExpression
-  , draValAsMetadata :: ValMd' lab -- Metadata*
-  , draAssignID :: ValMd' lab -- DIAssignID
-  , draExpressionAddr :: ValMd' lab -- DIExpression
-  , draValAsMetadataAddr :: ValMd' lab -- Metadata*
+    draLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , draLocalVariable :: ValMd' lab -- ^ Expected to be a DILocalVariable
+  , draExpression :: ValMd' lab -- ^ Expected to be a DIExpression
+  , draValAsMetadata :: ValMd' lab
+  , draAssignID :: ValMd' lab -- ^ Expected to be a DIAssignID
+  , draExpressionAddr :: ValMd' lab -- ^ Expected to be a DIExpression
+  , draValAsMetadataAddr :: ValMd' lab
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
 data DbgRecLabel' lab = DbgRecLabel
   {
-    drlLocation :: ValMd' lab -- DILocation
-  , drlLabel :: ValMd' lab -- DILabel
+    drlLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , drlLabel :: ValMd' lab -- ^ Expected to be a DILabel
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
