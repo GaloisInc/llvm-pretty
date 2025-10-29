@@ -1835,10 +1835,10 @@ data DICompositeType' lab = DICompositeType
   , dictAllocated      :: Maybe (ValMd' lab)
   , dictRank           :: Maybe (ValMd' lab)
   , dictAnnotations    :: Maybe (ValMd' lab) -- ^ Introduced in LLVM 14.
-  , dictNumExtraInhabitants :: Word64        -- ^ added in LLVM 19.
-  , dictSpecification  :: Maybe (ValMd' lab) -- ^ added in LLVM 19.
-  , dictEnumKind       :: Maybe Word64       -- ^ added in LLVM 19.
-  , dictBitStride      :: Maybe (ValMd' lab) -- ^ added in LLVM 19.
+  , dictNumExtraInhabitants :: Word64        -- ^ added in LLVM 20.
+  , dictSpecification  :: Maybe (ValMd' lab) -- ^ added in LLVM 20.
+  , dictEnumKind       :: Maybe Word64       -- ^ added in LLVM 20.
+  , dictBitStride      :: Maybe (ValMd' lab) -- ^ added in LLVM 20.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DICompositeType = DICompositeType' BlockLabel

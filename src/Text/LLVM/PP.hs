@@ -1237,6 +1237,12 @@ ppDICompositeType' pp ct = "!DICompositeType"
        ,     (("allocated:"      <+>) . ppValMd' pp) <$> (dictAllocated ct)
        ,     (("rank:"           <+>) . ppValMd' pp) <$> (dictRank ct)
        ,     (("annotations:"    <+>) . ppValMd' pp) <$> (dictAnnotations ct)
+       , if dictNumExtraInhabitants ct > 0
+         then pure ("numExtraInhabitants:" <+> integral (dictNumExtraInhabitants ct))
+         else Nothing
+       ,     (("specification:"  <+>) . ppValMd' pp) <$> (dictSpecification ct)
+       ,     (("enumKind:"       <+>) . integral) <$> (dictEnumKind ct)
+       ,     (("bitStride:"      <+>) . ppValMd' pp) <$> (dictBitStride ct)
        ])
 
 ppDICompositeType :: Fmt DICompositeType
