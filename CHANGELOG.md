@@ -19,6 +19,8 @@
       unspecified bitwise representation.
     * Added `GoffMangling`, `WindowsX86CoffMangling`, and `XCoffMangling` forms
       of Mangling.
+  * Add a `Bool` field to `ICmp`, which indicates that the arguments must have
+    the same sign.
 
 ## 0.13.0.0 (March 2025)
 
