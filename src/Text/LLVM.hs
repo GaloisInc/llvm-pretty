@@ -371,13 +371,13 @@ emitStmt stmt = do
   when (isTerminator (stmtInstr stmt)) terminateBasicBlock
 
 effect :: Instr -> BB ()
-effect i = emitStmt (Effect i [])
+effect i = emitStmt (Effect i mempty [])
 
 observe :: Type -> Instr -> BB (Typed Value)
 observe ty i = do
   name <- freshNameBB "r"
   let res = Ident name
-  emitStmt (Result res i [])
+  emitStmt (Result res i mempty [])
   return (Typed ty (ValIdent res))
 
 
@@ -508,8 +508,8 @@ assign r@(Ident name) body = do
   rw <- BB get
   case Seq.viewr (rwStmts rw) of
 
-    stmts Seq.:> Result _ i m ->
-      do BB (set rw { rwStmts = stmts Seq.|> Result r i m })
+    stmts Seq.:> Result _ i d m ->
+      do BB (set rw { rwStmts = stmts Seq.|> Result r i d m })
          return (const (ValIdent r) `fmap` tv)
 
     _ -> error "assign: invalid argument"
@@ -696,7 +696,7 @@ select c t f = observe (typedType t)
 
 getelementptr :: IsValue a
               => Type -> Typed a -> [Typed Value] -> BB (Typed Value)
-getelementptr ty ptr ixs = observe ty (GEP False ty (toValue `fmap` ptr) ixs)
+getelementptr ty ptr ixs = observe ty (GEP [] ty (toValue `fmap` ptr) ixs)
 
 -- | Emit a call instruction, and generate a new variable for its result.
 call :: IsValue a => Typed a -> [Typed Value] -> BB (Typed Value)

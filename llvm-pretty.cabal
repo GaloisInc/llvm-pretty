@@ -64,6 +64,7 @@ Test-suite llvm-pretty-test
   Main-is: Main.hs
   Other-modules:
     DataLayout
+    Metadata
     Output
     Triple
     TQQDefs

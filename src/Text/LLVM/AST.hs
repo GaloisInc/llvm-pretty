@@ -140,8 +140,12 @@ module Text.LLVM.AST
   , stmtInstr
   , stmtMetadata
   , extendMetadata
+  , addDebugRecord
     -- * Constant Expressions
   , ConstExpr'(..), ConstExpr
+  , GEPAttr(..)
+  , orderedGEPAttrs
+  , RangeSpec(RangeIndex, Range)
     -- * DWARF Debug Info
   , DebugInfo'(..), DebugInfo
   , DILabel, DILabel'(..)
@@ -170,6 +174,13 @@ module Text.LLVM.AST
   , DISubrange'(..), DISubrange
   , DISubroutineType'(..), DISubroutineType
   , DIArgList'(..), DIArgList
+  , dwarf_DW_APPLE_ENUM_KIND_invalid
+  , DebugRecord, DebugRecord'(..)
+  , DbgRecAssign, DbgRecAssign'(..)
+  , DbgRecDeclare, DbgRecDeclare'(..)
+  , DbgRecLabel, DbgRecLabel'(..)
+  , DbgRecValueSimple, DbgRecValueSimple'(..)
+  , DbgRecValue, DbgRecValue'(..)
     -- * Aggregate Utilities
   , IndexResult(..)
   , isInvalid
@@ -181,18 +192,19 @@ module Text.LLVM.AST
   , resolveValueIndex
   ) where
 
-import Data.Functor.Identity (Identity(..))
+import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
+import Data.Bits ( complement )
 import Data.Coerce (coerce)
 import Data.Data (Data)
-import Data.Typeable (Typeable)
-import Control.Monad (MonadPlus(mzero,mplus),(<=<),guard)
-import Data.Int (Int32,Int64)
+import Data.Functor.Identity (Identity(..))
 import Data.Generics (everywhere, extQ, mkT, something)
+import Data.Int (Int32,Int64)
 import Data.List (genericIndex,genericLength)
 import qualified Data.Map as Map
 import Data.Maybe (isJust)
 import Data.Semigroup as Sem
 import Data.String (IsString(fromString))
+import Data.Typeable (Typeable)
 import Data.Word (Word8,Word16,Word32,Word64)
 import GHC.Generics (Generic, Generic1)
 import Language.Haskell.TH.Syntax (Lift)
@@ -1227,15 +1239,18 @@ data Instr' lab
          * Middle of basic block.
          * Returns a value of the specified type. -}
 
-  | GEP Bool Type (Typed (Value' lab)) [Typed (Value' lab)]
+  | GEP [GEPAttr] Type (Typed (Value' lab)) [Typed (Value' lab)]
     {- ^ * "Get element pointer",
             compute the address of a field in a structure:
-            inbounds check (value poisoned if this fails);
+            inbounds check attr (value poisoned if this fails);
             type to use as a basis for calculations;
             pointer to parent structure;
             path to a sub-component of a structure.
          * Middle of basic block.
          * Returns the address of the requested member.
+
+    It's recommended that the GEPAttr list should be normalized (i.e. only one of
+    each entry).
 
     The types in path are the types of the index, not the fields.
 
@@ -1408,6 +1423,80 @@ data FCmpOp = Ffalse  | Foeq | Fogt | Foge | Folt | Fole | Fone
     deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
 
 
+-- Debug Instructions ----------------------------------------------------------
+
+-- | Debug Instructions
+--
+-- In LLVM 19, debug instructions were added as a replacement for the intrinsic
+-- functions previously used.  This addition is described in
+-- llvm-project/llvm/docs/RemoveDIsDebugInfo.md in the LLVM repository.
+data DebugRecord' lab
+  = DebugRecordValue (DbgRecValue' lab)
+  | DebugRecordDeclare (DbgRecDeclare' lab)
+  | DebugRecordAssign (DbgRecAssign' lab)
+  | DebugRecordValueSimple (DbgRecValueSimple' lab)
+  | DebugRecordLabel (DbgRecLabel' lab)
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DebugRecord = DebugRecord' BlockLabel
+
+data DbgRecValue' lab = DbgRecValue
+  {
+    drvLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , drvLocalVariable :: ValMd' lab -- ^ Expected to be a DILocalVariable
+  , drvExpression :: ValMd' lab -- ^ Expected to be a DIExpression
+  , drvValAsMetadata :: ValMd' lab
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DbgRecValue = DbgRecValue' BlockLabel
+
+data DbgRecValueSimple' lab = DbgRecValueSimple
+  {
+    drvsLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , drvsLocalVariable :: ValMd' lab -- ^ Expected to be a DILocalVariable
+  , drvsExpression :: ValMd' lab -- ^ Expected to be a DIExpression
+  , drvsValue :: Typed (Value' lab)
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DbgRecValueSimple = DbgRecValueSimple' BlockLabel
+
+data DbgRecDeclare' lab = DbgRecDeclare
+  {
+    drdLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , drdLocalVariable :: ValMd' lab -- ^ Expected to be a DILocalVariable
+  , drdExpression :: ValMd' lab -- ^ Expected to be a DIExpression
+  , drdValAsMetadata :: ValMd' lab
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DbgRecDeclare = DbgRecDeclare' BlockLabel
+
+data DbgRecAssign' lab = DbgRecAssign
+  {
+    draLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , draLocalVariable :: ValMd' lab -- ^ Expected to be a DILocalVariable
+  , draExpression :: ValMd' lab -- ^ Expected to be a DIExpression
+  , draValAsMetadata :: ValMd' lab
+  , draAssignID :: ValMd' lab -- ^ Expected to be a DIAssignID
+  , draExpressionAddr :: ValMd' lab -- ^ Expected to be a DIExpression
+  , draValAsMetadataAddr :: ValMd' lab
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DbgRecAssign = DbgRecAssign' BlockLabel
+
+data DbgRecLabel' lab = DbgRecLabel
+  {
+    drlLocation :: ValMd' lab -- ^ Expected to be a DILocation
+  , drlLabel :: ValMd' lab -- ^ Expected to be a DILabel
+  }
+  deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DbgRecLabel = DbgRecLabel' BlockLabel
+
+
 -- Values ----------------------------------------------------------------------
 
 data Value' lab
@@ -1486,36 +1575,66 @@ elimValInteger _              = mzero
 
 -- Statements ------------------------------------------------------------------
 
+-- | Each statement, which can return a value (`Result`) referenced by the
+-- `Ident` or else it has no return value (`Effect`).  The statement has a single
+-- Instruction, followed by any Debug Records or associated metadata.
+--
+-- See llvm-project/llvm/docs/RemoveDIsDebugInfo.md for discussion on the
+-- [DebugRecord] fields.  Note that DebugRecords and debug intrinsics may not be
+-- mixed in a module; the former is new and preferred over the latter.
+--
+-- Technically, DebugRecords are attached to Instructions, but since there's a
+-- 1:1 correspondence between Stmt and Instr, it is cleaner to attach the
+-- DebugRecords to the Stmt to keep the Instrs from getting additional
+-- complications.
+--
+-- Each statement may have both Debug Records (2nd-to-last field) and a list of
+-- metadata attributes (last field).  As noted above, bitcode file should not mix
+-- Debug Records and intrinsics; if Debug Records are used, the metadata
+-- attribute list should not contain intrinsics (although it may contain other
+-- metadata associated with this statement).
+
 data Stmt' lab
-  = Result Ident (Instr' lab) [(String,ValMd' lab)]
-  | Effect (Instr' lab) [(String,ValMd' lab)]
+  = Result Ident (Instr' lab) [DebugRecord' lab] [(String, ValMd' lab)]
+  | Effect (Instr' lab) [DebugRecord' lab] [(String, ValMd' lab)]
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type Stmt = Stmt' BlockLabel
 
+stmtMetadata :: Stmt' lab -> [(String, ValMd' lab)]
+stmtMetadata = \case
+  Result _ _ _ mds -> mds
+  Effect _ _ mds   -> mds
+
 stmtInstr :: Stmt' lab -> Instr' lab
-stmtInstr (Result _ i _) = i
-stmtInstr (Effect i _)   = i
+stmtInstr (Result _ i _ _) = i
+stmtInstr (Effect i _ _)   = i
 
-stmtMetadata :: Stmt' lab -> [(String,ValMd' lab)]
-stmtMetadata stmt = case stmt of
-  Result _ _ mds -> mds
-  Effect _ mds   -> mds
-
-extendMetadata :: (String,ValMd' lab) -> Stmt' lab -> Stmt' lab
+extendMetadata :: Show lab => (String, ValMd' lab) -> Stmt' lab -> Stmt' lab
 extendMetadata md stmt = case stmt of
-  Result r i mds -> Result r i (md:mds)
-  Effect i mds   -> Effect i (md:mds)
+  Result r i [] mds -> Result r i [] (md:mds)
+  Result _ _ _ _ -> error $ "Adding MD " <> show md <> " after DebugRecord"
+  Effect i drs mds   -> Effect i drs (md:mds)
 
+addDebugRecord :: DebugRecord' lab -> Stmt' lab -> Stmt' lab
+addDebugRecord dr = \case
+  Result r i drs mds -> Result r i (snoc dr drs) mds
+  Effect i drs mds   -> Effect i (snoc dr drs) mds
+  where
+    snoc e ls = ls <> [e]
 
 -- Constant Expressions --------------------------------------------------------
 
 data ConstExpr' lab
-  = ConstGEP Bool (Maybe Word64) Type (Typed (Value' lab)) [Typed (Value' lab)]
+  = ConstGEP [GEPAttr] (Maybe RangeSpec) Type (Typed (Value' lab)) [Typed (Value' lab)]
   -- ^ Since LLVM 3.7, constant @getelementptr@ expressions include an explicit
   -- type to use as a basis for calculations. For older versions of LLVM, this
   -- type can be reconstructed by inspecting the pointee type of the parent
   -- pointer value.
+  --
+  -- Since LLVM 19, the bool "inbounds" is now [GEPAttr] and range is via
+  -- RangeSpec instead of just Word64.  It's recommended that the GEPAttr list
+  -- should be normalized (i.e. only one of each entry).
   | ConstConv ConvOp (Typed (Value' lab)) Type
   | ConstSelect (Typed (Value' lab)) (Typed (Value' lab)) (Typed (Value' lab))
   | ConstBlockAddr (Typed (Value' lab)) lab
@@ -1527,6 +1646,59 @@ data ConstExpr' lab
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type ConstExpr = ConstExpr' BlockLabel
+
+-- | Attributes imposing rules on the GEP; violating any rule results in a poison
+-- value.  If the base is a vector of pointers, the attributes apply to each
+-- computation element-wise.  See
+-- https://llvm.org/docs/LangRef.html#getelementptr-instruction for more
+-- information.
+data GEPAttr
+  = GEP_Inbounds
+    -- ^ Rules:
+    -- * Base pointer has an inbounds (but not necessarily live) address of the
+    --   allocated object it is based on (i.e. points into that allocation or to
+    --   its end.  Size for a growable allocated object is the max size, not the
+    --   current size.
+    -- * Pointer must remain inbounds at all times when adding the offsets
+    -- * Implies 'GEP_NUSW'
+  | GEP_NUSW
+    -- ^ No unsigned signed wrap.
+    -- Rules:
+    -- * If type of index is larger than ptr index type, truncation preserves
+    --   the signed value.
+    -- * Multiplication of an index by the type size does not wrap in a
+    --   signed sense.
+    -- * Offset additions (excluding base address) does not wrap in a
+    --   signed sense
+    -- * Addition of the current address (as unsigned, truncated to ptr
+    --   index type) and each offset (as signed) does not wrap the ptr
+    --   index type.
+  | GEP_NUW
+    -- ^ No unsigned wrap
+    -- Rules:
+    -- * If type of index is larger than ptr index type, truncation preserves
+    --   the unsigned value.
+    -- * Multiplication of an index by the type size does not wrap in an
+    --   unsigned sense.
+    -- * Offset additions (excluding base address) does not wrap in an
+    --   unsigned sense
+    -- * Addition of the current address (as unsigned, truncated to ptr
+    --   index type) and each offset (as unsigned) does not wrap the ptr
+    --   index type.
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+orderedGEPAttrs :: [GEPAttr]
+orderedGEPAttrs = [GEP_Inbounds, GEP_NUSW, GEP_NUW] -- bit0, bit1, ...
+
+data RangeSpec
+  = RangeIndex Word64
+    -- ^ index of valid range as used in pre-LLVM19 for when "inbounds" as a
+    -- boolean was True.  Deprecated.
+  | Range Int Integer Integer
+    -- ^ width of arbitrary-precision integer (in bits) and lower and upper
+    -- arbitrary-precision integer bounds of that size as [lower, upper).
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
 
 -- DWARF Debug Info ------------------------------------------------------------
 
@@ -1553,8 +1725,7 @@ data DebugInfo' lab
   | DebugInfoImportedEntity (DIImportedEntity' lab)
   | DebugInfoLabel (DILabel' lab)
   | DebugInfoArgList (DIArgList' lab)
-  | DebugInfoAssignID
-    -- ^ Introduced in LLVM 17.
+  | DebugInfoAssignID -- ^ Introduced in LLVM 17.
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugInfo = DebugInfo' BlockLabel
@@ -1614,6 +1785,10 @@ type DIFlags = Word32
 -- it stabilizes.
 type DIEmissionKind = Word8
 
+-- See https://github.com/llvm/llvm-project/commit/eb8901bda11fd55deeecd067fc4c9dcc0fb89984
+dwarf_DW_APPLE_ENUM_KIND_invalid :: Word64
+dwarf_DW_APPLE_ENUM_KIND_invalid = complement (0 :: Word64) -- ~ LLVM 19
+
 data DIBasicType = DIBasicType
   { dibtTag      :: DwarfTag
   , dibtName     :: String
@@ -1621,6 +1796,7 @@ data DIBasicType = DIBasicType
   , dibtAlign    :: Word64
   , dibtEncoding :: DwarfAttrEncoding
   , dibtFlags    :: Maybe DIFlags
+  , dibtNumExtraInhabitants :: Word64 -- ^ added in LLVM 20.
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data DICompileUnit' lab = DICompileUnit
@@ -1671,8 +1847,11 @@ data DICompositeType' lab = DICompositeType
   , dictAssociated     :: Maybe (ValMd' lab)
   , dictAllocated      :: Maybe (ValMd' lab)
   , dictRank           :: Maybe (ValMd' lab)
-  , dictAnnotations    :: Maybe (ValMd' lab)
-    -- ^ Introduced in LLVM 14.
+  , dictAnnotations    :: Maybe (ValMd' lab) -- ^ Introduced in LLVM 14.
+  , dictNumExtraInhabitants :: Word64        -- ^ added in LLVM 20.
+  , dictSpecification  :: Maybe (ValMd' lab) -- ^ added in LLVM 20.
+  , dictEnumKind       :: Maybe Word64       -- ^ added in LLVM 20.
+  , dictBitStride      :: Maybe (ValMd' lab) -- ^ added in LLVM 20.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DICompositeType = DICompositeType' BlockLabel
