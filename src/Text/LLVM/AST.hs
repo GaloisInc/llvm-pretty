@@ -1796,6 +1796,7 @@ data DIBasicType = DIBasicType
   , dibtAlign    :: Word64
   , dibtEncoding :: DwarfAttrEncoding
   , dibtFlags    :: Maybe DIFlags
+  , dibtNumExtraInhabitants :: Word64 -- ^ added in LLVM 20.
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data DICompileUnit' lab = DICompileUnit

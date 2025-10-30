@@ -1162,16 +1162,18 @@ ppDITemplateValueParameter = ppDITemplateValueParameter' ppLabel
 
 ppDIBasicType :: Fmt DIBasicType
 ppDIBasicType bt = "!DIBasicType"
-  <> parens (commas [ "tag:"      <+> integral (dibtTag bt)
-                    , "name:"     <+> doubleQuotes (text (dibtName bt))
-                    , "size:"     <+> integral (dibtSize bt)
-                    , "align:"    <+> integral (dibtAlign bt)
-                    , "encoding:" <+> integral (dibtEncoding bt)
-                    ] <> mbFlags)
-  where
-  mbFlags = case dibtFlags bt of
-              Just flags -> comma <+> "flags:" <+> integral flags
-              Nothing -> empty
+  <> parens (mcommas
+       [ pure ("tag:"      <+> integral (dibtTag bt))
+       , pure ("name:"     <+> doubleQuotes (text (dibtName bt)))
+       , pure ("size:"     <+> integral (dibtSize bt))
+       , pure ("align:"    <+> integral (dibtAlign bt))
+       , pure ("encoding:" <+> integral (dibtEncoding bt))
+       ,     (("flags:"    <+>) . integral)
+             <$> dibtFlags bt
+       , if dibtNumExtraInhabitants bt > 0
+         then pure ("numExtraInhabitants:" <+> integral (dibtNumExtraInhabitants bt))
+         else Nothing
+       ])
 
 ppDICompileUnit' :: Fmt i -> Fmt (DICompileUnit' i)
 ppDICompileUnit' pp cu = "!DICompileUnit"
