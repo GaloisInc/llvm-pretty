@@ -175,12 +175,12 @@ module Text.LLVM.AST
   , DISubroutineType'(..), DISubroutineType
   , DIArgList'(..), DIArgList
   , dwarf_DW_APPLE_ENUM_KIND_invalid
-  , DebugRecord'(..)
-  , DbgRecAssign'(..)
-  , DbgRecDeclare'(..)
-  , DbgRecLabel'(..)
-  , DbgRecValueSimple'(..)
-  , DbgRecValue'(..)
+  , DebugRecord, DebugRecord'(..)
+  , DbgRecAssign, DbgRecAssign'(..)
+  , DbgRecDeclare, DbgRecDeclare'(..)
+  , DbgRecLabel, DbgRecLabel'(..)
+  , DbgRecValueSimple, DbgRecValueSimple'(..)
+  , DbgRecValue, DbgRecValue'(..)
     -- * Aggregate Utilities
   , IndexResult(..)
   , isInvalid
@@ -1438,6 +1438,8 @@ data DebugRecord' lab
   | DebugRecordLabel (DbgRecLabel' lab)
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
+type DebugRecord = DebugRecord' BlockLabel
+
 data DbgRecValue' lab = DbgRecValue
   {
     drvLocation :: ValMd' lab -- ^ Expected to be a DILocation
@@ -1446,6 +1448,8 @@ data DbgRecValue' lab = DbgRecValue
   , drvValAsMetadata :: ValMd' lab
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DbgRecValue = DbgRecValue' BlockLabel
 
 data DbgRecValueSimple' lab = DbgRecValueSimple
   {
@@ -1456,6 +1460,8 @@ data DbgRecValueSimple' lab = DbgRecValueSimple
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
+type DbgRecValueSimple = DbgRecValueSimple' BlockLabel
+
 data DbgRecDeclare' lab = DbgRecDeclare
   {
     drdLocation :: ValMd' lab -- ^ Expected to be a DILocation
@@ -1464,6 +1470,8 @@ data DbgRecDeclare' lab = DbgRecDeclare
   , drdValAsMetadata :: ValMd' lab
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DbgRecDeclare = DbgRecDeclare' BlockLabel
 
 data DbgRecAssign' lab = DbgRecAssign
   {
@@ -1477,12 +1485,16 @@ data DbgRecAssign' lab = DbgRecAssign
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
 
+type DbgRecAssign = DbgRecAssign' BlockLabel
+
 data DbgRecLabel' lab = DbgRecLabel
   {
     drlLocation :: ValMd' lab -- ^ Expected to be a DILocation
   , drlLabel :: ValMd' lab -- ^ Expected to be a DILabel
   }
   deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DbgRecLabel = DbgRecLabel' BlockLabel
 
 
 -- Values ----------------------------------------------------------------------
