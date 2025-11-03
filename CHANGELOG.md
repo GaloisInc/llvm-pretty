@@ -4,7 +4,6 @@
 
 * Changes to support LLVM 19
   * Changes to `LayoutSpec` for DataLayout:
-    * Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
     * Size specification fields use a common sub-structure `Storage` which itself
       contains an `Alignment` common sub-structure: `IntegerSize`, `VectorSize`,
       `FloatSize`, and `StackObjSize`.
@@ -19,6 +18,10 @@
       unspecified bitwise representation.
     * Added `GoffMangling`, `WindowsX86CoffMangling`, and `XCoffMangling` forms
       of Mangling.
+
+## 0.13.1.0 (October 2025)
+
+* Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
 
 ## 0.13.0.0 (March 2025)
 
