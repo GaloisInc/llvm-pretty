@@ -975,7 +975,11 @@ ppConstExpr' pp expr =
       "getelementptr"
         <+> ppGepFlags optflgs
         <+> ppRange mrng
-        <+> parens (commas (ppType ty : map ppTyp' (ptr:ixs)))
+        <+> parens (commas (
+                       let argIndices = 0 : [0..] -- rval, ptr, then ixs indices
+                       in reverse  -- ppTyp's pushes entries to the listg head
+                          $ foldl (ppTyp's mrng) [ppType ty]
+                          $ zip argIndices (ptr:ixs)))
     ConstConv op tv t  -> ppConvOp op <+> parens (ppTyp' tv <+> "to" <+> ppType t)
     ConstSelect c l r  ->
       "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])
@@ -989,9 +993,12 @@ ppConstExpr' pp expr =
         ppTupleT a b = parens $ ppTyped ppVal' a <> comma <+> ppTyp' b
         ppVal'       = ppValue' pp
         ppTyp'       = ppTyped ppVal'
+        ppTyp's mrng a (i,t) =
+          let inrangeMark = if Just (RangeIndex i) == mrng then "inrange" else empty
+          in (inrangeMark <+> ppTyp' t) : a
         ppRange =
           let ppR = \case
-                RangeIndex i -> "index(" <+> integral i <+> ")" -- TODO FIXME
+                RangeIndex _i -> empty -- handled in ppTyp's
                 Range _ l u ->
                   "inrange(" <> integral l <> ", " <> integral u <> ")"
           in maybe empty ppR
