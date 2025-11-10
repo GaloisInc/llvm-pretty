@@ -984,10 +984,14 @@ ppConstExpr' pp expr =
     ConstSelect c l r  ->
       "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])
     ConstBlockAddr t l -> "blockaddress" <+> parens (ppVal' (typedValue t) <> comma <+> pp l)
-    ConstFCmp       op a b -> "fcmp" <+> ppFCmpOp op <+> ppTupleT a b
-    ConstICmp       op a b -> "icmp" <+> ppICmpOp op <+> ppTupleT a b
+    ConstFCmp       op a b -> droppedInLLVM 19 "fcmp constexprs"
+                              $ "fcmp" <+> ppFCmpOp op <+> ppTupleT a b
+    ConstICmp       op a b -> droppedInLLVM 19 "icmp constexprs"
+                              $ "icmp" <+> ppICmpOp op <+> ppTupleT a b
     ConstArith      op a b -> ppArithOp op <+> ppTuple a b
     ConstUnaryArith op a   -> ppUnaryArithOp op <+> ppTyp' a
+    ConstBit        op@(Shl _ _) a b -> droppedInLLVM 19 "shl constexprs"
+                                        $ ppBitOp op   <+> ppTuple a b
     ConstBit        op a b -> ppBitOp op   <+> ppTuple a b
   where ppTuple  a b = parens $ ppTyped ppVal' a <> comma <+> ppVal' b
         ppTupleT a b = parens $ ppTyped ppVal' a <> comma <+> ppTyp' b
@@ -1511,3 +1515,11 @@ onlyOnLLVM fromVer name
   | llvmVer >= fromVer = id
   | otherwise          = error $ name ++ " is supported only on LLVM >= "
                                  ++ llvmVerToString fromVer
+
+-- | Throw an error if the @?config@ version is older than the given version. The
+-- String indicates which constructor is unavailable in the error message.
+droppedInLLVM :: (?config :: Config) => LLVMVer -> String -> a -> a
+droppedInLLVM fromVer name
+  | llvmVer >= fromVer = error $ name ++ " is supported only up to LLVM >= "
+                                 ++ llvmVerToString fromVer
+  | otherwise          = id
