@@ -2,7 +2,7 @@
 
 ## 0.14.0.0 (pending)
 
-* Changes to support LLVM 19
+* Changes to support LLVM 19 (some of these changes are not backward-compatible):
   * Changes to `LayoutSpec` for DataLayout:
     * Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
     * Size specification fields use a common sub-structure `Storage` which itself
@@ -19,6 +19,21 @@
       unspecified bitwise representation.
     * Added `GoffMangling`, `WindowsX86CoffMangling`, and `XCoffMangling` forms
       of Mangling.
+  * Added `GEPAttr` flags for `GEP` instruction and constant expression, with
+    `RangeSpec` for the latter.
+  * Added `numExtraInhabitants` to `DIBasicType`.
+  * Added support for `DebugRecord` parsing, specifically for:
+
+    * `FUNC_CODE_DEBUG_RECORD_VALUE`
+    * `FUNC_CODE_DEBUG_RECORD_DECLARE`
+    * `FUNC_CODE_DEBUG_RECORD_ASSIGN`
+    * `FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE`
+    * `FUNC_CODE_DEBUG_RECORD_LABEL`
+
+    This adds a new field to both the `Result` and `Effect` constructors of the `Stmt` type.
+  * Pretty-printing with an LLVM version >= 19 now generates an error for `icmp`,
+    `fcmp`, and `shl` constant expressions that are no longer supported as of
+    LLVM 19.
 
 ## 0.13.0.0 (March 2025)
 
