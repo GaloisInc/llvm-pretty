@@ -1073,19 +1073,51 @@ data BitOp
 
 -- | Conversions from one type to another.
 data ConvOp
-  = Trunc
-  | ZExt
+  = Trunc Bool Bool
+    -- ^ Truncate an integer value to a smaller integer type.
+    --
+    -- The 'Bool' fields (added in in LLVM 20) encode whether to perform
+    -- overflow-related checks:
+    --
+    -- * First 'Bool': check for unsigned overflow.
+    -- * Second 'Bool': check for signed overflow.
+    --
+    -- If the checks fail, then the result is poisoned.
+    --
+    -- These fields can only ever 'True' in 'Conv' instructions in LLVM 20 or
+    -- later. These fields are always 'False' in 'ConstConv' constant
+    -- expressions or if the LLVM version is older than 20.
+  | ZExt Bool
+    -- ^ Zero extension.
+    --
+    -- The 'Bool' field (added in LLVM 18) encodes whether to enforce that the
+    -- argument is non-negative. If the 'Bool' is 'True' and the argument is
+    -- negative, then the result is poisoned.
+    --
+    -- This field can only ever 'True' in 'Conv' instructions in LLVM 18 or
+    -- later. This field is always 'False' in 'ConstConv' constant expressions
+    -- or if the LLVM version is older than 18.
   | SExt
   | FpTrunc
   | FpExt
   | FpToUi
   | FpToSi
-  | UiToFp
+  | UiToFp Bool
+    -- ^ Convert the argument from an unsigned integer to a floating-point
+    -- value.
+    --
+    -- The 'Bool' field (added in LLVM 19) encodes whether to enforce that the
+    -- argument is non-negative. If the 'Bool' is 'True' and the argument is
+    -- negative, then the result is poisoned.
+    --
+    -- This field can only ever 'True' in 'Conv' instructions in LLVM 19 or
+    -- later. This field is always 'False' in 'ConstConv' constant expressions
+    -- or if the LLVM version is older than 19.
   | SiToFp
   | PtrToInt
   | IntToPtr
   | BitCast
-    deriving (Data, Eq, Enum, Generic, Ord, Show, Typeable)
+    deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data AtomicRWOp
   = AtomicXchg

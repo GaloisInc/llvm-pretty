@@ -559,14 +559,14 @@ ppBitOp Or            = "or"
 ppBitOp Xor           = "xor"
 
 ppConvOp :: Fmt ConvOp
-ppConvOp Trunc    = "trunc"
-ppConvOp ZExt     = "zext"
+ppConvOp (Trunc nuw nsw) = "trunc" <+> ppSignBits nuw nsw
+ppConvOp (ZExt nneg)  = "zext" <+> opt nneg "nneg"
 ppConvOp SExt     = "sext"
 ppConvOp FpTrunc  = "fptrunc"
 ppConvOp FpExt    = "fpext"
 ppConvOp FpToUi   = "fptoui"
 ppConvOp FpToSi   = "fptosi"
-ppConvOp UiToFp   = "uitofp"
+ppConvOp (UiToFp nneg) = "uitofp" <+> opt nneg "nneg"
 ppConvOp SiToFp   = "sitofp"
 ppConvOp PtrToInt = "ptrtoint"
 ppConvOp IntToPtr = "inttoptr"
