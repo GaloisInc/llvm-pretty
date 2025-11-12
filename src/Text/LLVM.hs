@@ -676,7 +676,7 @@ bitcast :: IsValue a => Typed a -> Type -> BB (Typed Value)
 bitcast  = convop (Conv BitCast)
 
 icmp :: (IsValue a, IsValue b) => ICmpOp -> Typed a -> b -> BB (Typed Value)
-icmp op l r = observe (iT 1) (ICmp op (toValue `fmap` l) (toValue r))
+icmp op l r = observe (iT 1) (ICmp False op (toValue `fmap` l) (toValue r))
 
 fcmp :: (IsValue a, IsValue b) => FCmpOp -> Typed a -> b -> BB (Typed Value)
 fcmp op l r = observe (iT 1) (FCmp op (toValue `fmap` l) (toValue r))

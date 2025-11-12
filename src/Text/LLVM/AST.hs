@@ -1255,10 +1255,14 @@ data Instr' lab
          * Middle of basic block.
          * Effect. -}
 
-  | ICmp ICmpOp (Typed (Value' lab)) (Value' lab)
+  | ICmp Bool ICmpOp (Typed (Value' lab)) (Value' lab)
     {- ^ * Compare two integral values.
          * Middle of basic block.
-         * Returns a boolean value. -}
+         * Returns a boolean value.
+         * The 'Bool' field (added in LLVM 20) encodes whether to enforce that
+           the arguments have the same sign. If the 'Bool' is 'True' and the
+           arguments have mismatched signs, then the result is poisoned. This
+           field is always 'False' if the LLVM version is older than 20. -}
 
   | FCmp FCmpOp (Typed (Value' lab)) (Value' lab)
     {- ^ * Compare two floating point values.

@@ -40,6 +40,8 @@
     argument must be non-negative. This is used by LLVM 19 and up.
   * Add `Bool` fields to `Trunc` to check if the truncation would cause
     unsigned or signed overflow. These are used by LLVM 20 and up.
+* Add a `Bool` field to `ICmp`, which indicates that the arguments must have
+  the same sign. This is used by LLVM 20 and up.
 
 ## 0.13.1.0 (October 2025)
 
