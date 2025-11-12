@@ -4,7 +4,6 @@
 
 * Changes to support LLVM 19 (some of these changes are not backward-compatible):
   * Changes to `LayoutSpec` for DataLayout:
-    * Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
     * Size specification fields use a common sub-structure `Storage` which itself
       contains an `Alignment` common sub-structure: `IntegerSize`, `VectorSize`,
       `FloatSize`, and `StackObjSize`.
@@ -34,6 +33,10 @@
   * Pretty-printing with an LLVM version >= 19 now generates an error for `icmp`,
     `fcmp`, and `shl` constant expressions that are no longer supported as of
     LLVM 19.
+
+## 0.13.1.0 (October 2025)
+
+* Add a `FunctionPointerAlign` constructor to `LayoutSpec`.
 
 ## 0.13.0.0 (March 2025)
 
