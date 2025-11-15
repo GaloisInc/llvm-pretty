@@ -980,9 +980,24 @@ ppConstExpr' pp expr =
                        in reverse  -- ppTyp's pushes entries to the listg head
                           $ foldl (ppTyp's mrng) [ppType ty]
                           $ zip argIndices (ptr:ixs)))
-    ConstConv op tv t  -> ppConvOp op <+> parens (ppTyp' tv <+> "to" <+> ppType t)
+    ConstConv op tv t  ->
+      let droppedIn18 = case op of
+                          ZExt _ -> True
+                          SExt -> True
+                          FpTrunc -> True
+                          FpExt -> True
+                          FpToUi -> True
+                          FpToSi -> True
+                          UiToFp _ -> True
+                          SiToFp -> True
+                          _ -> False
+          ppConstConv = ppConvOp op <+> parens (ppTyp' tv <+> "to" <+> ppType t)
+      in if droppedIn18
+         then droppedInLLVM 18 "fptrunc/fpext/fptoui/fptosi/uitofp/sitofp constexprs" ppConstConv
+         else ppConstConv
     ConstSelect c l r  ->
-      "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])
+      droppedInLLVM 17 "select constexpr"
+      $ "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])
     ConstBlockAddr t l -> "blockaddress" <+> parens (ppVal' (typedValue t) <> comma <+> pp l)
     ConstFCmp       op a b -> droppedInLLVM 19 "fcmp constexprs"
                               $ "fcmp" <+> ppFCmpOp op <+> ppTupleT a b
@@ -992,7 +1007,9 @@ ppConstExpr' pp expr =
     ConstUnaryArith op a   -> ppUnaryArithOp op <+> ppTyp' a
     ConstBit        op@(Shl _ _) a b -> droppedInLLVM 19 "shl constexprs"
                                         $ ppBitOp op   <+> ppTuple a b
-    ConstBit        op a b -> ppBitOp op   <+> ppTuple a b
+    ConstBit        Xor a b -> ppBitOp Xor <+> ppTuple a b
+    ConstBit        op a b -> droppedInLLVM 18 "and/or/lshr/ashr constexprs"
+                              $ ppBitOp op <+> ppTuple a b
   where ppTuple  a b = parens $ ppTyped ppVal' a <> comma <+> ppVal' b
         ppTupleT a b = parens $ ppTyped ppVal' a <> comma <+> ppTyp' b
         ppVal'       = ppValue' pp
