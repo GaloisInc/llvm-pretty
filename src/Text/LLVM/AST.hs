@@ -159,7 +159,7 @@ module Text.LLVM.AST
   , DwarfVirtuality
   , DIFlags
   , DIEmissionKind
-  , DIBasicType(..)
+  , DIBasicType'(..), DIBasicType
   , DICompileUnit'(..), DICompileUnit
   , DICompositeType'(..), DICompositeType
   , DIDerivedType'(..), DIDerivedType
@@ -1741,7 +1741,7 @@ data RangeSpec
 -- DWARF Debug Info ------------------------------------------------------------
 
 data DebugInfo' lab
-  = DebugInfoBasicType DIBasicType
+  = DebugInfoBasicType (DIBasicType' lab)
   | DebugInfoCompileUnit (DICompileUnit' lab)
   | DebugInfoCompositeType (DICompositeType' lab)
   | DebugInfoDerivedType (DIDerivedType' lab)
@@ -1827,15 +1827,17 @@ type DIEmissionKind = Word8
 dwarf_DW_APPLE_ENUM_KIND_invalid :: Word64
 dwarf_DW_APPLE_ENUM_KIND_invalid = complement (0 :: Word64) -- ~ LLVM 19
 
-data DIBasicType = DIBasicType
+data DIBasicType' lab = DIBasicType
   { dibtTag      :: DwarfTag
   , dibtName     :: String
-  , dibtSize     :: Word64
+  , dibtSize     :: Maybe (ValMd' lab) -- ^ TODO RGS: Note invariants
   , dibtAlign    :: Word64
   , dibtEncoding :: DwarfAttrEncoding
   , dibtFlags    :: Maybe DIFlags
   , dibtNumExtraInhabitants :: Word64 -- ^ added in LLVM 20.
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DIBasicType = DIBasicType' BlockLabel
 
 data DICompileUnit' lab = DICompileUnit
   { dicuLanguage           :: DwarfLang
@@ -1871,9 +1873,9 @@ data DICompositeType' lab = DICompositeType
   , dictLine           :: Word32
   , dictScope          :: Maybe (ValMd' lab)
   , dictBaseType       :: Maybe (ValMd' lab)
-  , dictSize           :: Word64
+  , dictSize           :: Maybe (ValMd' lab) -- ^ TODO RGS: Note invariants
   , dictAlign          :: Word64
-  , dictOffset         :: Word64
+  , dictOffset         :: Maybe (ValMd' lab) -- ^ TODO RGS: Note invariants
   , dictFlags          :: DIFlags
   , dictElements       :: Maybe (ValMd' lab)
   , dictRuntimeLang    :: DwarfLang
@@ -1901,9 +1903,9 @@ data DIDerivedType' lab = DIDerivedType
   , didtLine :: Word32
   , didtScope :: Maybe (ValMd' lab)
   , didtBaseType :: Maybe (ValMd' lab)
-  , didtSize :: Word64
+  , didtSize :: Maybe (ValMd' lab) -- ^ TODO RGS: Note invariants
   , didtAlign :: Word64
-  , didtOffset :: Word64
+  , didtOffset :: Maybe (ValMd' lab) -- ^ TODO RGS: Note invariants
   , didtFlags :: DIFlags
   , didtExtraData :: Maybe (ValMd' lab)
   , didtDwarfAddressSpace :: Maybe Word32

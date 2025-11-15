@@ -44,6 +44,7 @@
   the same sign. This is used by LLVM 20 and up.
 * Add `dlAtomGroup` and `dlAtomRank` fields to `DebugLoc'`, which were
   introduced in LLVM 21.
+* TODO RGS: Note changes to `DI{Basic,Derived,Composite}Type`
 
 ## 0.13.1.0 (October 2025)
 
