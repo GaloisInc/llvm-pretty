@@ -22,7 +22,9 @@ tests = Tasty.testGroup "LLVM metadata tests" $
                                            , dlCol = 34
                                            , dlScope = ValMdRef 5
                                            , dlIA = Nothing
-                                           , dlImplicit = True })
+                                           , dlImplicit = True
+                                           , dlAtomGroup = 0
+                                           , dlAtomRank = 0 })
              , ("moo", ValMdString @Value "cow")
              ]
   in
