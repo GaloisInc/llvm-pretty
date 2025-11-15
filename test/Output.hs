@@ -40,7 +40,9 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
                                                 , dlCol = 34
                                                 , dlScope = ValMdRef 5
                                                 , dlIA = Nothing
-                                                , dlImplicit = True })
+                                                , dlImplicit = True
+                                                , dlAtomGroup = 0
+                                                , dlAtomRank = 0 })
              ]
         s3 = Effect
                (IndirectBr

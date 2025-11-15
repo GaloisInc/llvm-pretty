@@ -925,13 +925,20 @@ ppDebugLoc' pp dl = (if llvmVer >= llvmV3_7 then "!DILocation"
              <> parens (commas [ "line:"   <+> integral (dlLine dl)
                                , "column:" <+> integral (dlCol dl)
                                , "scope:"  <+> ppValMd' pp (dlScope dl)
-                               ] <> mbIA <> mbImplicit)
+                               ] <> mbIA <> mbImplicit <>
+                        when' (llvmVer >= 21) (mbAtomGroup <> mbAtomRank))
 
   where
   mbIA = case dlIA dl of
            Just md -> comma <+> "inlinedAt:" <+> ppValMd' pp md
            Nothing -> empty
   mbImplicit = if dlImplicit dl then comma <+> "implicit" else empty
+  mbAtomGroup = if dlAtomGroup dl > 0
+                  then comma <+> "atomGroup:" <+> integral (dlAtomGroup dl)
+                  else empty
+  mbAtomRank = if dlAtomRank dl > 0
+                 then comma <+> "atomRank:" <+> integral (dlAtomRank dl)
+                 else empty
 
 ppDebugLoc :: Fmt DebugLoc
 ppDebugLoc = ppDebugLoc' ppLabel

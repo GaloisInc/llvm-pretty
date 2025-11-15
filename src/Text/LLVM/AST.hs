@@ -1584,6 +1584,8 @@ data DebugLoc' lab = DebugLoc
   , dlScope :: ValMd' lab
   , dlIA    :: Maybe (ValMd' lab)
   , dlImplicit :: Bool
+  , dlAtomGroup :: Word64 -- ^ Introduced in LLVM 21
+  , dlAtomRank :: Word64 -- ^ Introduced in LLVM 21
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugLoc = DebugLoc' BlockLabel
