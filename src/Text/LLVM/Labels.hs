@@ -135,6 +135,7 @@ instance HasLabel DbgRecValue'                where relabel = $(generateRelabel 
 instance HasLabel DILabel'                    where relabel = $(generateRelabel 'relabel ''DILabel')
 instance HasLabel DebugLoc'                   where relabel = $(generateRelabel 'relabel ''DebugLoc')
 instance HasLabel DebugInfo'                  where relabel = $(generateRelabel 'relabel ''DebugInfo')
+instance HasLabel DIBasicType'                where relabel = $(generateRelabel 'relabel ''DIBasicType')
 instance HasLabel DIDerivedType'              where relabel = $(generateRelabel 'relabel ''DIDerivedType')
 instance HasLabel DISubroutineType'           where relabel = $(generateRelabel 'relabel ''DISubroutineType')
 instance HasLabel DISubrange'                 where relabel = $(generateRelabel 'relabel ''DISubrange')
