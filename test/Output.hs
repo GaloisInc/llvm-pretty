@@ -42,6 +42,11 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
                                                 , dlIA = Nothing
                                                 , dlImplicit = True })
              ]
+        s3 = Effect
+               (IndirectBr
+               (Typed PtrOpaque (ValIdent "addr"))
+               [Named "hello", Named "world"])
+               [] []
         dcu :: Value
         dcu = ValMd
               $ ValMdDebugInfo
@@ -247,6 +252,18 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
       ----
       |]
       (ppToText $ ppLLVM 10 $ ppStmt s2)
+
+  ------------------------------------------------------------
+
+  , testCase "Stmt 3" $
+    assertEqLines [sq|
+      `indirectbr` pretty-printing works as expected (#174)
+      ----
+      indirectbr ptr %addr, [ label %hello,
+                              label %world ]
+      ----
+      |]
+      (ppToText $ ppLLVM llvmVlatest $ ppStmt s3)
 
   ------------------------------------------------------------
   -- Verify named labels and label targets are emitted correctly

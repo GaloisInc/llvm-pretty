@@ -675,7 +675,10 @@ ppInstr instr = case instr of
                          <> comma <+> ppVectorIndex i
   IndirectBr d ls        -> "indirectbr"
                         <+> ppTyped ppValue d
-                         <> comma <+> commas (map ppTypedLabel ls)
+                         <> comma
+                        <+> char '['
+                        <+> commas (map ppTypedLabel ls)
+                        <+> char ']'
   Switch c d ls          -> "switch"
                         <+> ppTyped ppValue c
                          <> comma <+> ppTypedLabel d

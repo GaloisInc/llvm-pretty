@@ -42,6 +42,8 @@
     unsigned or signed overflow. These are used by LLVM 20 and up.
 * Add a `Bool` field to `ICmp`, which indicates that the arguments must have
   the same sign. This is used by LLVM 20 and up.
+* Fix a bug that would cause `indirectbr` statements to be pretty-printed
+  incorrectly.
 
 ## 0.13.1.0 (October 2025)
 
