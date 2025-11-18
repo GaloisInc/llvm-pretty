@@ -1822,8 +1822,8 @@ type DIFlags = Word32
 type DIEmissionKind = Word8
 
 -- See https://github.com/llvm/llvm-project/commit/eb8901bda11fd55deeecd067fc4c9dcc0fb89984
-dwarf_DW_APPLE_ENUM_KIND_invalid :: Word64
-dwarf_DW_APPLE_ENUM_KIND_invalid = complement (0 :: Word64) -- ~ LLVM 19
+dwarf_DW_APPLE_ENUM_KIND_invalid :: Word32
+dwarf_DW_APPLE_ENUM_KIND_invalid = complement (0 :: Word32) -- ~ LLVM 19
 
 data DIBasicType = DIBasicType
   { dibtTag      :: DwarfTag
@@ -1886,7 +1886,7 @@ data DICompositeType' lab = DICompositeType
   , dictAnnotations    :: Maybe (ValMd' lab) -- ^ Introduced in LLVM 14.
   , dictNumExtraInhabitants :: Word64        -- ^ added in LLVM 20.
   , dictSpecification  :: Maybe (ValMd' lab) -- ^ added in LLVM 20.
-  , dictEnumKind       :: Maybe Word64       -- ^ added in LLVM 20.
+  , dictEnumKind       :: Maybe Word32       -- ^ added in LLVM 20.
   , dictBitStride      :: Maybe (ValMd' lab) -- ^ added in LLVM 20.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
