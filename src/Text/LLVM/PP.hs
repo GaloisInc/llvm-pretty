@@ -982,8 +982,10 @@ ppConstExpr' pp expr =
                           $ zip argIndices (ptr:ixs)))
     ConstConv op tv t  ->
       let droppedIn18 = case op of
+                          -- https://github.com/llvm/llvm-project commit e4a4122 dropped ZExt and SExt
                           ZExt _ -> True
                           SExt -> True
+                          -- https://github.com/llvm/llvm-project commit 17764d2 dropped FpTrunc through SiToFP
                           FpTrunc -> True
                           FpExt -> True
                           FpToUi -> True
@@ -996,7 +998,8 @@ ppConstExpr' pp expr =
          then droppedInLLVM 18 "fptrunc/fpext/fptoui/fptosi/uitofp/sitofp constexprs" ppConstConv
          else ppConstConv
     ConstSelect c l r  ->
-      droppedInLLVM 17 "select constexpr"
+      droppedInLLVM 17 "select constexpr" -- https://github.com/llvm/llvm-project commit bbfb13a
+
       $ "select" <+> parens (commas [ ppTyp' c, ppTyp' l , ppTyp' r])
     ConstBlockAddr t l -> "blockaddress" <+> parens (ppVal' (typedValue t) <> comma <+> pp l)
     ConstFCmp       op a b -> droppedInLLVM 19 "fcmp constexprs"
