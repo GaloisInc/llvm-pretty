@@ -1161,11 +1161,17 @@ ppDIImportedEntity = ppDIImportedEntity' ppLabel
 
 ppDILabel' :: Fmt i -> Fmt (DILabel' i)
 ppDILabel' pp ie = "!DILabel"
-  <> parens (mcommas [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
-                     , pure ("name:" <+> ppStringLiteral (dilName ie))
-                     , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
-                     , pure ("line:"   <+> integral (dilLine ie))
-                     ])
+  <> parens (mcommas $
+       [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
+       , pure ("name:" <+> ppStringLiteral (dilName ie))
+       , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
+       , pure ("line:"   <+> integral (dilLine ie))
+       ] ++
+       when' (llvmVer >= 21)
+       [ pure ("column:" <+> integral (dilColumn ie))
+       , pure ("isArtificial:" <+> ppBool (dilIsArtificial ie))
+       , (("coroSuspendIdx:" <+>) . integral) <$> dilCoroSuspendIdx ie
+       ])
 
 ppDILabel :: Fmt DILabel
 ppDILabel = ppDILabel' ppLabel

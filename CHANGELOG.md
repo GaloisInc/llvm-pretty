@@ -44,6 +44,8 @@
   the same sign. This is used by LLVM 20 and up.
 * Add `dlAtomGroup` and `dlAtomRank` fields to `DebugLoc'`, which were
   introduced in LLVM 21.
+* Add `dilColumn`, `dilIsArtificial`, and `dilCoroSuspendIdx` fields to
+  `DILabel'`, which were introduced in LLVM 21.
 * Fix a bug that would cause `indirectbr` statements to be pretty-printed
   incorrectly.
 

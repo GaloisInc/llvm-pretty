@@ -1774,6 +1774,9 @@ data DILabel' lab = DILabel
     , dilName  :: String
     , dilFile  :: Maybe (ValMd' lab)
     , dilLine  :: Word32
+    , dilColumn :: Word32 -- ^ Introduced in LLVM 21.
+    , dilIsArtificial :: Bool -- ^ Introduced in LLVM 21.
+    , dilCoroSuspendIdx :: Maybe Word32 -- ^ Introduced in LLVM 21.
     } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DIImportedEntity = DIImportedEntity' BlockLabel
