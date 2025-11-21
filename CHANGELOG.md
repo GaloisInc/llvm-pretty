@@ -42,6 +42,19 @@
     unsigned or signed overflow. These are used by LLVM 20 and up.
 * Add a `Bool` field to `ICmp`, which indicates that the arguments must have
   the same sign. This is used by LLVM 20 and up.
+* Add `dlAtomGroup` and `dlAtomRank` fields to `DebugLoc'`, which were
+  introduced in LLVM 21.
+* Add `dilColumn`, `dilIsArtificial`, and `dilCoroSuspendIdx` fields to
+  `DILabel'`, which were introduced in LLVM 21.
+* The following debug-related fields have had their types changed from `Word64`
+  to `Maybe (ValMd' lab)`:
+
+  * `DIBasicType'`: `dibtSize`
+  * `DICompositeType'`: `dictSize` and `dictOffset`
+  * `DIDerivedType'`: `didtSize` and `didtOffset`
+
+  This allows them to encode non-constant sizes and offsets (a capability used
+  by Ada, for instance) in LLVM 21 or later.
 * Fix a bug that would cause `indirectbr` statements to be pretty-printed
   incorrectly.
 

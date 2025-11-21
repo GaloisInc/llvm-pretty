@@ -925,13 +925,20 @@ ppDebugLoc' pp dl = (if llvmVer >= llvmV3_7 then "!DILocation"
              <> parens (commas [ "line:"   <+> integral (dlLine dl)
                                , "column:" <+> integral (dlCol dl)
                                , "scope:"  <+> ppValMd' pp (dlScope dl)
-                               ] <> mbIA <> mbImplicit)
+                               ] <> mbIA <> mbImplicit <>
+                        when' (llvmVer >= 21) (mbAtomGroup <> mbAtomRank))
 
   where
   mbIA = case dlIA dl of
            Just md -> comma <+> "inlinedAt:" <+> ppValMd' pp md
            Nothing -> empty
   mbImplicit = if dlImplicit dl then comma <+> "implicit" else empty
+  mbAtomGroup = if dlAtomGroup dl > 0
+                  then comma <+> "atomGroup:" <+> integral (dlAtomGroup dl)
+                  else empty
+  mbAtomRank = if dlAtomRank dl > 0
+                 then comma <+> "atomRank:" <+> integral (dlAtomRank dl)
+                 else empty
 
 ppDebugLoc :: Fmt DebugLoc
 ppDebugLoc = ppDebugLoc' ppLabel
@@ -1051,7 +1058,7 @@ ppConstExpr = ppConstExpr' ppLabel
 
 ppDebugInfo' :: Fmt i -> Fmt (DebugInfo' i)
 ppDebugInfo' pp di = case di of
-  DebugInfoBasicType bt         -> ppDIBasicType bt
+  DebugInfoBasicType bt         -> ppDIBasicType' pp bt
   DebugInfoCompileUnit cu       -> ppDICompileUnit' pp cu
   DebugInfoCompositeType ct     -> ppDICompositeType' pp ct
   DebugInfoDerivedType dt       -> ppDIDerivedType' pp dt
@@ -1154,11 +1161,17 @@ ppDIImportedEntity = ppDIImportedEntity' ppLabel
 
 ppDILabel' :: Fmt i -> Fmt (DILabel' i)
 ppDILabel' pp ie = "!DILabel"
-  <> parens (mcommas [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
-                     , pure ("name:" <+> ppStringLiteral (dilName ie))
-                     , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
-                     , pure ("line:"   <+> integral (dilLine ie))
-                     ])
+  <> parens (mcommas $
+       [ (("scope:"  <+>) . ppValMd' pp) <$> dilScope ie
+       , pure ("name:" <+> ppStringLiteral (dilName ie))
+       , (("file:"   <+>) . ppValMd' pp) <$> dilFile ie
+       , pure ("line:"   <+> integral (dilLine ie))
+       ] ++
+       when' (llvmVer >= 21)
+       [ pure ("column:" <+> integral (dilColumn ie))
+       , pure ("isArtificial:" <+> ppBool (dilIsArtificial ie))
+       , (("coroSuspendIdx:" <+>) . integral) <$> dilCoroSuspendIdx ie
+       ])
 
 ppDILabel :: Fmt DILabel
 ppDILabel = ppDILabel' ppLabel
@@ -1194,12 +1207,12 @@ ppDITemplateValueParameter' pp vp = "!DITemplateValueParameter"
 ppDITemplateValueParameter :: Fmt DITemplateValueParameter
 ppDITemplateValueParameter = ppDITemplateValueParameter' ppLabel
 
-ppDIBasicType :: Fmt DIBasicType
-ppDIBasicType bt = "!DIBasicType"
+ppDIBasicType' :: Fmt i -> Fmt (DIBasicType' i)
+ppDIBasicType' pp bt = "!DIBasicType"
   <> parens (mcommas
        [ pure ("tag:"      <+> integral (dibtTag bt))
        , pure ("name:"     <+> doubleQuotes (text (dibtName bt)))
-       , pure ("size:"     <+> integral (dibtSize bt))
+       ,     (("size:"     <+>) . ppSizeOrOffsetValMd' pp) <$> dibtSize bt
        , pure ("align:"    <+> integral (dibtAlign bt))
        , pure ("encoding:" <+> integral (dibtEncoding bt))
        ,     (("flags:"    <+>) . integral)
@@ -1258,9 +1271,9 @@ ppDICompositeType' pp ct = "!DICompositeType"
        ,     (("file:"           <+>) . ppValMd' pp) <$> (dictFile ct)
        , pure ("line:"           <+> integral (dictLine ct))
        ,     (("baseType:"       <+>) . ppValMd' pp) <$> (dictBaseType ct)
-       , pure ("size:"           <+> integral (dictSize ct))
+       ,     (("size:"           <+>) . ppSizeOrOffsetValMd' pp) <$> dictSize ct
        , pure ("align:"          <+> integral (dictAlign ct))
-       , pure ("offset:"         <+> integral (dictOffset ct))
+       ,     (("offset:"         <+>) . ppSizeOrOffsetValMd' pp) <$> dictOffset ct
        , pure ("flags:"          <+> integral (dictFlags ct))
        ,     (("elements:"       <+>) . ppValMd' pp) <$> (dictElements ct)
        , pure ("runtimeLang:"    <+> integral (dictRuntimeLang ct))
@@ -1293,9 +1306,9 @@ ppDIDerivedType' pp dt = "!DIDerivedType"
        , pure ("line:"      <+> integral (didtLine dt))
        ,     (("scope:"     <+>) . ppValMd' pp) <$> (didtScope dt)
        ,      ("baseType:"  <+>) <$> (ppValMd' pp <$> didtBaseType dt <|> Just "null")
-       , pure ("size:"      <+> integral (didtSize dt))
+       ,     (("size:"      <+>) . ppSizeOrOffsetValMd' pp) <$> didtSize dt
        , pure ("align:"     <+> integral (didtAlign dt))
-       , pure ("offset:"    <+> integral (didtOffset dt))
+       ,     (("offset:"    <+>) . ppSizeOrOffsetValMd' pp) <$> didtOffset dt
        , pure ("flags:"     <+> integral (didtFlags dt))
        ,     (("extraData:" <+>) . ppValMd' pp) <$> (didtExtraData dt)
        ,     (("dwarfAddressSpace:" <+>) . integral) <$> didtDwarfAddressSpace dt
@@ -1512,6 +1525,17 @@ ppInt64ValMd' canFallBack pp = go
             integer $ fromIntegral $ dilvArg lv  -- ??
           -- ValMdRef _idx -> mempty -- no table here to look this up...
           o -> when' canFallBack $ ppValMd' pp o
+
+-- | Print the size or offset of a type-related metadata node. This value can
+-- either be an integer literal (in which case the bare literal is printed), or
+-- in LLVM 21 or later, it can be a more complicated metadata expression (in
+-- which case the metadata is pretty-printed).
+ppSizeOrOffsetValMd' :: Fmt i -> Fmt (ValMd' i)
+ppSizeOrOffsetValMd' pp = \case
+  ValMdValue tv
+    | ValInteger i <- typedValue tv
+      -> integer i
+  o -> when' (llvmVer >= 21) $ ppValMd' pp o
 
 
 commas :: Fmt [Doc]

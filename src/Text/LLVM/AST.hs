@@ -159,7 +159,7 @@ module Text.LLVM.AST
   , DwarfVirtuality
   , DIFlags
   , DIEmissionKind
-  , DIBasicType(..)
+  , DIBasicType'(..), DIBasicType
   , DICompileUnit'(..), DICompileUnit
   , DICompositeType'(..), DICompositeType
   , DIDerivedType'(..), DIDerivedType
@@ -1584,6 +1584,8 @@ data DebugLoc' lab = DebugLoc
   , dlScope :: ValMd' lab
   , dlIA    :: Maybe (ValMd' lab)
   , dlImplicit :: Bool
+  , dlAtomGroup :: Word64 -- ^ Introduced in LLVM 21
+  , dlAtomRank :: Word64 -- ^ Introduced in LLVM 21
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DebugLoc = DebugLoc' BlockLabel
@@ -1739,7 +1741,7 @@ data RangeSpec
 -- DWARF Debug Info ------------------------------------------------------------
 
 data DebugInfo' lab
-  = DebugInfoBasicType DIBasicType
+  = DebugInfoBasicType (DIBasicType' lab)
   | DebugInfoCompileUnit (DICompileUnit' lab)
   | DebugInfoCompositeType (DICompositeType' lab)
   | DebugInfoDerivedType (DIDerivedType' lab)
@@ -1772,6 +1774,9 @@ data DILabel' lab = DILabel
     , dilName  :: String
     , dilFile  :: Maybe (ValMd' lab)
     , dilLine  :: Word32
+    , dilColumn :: Word32 -- ^ Introduced in LLVM 21.
+    , dilIsArtificial :: Bool -- ^ Introduced in LLVM 21.
+    , dilCoroSuspendIdx :: Maybe Word32 -- ^ Introduced in LLVM 21.
     } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
 
 type DIImportedEntity = DIImportedEntity' BlockLabel
@@ -1825,15 +1830,22 @@ type DIEmissionKind = Word8
 dwarf_DW_APPLE_ENUM_KIND_invalid :: Word32
 dwarf_DW_APPLE_ENUM_KIND_invalid = complement (0 :: Word32) -- ~ LLVM 19
 
-data DIBasicType = DIBasicType
+data DIBasicType' lab = DIBasicType
   { dibtTag      :: DwarfTag
   , dibtName     :: String
-  , dibtSize     :: Word64
+  , dibtSize     :: Maybe (ValMd' lab)
+    -- ^ If using LLVM 20 or older, this will always be @Just@ an 'ValMdValue',
+    -- where the underlying value is a 64-bit 'ValInteger'. If using LLVM 21 or
+    -- later, this can also be a null reference (i.e., 'Nothing'), a variable
+    -- (i.e., @Just@ a 'DIGlobalVariable' or 'DILocalVariable'), or an
+    -- expression (i.e., @Just@ a 'DIExpression').
   , dibtAlign    :: Word64
   , dibtEncoding :: DwarfAttrEncoding
   , dibtFlags    :: Maybe DIFlags
   , dibtNumExtraInhabitants :: Word64 -- ^ added in LLVM 20.
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  } deriving (Data, Eq, Functor, Generic, Ord, Show, Typeable)
+
+type DIBasicType = DIBasicType' BlockLabel
 
 data DICompileUnit' lab = DICompileUnit
   { dicuLanguage           :: DwarfLang
@@ -1869,9 +1881,19 @@ data DICompositeType' lab = DICompositeType
   , dictLine           :: Word32
   , dictScope          :: Maybe (ValMd' lab)
   , dictBaseType       :: Maybe (ValMd' lab)
-  , dictSize           :: Word64
+  , dictSize           :: Maybe (ValMd' lab)
+    -- ^ If using LLVM 20 or older, this will always be @Just@ an 'ValMdValue',
+    -- where the underlying value is a 64-bit 'ValInteger'. If using LLVM 21 or
+    -- later, this can also be a null reference (i.e., 'Nothing'), a variable
+    -- (i.e., @Just@ a 'DIGlobalVariable' or 'DILocalVariable'), or an
+    -- expression (i.e., @Just@ a 'DIExpression').
   , dictAlign          :: Word64
-  , dictOffset         :: Word64
+  , dictOffset         :: Maybe (ValMd' lab)
+    -- ^ If using LLVM 20 or older, this will always be @Just@ an 'ValMdValue',
+    -- where the underlying value is a 64-bit 'ValInteger'. If using LLVM 21 or
+    -- later, this can also be a null reference (i.e., 'Nothing'), a variable
+    -- (i.e., @Just@ a 'DIGlobalVariable' or 'DILocalVariable'), or an
+    -- expression (i.e., @Just@ a 'DIExpression').
   , dictFlags          :: DIFlags
   , dictElements       :: Maybe (ValMd' lab)
   , dictRuntimeLang    :: DwarfLang
@@ -1899,9 +1921,19 @@ data DIDerivedType' lab = DIDerivedType
   , didtLine :: Word32
   , didtScope :: Maybe (ValMd' lab)
   , didtBaseType :: Maybe (ValMd' lab)
-  , didtSize :: Word64
+  , didtSize :: Maybe (ValMd' lab)
+    -- ^ If using LLVM 20 or older, this will always be @Just@ an 'ValMdValue',
+    -- where the underlying value is a 64-bit 'ValInteger'. If using LLVM 21 or
+    -- later, this can also be a null reference (i.e., 'Nothing'), a variable
+    -- (i.e., @Just@ a 'DIGlobalVariable' or 'DILocalVariable'), or an
+    -- expression (i.e., @Just@ a 'DIExpression').
   , didtAlign :: Word64
-  , didtOffset :: Word64
+  , didtOffset :: Maybe (ValMd' lab)
+    -- ^ If using LLVM 20 or older, this will always be @Just@ an 'ValMdValue',
+    -- where the underlying value is a 64-bit 'ValInteger'. If using LLVM 21 or
+    -- later, this can also be a null reference (i.e., 'Nothing'), a variable
+    -- (i.e., @Just@ a 'DIGlobalVariable' or 'DILocalVariable'), or an
+    -- expression (i.e., @Just@ a 'DIExpression').
   , didtFlags :: DIFlags
   , didtExtraData :: Maybe (ValMd' lab)
   , didtDwarfAddressSpace :: Maybe Word32
