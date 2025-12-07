@@ -143,6 +143,7 @@ instance HasLabel DIGlobalVariable'           where relabel = $(generateRelabel 
 instance HasLabel DIGlobalVariableExpression' where relabel = $(generateRelabel 'relabel ''DIGlobalVariableExpression')
 instance HasLabel DILocalVariable'            where relabel = $(generateRelabel 'relabel ''DILocalVariable')
 instance HasLabel DISubprogram'               where relabel = $(generateRelabel 'relabel ''DISubprogram')
+instance HasLabel DIFile'                     where relabel = $(generateRelabel 'relabel ''DIFile')
 instance HasLabel DICompositeType'            where relabel = $(generateRelabel 'relabel ''DICompositeType')
 instance HasLabel DILexicalBlock'             where relabel = $(generateRelabel 'relabel ''DILexicalBlock')
 instance HasLabel DICompileUnit'              where relabel = $(generateRelabel 'relabel ''DICompileUnit')

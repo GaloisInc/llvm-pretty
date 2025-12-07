@@ -164,7 +164,8 @@ module Text.LLVM.AST
   , DICompositeType'(..), DICompositeType
   , DIDerivedType'(..), DIDerivedType
   , DIExpression(..)
-  , DIFile(..)
+  , DIFile'(..), DIFile
+  , DIChecksumKind(..)
   , DIGlobalVariable'(..), DIGlobalVariable
   , DIGlobalVariableExpression'(..), DIGlobalVariableExpression
   , DILexicalBlock'(..), DILexicalBlock
@@ -1748,7 +1749,7 @@ data DebugInfo' lab
   | DebugInfoEnumerator String !Integer Bool
     -- ^ The 'Bool' field represents @isUnsigned@, introduced in LLVM 7.
   | DebugInfoExpression DIExpression
-  | DebugInfoFile DIFile
+  | DebugInfoFile (DIFile' lab)
   | DebugInfoGlobalVariable (DIGlobalVariable' lab)
   | DebugInfoGlobalVariableExpression (DIGlobalVariableExpression' lab)
   | DebugInfoLexicalBlock (DILexicalBlock' lab)
@@ -1951,10 +1952,22 @@ data DIExpression = DIExpression
   { dieElements :: [Word64]
   } deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
-data DIFile = DIFile
+data DIFile' lab = DIFile
   { difFilename  :: FilePath
   , difDirectory :: FilePath
-  } deriving (Data, Eq, Generic, Ord, Show, Typeable)
+  , difChecksumKind :: DIChecksumKind
+  , difChecksum :: Maybe String
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show, Typeable)
+
+type DIFile = DIFile' BlockLabel
+
+data DIChecksumKind
+  = CSK_None -- ^ == 0. Originally indicated no checksum, now handled by optional
+             -- encoding
+  | CSK_MD5 -- ^ == 1
+  | CSK_SHA1 -- ^ == 2
+  | CSK_SHA256 -- ^ == 3
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 data DIGlobalVariable' lab = DIGlobalVariable
   { digvScope                :: Maybe (ValMd' lab)
