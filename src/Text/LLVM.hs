@@ -41,6 +41,7 @@ module Text.LLVM (
     -- * Basic Blocks
   , BB()
   , runBB
+  , bbStmtModifier
   , freshLabel
   , label
   , comment
@@ -314,8 +315,11 @@ define' attrs rty sym sig va k = do
 -- Basic Block Monad -----------------------------------------------------------
 
 newtype BB a = BB
-  { unBB :: WriterT [BasicBlock] (StateT RW Id) a
+  { unBB :: ReaderT (Stmt -> Stmt) (WriterT [BasicBlock] (StateT RW Id)) a
   } deriving (Functor,Applicative,Monad,MonadFix)
+
+bbStmtModifier :: (Stmt -> Stmt) -> BB a -> BB a
+bbStmtModifier stmtModifier = BB . local stmtModifier . unBB
 
 avoidName :: String -> BB ()
 avoidName name = BB $ do
@@ -333,7 +337,7 @@ freshNameBB pfx = BB $ do
 
 runBB :: BB a -> (a,[BasicBlock])
 runBB m =
-  case runId (runStateT emptyRW (runWriterT (unBB body))) of
+  case runId (runStateT emptyRW (runWriterT (runReaderT id (unBB body)))) of
     ((a,bbs),_rw) -> (a,bbs)
   where
   -- make sure that the last block is terminated
@@ -367,7 +371,8 @@ emitStmt :: Stmt -> BB ()
 emitStmt stmt = do
   BB $ do
     rw <- get
-    set $! rw { rwStmts = rwStmts rw Seq.|> stmt }
+    smod <- ask
+    set $! rw { rwStmts = rwStmts rw Seq.|> smod stmt }
   when (isTerminator (stmtInstr stmt)) terminateBasicBlock
 
 effect :: Instr -> BB ()
