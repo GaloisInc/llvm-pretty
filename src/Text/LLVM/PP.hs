@@ -1215,8 +1215,7 @@ ppDIBasicType' pp bt = "!DIBasicType"
        ,     (("size:"     <+>) . ppSizeOrOffsetValMd' pp) <$> dibtSize bt
        , pure ("align:"    <+> integral (dibtAlign bt))
        , pure ("encoding:" <+> integral (dibtEncoding bt))
-       ,     (("flags:"    <+>) . integral)
-             <$> dibtFlags bt
+       , (\f -> "flags:" <+> (commas (text . show <$> f))) <$> dibtFlags bt
        , if dibtNumExtraInhabitants bt > 0
          then pure ("numExtraInhabitants:" <+> integral (dibtNumExtraInhabitants bt))
          else Nothing
@@ -1234,7 +1233,7 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
        , pure ("runtimeVersion:"        <+> integral (dicuRuntimeVersion cu))
        ,     (("splitDebugFilename:"    <+>) . doubleQuotes . text)
              <$> (dicuSplitDebugFilename cu)
-       , pure ("emissionKind:"          <+> integral (dicuEmissionKind cu))
+       , pure ("emissionKind:"          <+> (text $ show $ dicuEmissionKind cu))
        ,     (("enums:"                 <+>) . ppValMd' pp) <$> (dicuEnums cu)
        ,     (("retainedTypes:"         <+>) . ppValMd' pp) <$> (dicuRetainedTypes cu)
        ,     (("subprograms:"           <+>) . ppValMd' pp) <$> (dicuSubprograms cu)
@@ -1274,7 +1273,7 @@ ppDICompositeType' pp ct = "!DICompositeType"
        ,     (("size:"           <+>) . ppSizeOrOffsetValMd' pp) <$> dictSize ct
        , pure ("align:"          <+> integral (dictAlign ct))
        ,     (("offset:"         <+>) . ppSizeOrOffsetValMd' pp) <$> dictOffset ct
-       , pure ("flags:"          <+> integral (dictFlags ct))
+       , pure ("flags:"          <+> (commas (text . show <$> (dictFlags ct))))
        ,     (("elements:"       <+>) . ppValMd' pp) <$> (dictElements ct)
        , pure ("runtimeLang:"    <+> integral (dictRuntimeLang ct))
        ,     (("vtableHolder:"   <+>) . ppValMd' pp) <$> (dictVTableHolder ct)
@@ -1309,7 +1308,7 @@ ppDIDerivedType' pp dt = "!DIDerivedType"
        ,     (("size:"      <+>) . ppSizeOrOffsetValMd' pp) <$> didtSize dt
        , pure ("align:"     <+> integral (didtAlign dt))
        ,     (("offset:"    <+>) . ppSizeOrOffsetValMd' pp) <$> didtOffset dt
-       , pure ("flags:"     <+> integral (didtFlags dt))
+       , pure ("flags:"     <+> commas (text . show <$> (didtFlags dt)))
        ,     (("extraData:" <+>) . ppValMd' pp) <$> (didtExtraData dt)
        ,     (("dwarfAddressSpace:" <+>) . integral) <$> didtDwarfAddressSpace dt
        ,     (("annotations:" <+>) . ppValMd' pp) <$> (didtAnnotations dt)
@@ -1398,7 +1397,7 @@ ppDILocalVariable' pp lv = "!DILocalVariable"
        , pure ("line:"   <+> integral (dilvLine lv))
        ,      (("type:"  <+>) . ppValMd' pp) <$> (dilvType lv)
        , pure ("arg:"    <+> integral (dilvArg lv))
-       , pure ("flags:"  <+> integral (dilvFlags lv))
+       , pure ("flags:"  <+> (commas (text . show <$> (dilvFlags lv))))
        ,      (("align:" <+>) . integral) <$> dilvAlignment lv
        ,      (("annotations:" <+>) . ppValMd' pp) <$> (dilvAnnotations lv)
        ])
@@ -1424,9 +1423,9 @@ ppDISubprogram' pp sp = "!DISubprogram"
        , pure ("isDefinition:"    <+> ppBool (dispIsDefinition sp))
        , pure ("scopeLine:"       <+> integral (dispScopeLine sp))
        ,      (("containingType:" <+>) . ppValMd' pp) <$> (dispContainingType sp)
-       , pure ("virtuality:"      <+> integral (dispVirtuality sp))
        , pure ("virtualIndex:"    <+> integral (dispVirtualIndex sp))
-       , pure ("flags:"           <+> integral (dispFlags sp))
+       , pure ("flags:"           <+> commas (text . show <$> (dispFlags sp)))
+       , pure ("spflags:"         <+> commas (text . show <$> (dispSPFlags sp)))
        , pure ("isOptimized:"     <+> ppBool (dispIsOptimized sp))
        ,      (("unit:"           <+>) . ppValMd' pp) <$> (dispUnit sp)
        ,      (("templateParams:" <+>) . ppValMd' pp) <$> (dispTemplateParams sp)
@@ -1466,7 +1465,7 @@ ppDISubrange = ppDISubrange' ppLabel
 ppDISubroutineType' :: Fmt i -> Fmt (DISubroutineType' i)
 ppDISubroutineType' pp st = "!DISubroutineType"
   <> parens (commas
-       [ "flags:" <+> integral (distFlags st)
+       [ "flags:" <+> commas (text . show <$> (distFlags st))
        , "types:" <+> fromMaybe "null" (ppValMd' pp <$> (distTypeArray st))
        ])
 
