@@ -29,7 +29,7 @@ concat <$> mapM (makeLensesWith (lensRules & lensField .~ (\_ _ n -> [TopName $ 
     , ''Linkage
     , ''DebugLoc'
     , ''DebugInfo'
-    , ''DIFile
+    , ''DIFile'
     , ''DISubrange'
     , ''DIBasicType'
     , ''DIExpression

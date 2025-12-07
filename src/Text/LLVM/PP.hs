@@ -1329,11 +1329,14 @@ ppDIExpression :: Fmt DIExpression
 ppDIExpression e = "!DIExpression"
   <> parens (commas (map integral (dieElements e)))
 
-ppDIFile :: Fmt DIFile
+ppDIFile :: Fmt (DIFile' i)
 ppDIFile f = "!DIFile"
-  <> parens (commas [ "filename:"  <+> doubleQuotes (text (difFilename f))
-                    , "directory:" <+> doubleQuotes (text (difDirectory f))
-                    ])
+  <> parens (mcommas
+             [ pure ("filename:"  <+> doubleQuotes (text (difFilename f)))
+             , pure ("directory:" <+> doubleQuotes (text (difDirectory f)))
+             , pure ("checksumkind:" <+> (text $ show $ difChecksumKind f))
+             , (("checksum:" <+>) . doubleQuotes . text) <$> (difChecksum f)
+             ])
 
 ppDIGlobalVariable' :: Fmt i -> Fmt (DIGlobalVariable' i)
 ppDIGlobalVariable' pp gv = "!DIGlobalVariable"
