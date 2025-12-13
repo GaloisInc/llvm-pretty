@@ -318,6 +318,30 @@ newtype BB a = BB
   { unBB :: ReaderT (Stmt -> Stmt) (WriterT [BasicBlock] (StateT RW Id)) a
   } deriving (Functor,Applicative,Monad,MonadFix)
 
+
+-- | The 'bbStmtModifier' can be used to register a function that can be used to
+-- modify the subsequent statements generated into this block.
+--
+-- For example the following @BB@ monad code segment will emit a couple of LLVM
+-- statements:
+--
+--    v <- load (iT 8) globalVar Nothing
+--    call fooFunc [v]
+--    jump end
+--
+-- but these statements will be "plain" in the resulting @BasicBlock@.  If the
+-- caller wishes to add debug Metadata for location, they could instead write:
+--
+--    bbStmtModifier (extendMetadata ("dbg", ValMdRef i))
+--    v <- load (iT 8) globalVar Nothing
+--    bbStmtModifier (extendMetadata ("dbg", ValMdRef j))
+--    call fooFunc [v]
+--    jump end
+--
+-- Where @i@ and @j@ are the metadata index values of the @DebugLoc@ entries
+-- describing the source location of the "load" and "call"+"jump" statements,
+-- respectively.
+
 bbStmtModifier :: (Stmt -> Stmt) -> BB a -> BB a
 bbStmtModifier stmtModifier = BB . local stmtModifier . unBB
 
