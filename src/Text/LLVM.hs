@@ -338,8 +338,8 @@ newtype BB a = BB
 --    call fooFunc [v]
 --    jump end
 --
--- Where @i@ and @j@ are the metadata index values of the @DebugLoc@ entries
--- describing the source location of the "load" and "call"+"jump" statements,
+-- Where @i@ and @j@ are the metadata index values of the 'DebugLoc' entries
+-- describing the source location of the \"load\" and \"call\"+\"jump\" statements,
 -- respectively.
 
 bbStmtModifier :: (Stmt -> Stmt) -> BB a -> BB a
