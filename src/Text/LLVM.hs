@@ -325,9 +325,9 @@ newtype BB a = BB
 -- For example, the following 'BB' monad code segment will emit a couple of LLVM
 -- statements:
 --
---    v <- load (iT 8) globalVar Nothing
---    call fooFunc [v]
---    jump end
+-- > v <- load (iT 8) globalVar Nothing
+-- > call fooFunc [v]
+-- > jump end
 --
 -- But these statements will be \"plain\" in the resulting 'BasicBlock'.  If the
 -- caller wishes to add debug Metadata for location, they could instead write:
