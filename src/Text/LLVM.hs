@@ -319,7 +319,7 @@ newtype BB a = BB
   } deriving (Functor,Applicative,Monad,MonadFix)
 
 
--- | The 'bbStmtModifier' can be used to register a function that can be used to
+-- | The 'bbStmtModifier' function can be used to register a function that can
 -- modify the subsequent statements generated into this block.
 --
 -- For example the following @BB@ monad code segment will emit a couple of LLVM
