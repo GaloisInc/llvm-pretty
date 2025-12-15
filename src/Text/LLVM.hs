@@ -332,11 +332,11 @@ newtype BB a = BB
 -- But these statements will be \"plain\" in the resulting 'BasicBlock'.  If the
 -- caller wishes to add debug Metadata for location, they could instead write:
 --
---    bbStmtModifier (extendMetadata ("dbg", ValMdRef i))
---    v <- load (iT 8) globalVar Nothing
---    bbStmtModifier (extendMetadata ("dbg", ValMdRef j))
---    call fooFunc [v]
---    jump end
+-- > bbStmtModifier (extendMetadata ("dbg", ValMdRef i))
+-- >  v <- load (iT 8) globalVar Nothing
+-- > bbStmtModifier (extendMetadata ("dbg", ValMdRef j))
+-- > call fooFunc [v]
+-- > jump end
 --
 -- Where @i@ and @j@ are the metadata index values of the 'DebugLoc' entries
 -- describing the source location of the \"load\" and \"call\"+\"jump\" statements,
