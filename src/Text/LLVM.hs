@@ -329,7 +329,7 @@ newtype BB a = BB
 --    call fooFunc [v]
 --    jump end
 --
--- but these statements will be "plain" in the resulting @BasicBlock@.  If the
+-- But these statements will be \"plain\" in the resulting 'BasicBlock'.  If the
 -- caller wishes to add debug Metadata for location, they could instead write:
 --
 --    bbStmtModifier (extendMetadata ("dbg", ValMdRef i))
