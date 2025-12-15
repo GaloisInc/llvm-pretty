@@ -322,7 +322,7 @@ newtype BB a = BB
 -- | The 'bbStmtModifier' function can be used to register a function that can
 -- modify the subsequent statements generated into this block.
 --
--- For example the following @BB@ monad code segment will emit a couple of LLVM
+-- For example, the following 'BB' monad code segment will emit a couple of LLVM
 -- statements:
 --
 --    v <- load (iT 8) globalVar Nothing
