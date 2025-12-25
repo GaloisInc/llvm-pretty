@@ -27,7 +27,7 @@ import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
 import Data.List ( intersperse, nub )
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes,fromMaybe,isJust)
-import GHC.Float (castDoubleToWord64, castFloatToWord32)
+import GHC.Float (castDoubleToWord64, float2Double)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
 import Data.Int
@@ -871,9 +871,11 @@ ppValue' pp val = case val of
   ValBool b          -> ppBool b
   -- Note: for +Inf/-Inf/NaNs, we want to output the bit-correct sequence
   ValFloat f         ->
-    if isInfinite f || isNaN f
-      then text "0x" <> text (showHex (castFloatToWord32 f) "")
-      else float f
+    -- WARNING: You should **not** use `castFloatToWord32` or `float` here.  LLVM IR does not
+    -- support 32-bit floating point constants, instead it wants to see 32-bit compatible 64-bit
+    -- constants.  We want to preserve the exact mantissa (zero-extended to the right from 23 to
+    -- 52 bits), which happens to be the behavior of `float2Double`.
+    text "0x" <> text (showHex (castDoubleToWord64 (float2Double f)) "")
   ValDouble d        ->
     if isInfinite d || isNaN d
       then text "0x" <> text (showHex (castDoubleToWord64 d) "")
