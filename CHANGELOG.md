@@ -55,6 +55,9 @@
 
   This allows them to encode non-constant sizes and offsets (a capability used
   by Ada, for instance) in LLVM 21 or later.
+* Added the `bbStmtModifier` which can be used to modify individual statements as
+  they are emitted from the top-level instruction generator functions (e.g to add
+  Debug Metadata to each statement).
 * Fix a bug that would cause `indirectbr` statements to be pretty-printed
   incorrectly.
 
