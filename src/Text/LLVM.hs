@@ -41,6 +41,7 @@ module Text.LLVM (
     -- * Basic Blocks
   , BB()
   , runBB
+  , bbStmtModifier
   , freshLabel
   , label
   , comment
@@ -314,8 +315,35 @@ define' attrs rty sym sig va k = do
 -- Basic Block Monad -----------------------------------------------------------
 
 newtype BB a = BB
-  { unBB :: WriterT [BasicBlock] (StateT RW Id) a
+  { unBB :: ReaderT (Stmt -> Stmt) (WriterT [BasicBlock] (StateT RW Id)) a
   } deriving (Functor,Applicative,Monad,MonadFix)
+
+
+-- | The 'bbStmtModifier' function can be used to register a function that can
+-- modify the subsequent statements generated into this block.
+--
+-- For example, the following 'BB' monad code segment will emit a couple of LLVM
+-- statements:
+--
+-- > v <- load (iT 8) globalVar Nothing
+-- > call fooFunc [v]
+-- > jump end
+--
+-- But these statements will be \"plain\" in the resulting 'BasicBlock'.  If the
+-- caller wishes to add debug Metadata for location, they could instead write:
+--
+-- > bbStmtModifier (extendMetadata ("dbg", ValMdRef i))
+-- >  v <- load (iT 8) globalVar Nothing
+-- > bbStmtModifier (extendMetadata ("dbg", ValMdRef j))
+-- > call fooFunc [v]
+-- > jump end
+--
+-- Where @i@ and @j@ are the metadata index values of the 'DebugLoc' entries
+-- describing the source location of the \"load\" and \"call\"+\"jump\" statements,
+-- respectively.
+
+bbStmtModifier :: (Stmt -> Stmt) -> BB a -> BB a
+bbStmtModifier stmtModifier = BB . local stmtModifier . unBB
 
 avoidName :: String -> BB ()
 avoidName name = BB $ do
@@ -333,7 +361,7 @@ freshNameBB pfx = BB $ do
 
 runBB :: BB a -> (a,[BasicBlock])
 runBB m =
-  case runId (runStateT emptyRW (runWriterT (unBB body))) of
+  case runId (runStateT emptyRW (runWriterT (runReaderT id (unBB body)))) of
     ((a,bbs),_rw) -> (a,bbs)
   where
   -- make sure that the last block is terminated
@@ -367,7 +395,8 @@ emitStmt :: Stmt -> BB ()
 emitStmt stmt = do
   BB $ do
     rw <- get
-    set $! rw { rwStmts = rwStmts rw Seq.|> stmt }
+    smod <- ask
+    set $! rw { rwStmts = rwStmts rw Seq.|> smod stmt }
   when (isTerminator (stmtInstr stmt)) terminateBasicBlock
 
 effect :: Instr -> BB ()
