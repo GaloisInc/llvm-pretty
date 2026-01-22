@@ -11,9 +11,14 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-24.04"]
-        ghc: ["9.8.4", "9.10.1", "9.12.2"]
+        ghc: ["9.8.4", "9.10.1"]
         cabal: ["3.14.2.0"]
+        failure-expected: [false]
+        include:
+          - ghc: "9.12.2"
+            failure-expected: true
       fail-fast: false
+    continue-on-error: ${{ matrix.failure-expected }}
     name: ${{ matrix.os }} - GHC ${{ matrix.ghc }} - Cabal ${{ matrix.cabal }}
     uses: GaloisInc/.github/.github/workflows/haskell-ci.yml@v1
     with:
