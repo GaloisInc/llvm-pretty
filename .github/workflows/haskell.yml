@@ -11,8 +11,18 @@ jobs:
     strategy:
       matrix:
         os: ["ubuntu-24.04"]
-        ghc: ["9.8.4", "9.10.1", "9.12.3"]
+        ghc: ["9.8.4", "9.10.1"]
         cabal: ["3.14.2.0"]
+        test: [true]
+        build-targets: ["all"]
+        include:
+          - os: "ubuntu-24.04"
+            ghc: "9.12.2"
+            cabal: "3.14.2.0"
+            test: false
+            # Building the test suite fails on GHC 9.12.2 due to a compiler bug;
+            # see https://gitlab.haskell.org/ghc/ghc/-/issues/25771
+            build-targets: "lib:llvm-pretty"
       fail-fast: false
     name: ${{ matrix.os }} - GHC ${{ matrix.ghc }} - Cabal ${{ matrix.cabal }}
     uses: GaloisInc/.github/.github/workflows/haskell-ci.yml@v1
@@ -21,3 +31,5 @@ jobs:
       cache-key-prefix: v2
       ghc: ${{ matrix.ghc }}
       os: ${{ matrix.os }}
+      test: ${{ matrix.test }}
+      build-targets: ${{ matrix.build-targets }}
