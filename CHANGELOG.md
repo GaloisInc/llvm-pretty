@@ -1,6 +1,8 @@
 # Revision history for llvm-pretty
 
-## 0.14.0.0 (pending)
+## next
+
+## 0.14.0.0 -- 2026-01-23
 
 * Changes to support LLVM 19 (some of these changes are not backward-compatible):
   * Changes to `LayoutSpec` for DataLayout:
