@@ -15,7 +15,9 @@ jobs:
         cabal: ["3.14.2.0"]
         test: [true]
         include:
-          - ghc: "9.12.2"
+          - os: "ubuntu-24.04"
+            ghc: "9.12.2"
+            cabal: "3.14.2.0"
             test: false
       fail-fast: false
     name: ${{ matrix.os }} - GHC ${{ matrix.ghc }} - Cabal ${{ matrix.cabal }}
