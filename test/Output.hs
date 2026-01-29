@@ -309,6 +309,66 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
       --------
       |]
 
+  , testCase "Zero (half float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValHalf (FPHalf 0x0000)))
+      "0.0"
+
+  , testCase "One (half float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValHalf (FPHalf 0x3c00)))
+      "1.0"
+
+  , testCase "Two (half float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValHalf (FPHalf 0x4000)))
+      "2.0"
+
+  , testCase "Positive Infinity (half float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValHalf (FPHalf 0x7c00)))
+      "0xH7c00"
+
+  , testCase "Negative Infinity (half float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValHalf (FPHalf 0xfc00)))
+      "0xHfc00"
+
+  , testCase "NaN (half float)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValHalf (FPHalf 0x7c55)))
+      "0xH7c55"
+
+  , testCase "Zero (bfloat)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValBFloat (FPBFloat 0x0000)))
+      "0.0"
+
+  , testCase "One (bfloat)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValBFloat (FPBFloat 0x3f80)))
+      "1.0"
+
+  , testCase "Two (bfloat)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValBFloat (FPBFloat 0x4000)))
+      "2.0"
+
+  , testCase "Positive Infinity (bfloat)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValBFloat (FPBFloat 0x7f80)))
+      "0xR7f80"
+
+  , testCase "Negative Infinity (bfloat)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValBFloat (FPBFloat 0xff80)))
+      "0xRff80"
+
+  , testCase "NaN (bfloat)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValBFloat (FPBFloat 0x7f85)))
+      "0xR7f85"
+
   , testCase "Positive Infinity (float)" $
     assertEqLines
       (ppToText $ ppLLVM37 ppValue (ValFloat (castWord32ToFloat 0x7F800000)))
@@ -348,6 +408,21 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
     assertEqLines
       (ppToText $ ppLLVM37 ppValue (ValDouble (castWord64ToDouble 0x7FFD000000000000)))
       "0x7ffd000000000000"
+
+  , testCase "Zero (FP80)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValFP80 (FP80_LongDouble 0x0000 0x0000000000000000)))
+      "0xK00000000000000000000"
+
+  , testCase "Zero (FP128)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValFP128 (FP128_LongDouble 0x0000000000000000 0x0000000000000000)))
+      "0xL00000000000000000000000000000000"
+
+  , testCase "Zero (FP128_PPC)" $
+    assertEqLines
+      (ppToText $ ppLLVM37 ppValue (ValFP128_PPC (FP128_PPC_DoubleDouble 0.0 0.0)))
+      "0xM00000000000000000000000000000000"
 
   ]
 

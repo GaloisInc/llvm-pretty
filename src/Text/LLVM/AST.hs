@@ -125,7 +125,11 @@ module Text.LLVM.AST
   , FCmpOp(..)
     -- * Values
   , Value'(..), Value
+  , FPHalfValue(..)
+  , FPBFloatValue(..)
   , FP80Value(..)
+  , FP128Value(..)
+  , FP128_PPCValue(..)
   , ValMd'(..), ValMd
   , KindMd
   , FnMdAttachments
@@ -507,6 +511,7 @@ data PrimType
 
 data FloatType
   = Half
+  | BFloat -- ^ Introduced in LLVM 11
   | Float
   | Double
   | Fp128
@@ -713,10 +718,13 @@ primTypeNull (FloatType ft) = floatTypeNull ft
 primTypeNull _              = ValZeroInit
 
 floatTypeNull :: FloatType -> Value' lab
+floatTypeNull Half     = ValHalf $ FPHalf 0
+floatTypeNull BFloat   = ValBFloat $ FPBFloat 0
 floatTypeNull Float    = ValFloat 0
-floatTypeNull Double   = ValDouble 0 -- XXX not sure about this
+floatTypeNull Double   = ValDouble 0
+floatTypeNull Fp128    = ValFP128 $ FP128_LongDouble 0 0
 floatTypeNull X86_fp80 = ValFP80 $ FP80_LongDouble 0 0
-floatTypeNull _        = error "must be a float type"
+floatTypeNull PPC_fp128 = ValFP128_PPC $ FP128_PPC_DoubleDouble 0 0
 
 typeNull :: Type -> NullResult lab
 typeNull (PrimType pt) = HasNull (primTypeNull pt)
@@ -1538,9 +1546,13 @@ type DbgRecLabel = DbgRecLabel' BlockLabel
 data Value' lab
   = ValInteger Integer
   | ValBool Bool
+  | ValHalf FPHalfValue
+  | ValBFloat FPBFloatValue
   | ValFloat Float
   | ValDouble Double
   | ValFP80 FP80Value
+  | ValFP128 FP128Value
+  | ValFP128_PPC FP128_PPCValue
   | ValIdent Ident
   | ValSymbol Symbol
   | ValNull
@@ -1560,7 +1572,30 @@ data Value' lab
 
 type Value = Value' BlockLabel
 
+-- | 16-bit half-precision floating point value (IEEE half)
+data FPHalfValue = FPHalf Word16
+               deriving (Data, Eq, Ord, Generic, Show)
+
+-- | Different 16-bit half-precision floating point value
+--   ("Brain" or "bfloat16")
+data FPBFloatValue = FPBFloat Word16
+               deriving (Data, Eq, Ord, Generic, Show)
+
+-- | x86 80-bit long double floating point value
+--   (note that there's also an m86k 80-bit float that's almost but
+--   not quite the same)
 data FP80Value = FP80_LongDouble Word16 Word64
+               deriving (Data, Eq, Ord, Generic, Show)
+
+-- | IEEE quad-precision long-double floating point value
+data FP128Value = FP128_LongDouble Word64 Word64
+               deriving (Data, Eq, Ord, Generic, Show)
+
+-- | PowerPC pair-of-doubles floating point value
+--   (The value represented is the sum of the two doubles, which
+--   normally but not necessarily have exponents chosen so this makes
+--   sense.)
+data FP128_PPCValue = FP128_PPC_DoubleDouble Double Double
                deriving (Data, Eq, Ord, Generic, Show)
 
 data ValMd' lab
@@ -1593,9 +1628,13 @@ type DebugLoc = DebugLoc' BlockLabel
 isConst :: Value' lab -> Bool
 isConst ValInteger{}   = True
 isConst ValBool{}      = True
+isConst ValBFloat{}    = True
+isConst ValHalf{}      = True
 isConst ValFloat{}     = True
 isConst ValDouble{}    = True
 isConst ValFP80{}      = True
+isConst ValFP128{}     = True
+isConst ValFP128_PPC{} = True
 isConst ValConstExpr{} = True
 isConst ValZeroInit    = True
 isConst ValNull        = True

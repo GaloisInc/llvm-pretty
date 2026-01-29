@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- |
 -- Module      :  Text.LLVM.PP
@@ -22,15 +23,16 @@ import Text.LLVM.Triple.AST (TargetTriple)
 import Text.LLVM.Triple.Print (printTriple)
 
 import Control.Applicative ((<|>))
-import Data.Bits ( shiftR, (.&.) )
+import Data.Bits ( shiftL, shiftR, (.|.), (.&.) )
 import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
 import Data.List ( intersperse, nub )
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes,fromMaybe,isJust)
-import GHC.Float (castDoubleToWord64, castFloatToWord32)
+import GHC.Float (castDoubleToWord64, castFloatToWord32, castWord32ToFloat)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
 import Data.Int
+import Data.Word (Word16)
 import Prelude hiding ((<>))
 
 
@@ -310,6 +312,7 @@ ppPrimType Metadata       = "metadata"
 
 ppFloatType :: Fmt FloatType
 ppFloatType Half      = "half"
+ppFloatType BFloat    = "bfloat"
 ppFloatType Float     = "float"
 ppFloatType Double    = "double"
 ppFloatType Fp128     = "fp128"
@@ -865,11 +868,52 @@ ppFCmpOp Fune   = "une"
 ppFCmpOp Funo   = "uno"
 ppFCmpOp Ftrue  = "true"
 
+-- | Pad a string by prepending '0'.
+zerofill :: Int -> String -> String
+zerofill width s =
+  let len = length s
+      padding = if len < width then width - len else 0
+      zeros = take padding $ repeat '0'
+  in
+  zeros ++ s
+
 ppValue' :: Fmt i -> Fmt (Value' i)
 ppValue' pp val = case val of
   ValInteger i       -> integer i
   ValBool b          -> ppBool b
   -- Note: for +Inf/-Inf/NaNs, we want to output the bit-correct sequence
+  ValHalf (FPHalf x) ->
+    -- Half floats have a 1-bit sign, 5-bit exponent, and 10-bit
+    -- significand.
+    let expbits = x .&. 0x7c00 in
+    if expbits == 0x7c00 -- true if x is an infinite or NaN value
+      then text "0xH" <> text (zerofill 4 $ showHex x "")
+      else
+        let -- Convert to 32-bit single float (1-bit sign, 8-bit exponent,
+            -- 23-bit significand)
+            sign = shiftL (fromIntegral (x .&. 0x8000)) (31 - 15)
+            signif = shiftL (fromIntegral (x .&. 0xfff)) (23 - 10)
+            expo = case fromIntegral @Word16 @Int (shiftR expbits 10) of
+                0 -> 0
+                n -> shiftL (fromIntegral ((n - 15) + 127)) 23
+            f = sign .|. expo .|. signif
+            f' = castWord32ToFloat f
+        in
+        float f'
+  ValBFloat (FPBFloat x) ->
+    -- BFloat half floats have a 1-bit sign, 8-bit exponent, and 7-bit
+    -- significand.
+    let expbits = x .&. 0x7f80 in
+    if expbits == 0x7f80 -- true if x is an infinite or NaN value
+      then text "0xR" <> text (zerofill 4 $ showHex x "")
+      else
+        let -- Convert to 32-bit single float. Since 32-bit floats are
+            -- the same layout, just with 16 bits more precision, all
+            -- we need to do is widen and shift left.
+            f = shiftL (fromIntegral x) 16
+            f' = castWord32ToFloat f
+        in
+        float f'
   ValFloat f         ->
     if isInfinite f || isNaN f
       then text "0x" <> text (showHex (castFloatToWord32 f) "")
@@ -885,6 +929,19 @@ ppValue' pp val = case val of
               | otherwise = showHex n
         fld v i = pad ((v `shiftR` (i * 8)) .&. 0xff)
     in "0xK" <> text (foldr (fld e) (foldr (fld s) "" $ reverse [0..7::Int]) [1, 0])
+  ValFP128 (FP128_LongDouble a b) ->
+    -- shown as 0xL<<32-hex-digits>>, per
+    -- https://llvm.org/docs/LangRef.html#simple-constants
+    let print64 k = zerofill 16 $ showHex k "" in
+    "0xL" <> text (print64 a ++ print64 b)
+  ValFP128_PPC (FP128_PPC_DoubleDouble a b) ->
+    -- shown as 0xM<<32-hex-digits>>, per
+    -- https://llvm.org/docs/LangRef.html#simple-constants
+    let print64 k = zerofill 16 $ showHex k ""
+        a' = print64 (castDoubleToWord64 a)
+        b' = print64 (castDoubleToWord64 b)
+    in
+    "0xM" <> text (a' ++ b')
   ValIdent i         -> ppIdent i
   ValSymbol s        -> ppSymbol s
   ValNull            -> "null"

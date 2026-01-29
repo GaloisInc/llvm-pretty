@@ -2,6 +2,15 @@
 
 ## next
 
+* Added missing `FloatType` case `BFloat` for 16-bit "Brain" floats.
+
+* Added missing `Value'` cases for floating point types:
+  * `ValHalf` containing an `FPHalfValue` (a wrapper around `Word16`)
+  * `ValBFloat` containing an `FPBFloatValue` (a wrapper around `Word16`)
+  * `ValFP128` containing an `FP128Value` (a wrapper around two `Word64`)
+  * `ValFP128_PPC` containing an `FP128_PPCValue`
+    (a wrapper around two `Double`s)
+
 ## 0.14.0.0 -- 2026-01-23
 
 * Changes to support LLVM 19 (some of these changes are not backward-compatible):
