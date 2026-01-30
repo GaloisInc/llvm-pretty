@@ -32,7 +32,7 @@ import GHC.Float (castDoubleToWord64, castFloatToWord32, castWord32ToFloat)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
 import Data.Int
-import Data.Word (Word16)
+import Data.Word (Word16, Word32)
 import Prelude hiding ((<>))
 
 
@@ -877,43 +877,70 @@ zerofill width s =
   in
   zeros ++ s
 
+-- | Check if a half-float is an infinite or NaN value.
+halfBitsIsInfOrNaN :: Word16 -> Bool
+halfBitsIsInfOrNaN x =
+  -- Half floats have a 1-bit sign, 5-bit exponent, and 10-bit
+  -- significand. If the exponent field is all ones, the value
+  -- is either +/- Inf (if the significand is 0) or a Nan.
+  (x .&. 0x7c00) == 0x7c00
+
+-- | Convert the bit representation of a half-float to a single.
+halfToSingleBits :: Word16 -> Word32
+halfToSingleBits x =
+  -- Half floats have a 1-bit sign, 5-bit exponent, and 10-bit
+  -- significand.
+  --
+  -- 32-bit single floats have a 1-bit sign, 8-bit exponent, and
+  -- 23-bit significand. Convert as follows:
+  --    - mask off the sign bit, widen, shift into place
+  --    - mask off the significand, widen, shift into place
+  --      (at the top of the new significand; rest stays 0)
+  --    - mask off the exponent
+  --    - convert it to int; if that's 0, it stays 0
+  --    - otherwise re-offset it, convert to Word32, and shift
+  --
+  let sign = shiftL (fromIntegral (x .&. 0x8000)) (31 - 15)
+      signif = shiftL (fromIntegral (x .&. 0xfff)) (23 - 10)
+      expBits = x .&. 0x7c00
+      expo = case fromIntegral @Word16 @Int (shiftR expBits 10) of
+        0 -> 0
+        n -> shiftL (fromIntegral ((n - 15) + 127)) 23
+  in
+  sign .|. expo .|. signif
+
+-- | Check if a bfloat is an infinite or NaN value.
+bfloatBitsIsInfOrNaN :: Word16 -> Bool
+bfloatBitsIsInfOrNaN x =
+  -- BFloat half floats have a 1-bit sign, 8-bit exponent, and 7-bit
+  -- significand. If the exponent field is all ones, the value
+  -- is either +/- Inf (if the significand is 0) or a Nan.
+  (x .&. 0x7f80) == 0x7f80
+
+-- | Convert the bit representation of a bfloat to a single.
+bfloatToSingleBits :: Word16 -> Word32
+bfloatToSingleBits x =
+  -- Since 32-bit floats are the same layout, just with 16 bits
+  -- more precision, all we need to do is widen and shift left.
+  shiftL (fromIntegral x) 16
+
 ppValue' :: Fmt i -> Fmt (Value' i)
 ppValue' pp val = case val of
   ValInteger i       -> integer i
   ValBool b          -> ppBool b
   -- Note: for +Inf/-Inf/NaNs, we want to output the bit-correct sequence
   ValHalf (FPHalf x) ->
-    -- Half floats have a 1-bit sign, 5-bit exponent, and 10-bit
-    -- significand.
-    let expbits = x .&. 0x7c00 in
-    if expbits == 0x7c00 -- true if x is an infinite or NaN value
+    -- Shown in hex as 0H<<4-hex-digits>>, per
+    -- https://llvm.org/docs/LangRef.html#simple-constants
+    if halfBitsIsInfOrNaN x
       then text "0xH" <> text (zerofill 4 $ showHex x "")
-      else
-        let -- Convert to 32-bit single float (1-bit sign, 8-bit exponent,
-            -- 23-bit significand)
-            sign = shiftL (fromIntegral (x .&. 0x8000)) (31 - 15)
-            signif = shiftL (fromIntegral (x .&. 0xfff)) (23 - 10)
-            expo = case fromIntegral @Word16 @Int (shiftR expbits 10) of
-                0 -> 0
-                n -> shiftL (fromIntegral ((n - 15) + 127)) 23
-            f = sign .|. expo .|. signif
-            f' = castWord32ToFloat f
-        in
-        float f'
+      else float $ castWord32ToFloat $ halfToSingleBits x
   ValBFloat (FPBFloat x) ->
-    -- BFloat half floats have a 1-bit sign, 8-bit exponent, and 7-bit
-    -- significand.
-    let expbits = x .&. 0x7f80 in
-    if expbits == 0x7f80 -- true if x is an infinite or NaN value
+    -- Shown in hex as 0R<<4-hex-digits>>, per
+    -- https://llvm.org/docs/LangRef.html#simple-constants
+    if bfloatBitsIsInfOrNaN x
       then text "0xR" <> text (zerofill 4 $ showHex x "")
-      else
-        let -- Convert to 32-bit single float. Since 32-bit floats are
-            -- the same layout, just with 16 bits more precision, all
-            -- we need to do is widen and shift left.
-            f = shiftL (fromIntegral x) 16
-            f' = castWord32ToFloat f
-        in
-        float f'
+      else float $ castWord32ToFloat $ bfloatToSingleBits x
   ValFloat f         ->
     if isInfinite f || isNaN f
       then text "0x" <> text (showHex (castFloatToWord32 f) "")
