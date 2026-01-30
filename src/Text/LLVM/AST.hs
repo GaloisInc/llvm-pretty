@@ -1574,29 +1574,29 @@ type Value = Value' BlockLabel
 
 -- | 16-bit half-precision floating point value (IEEE half)
 data FPHalfValue = FPHalf Word16
-               deriving (Data, Eq, Ord, Generic, Show)
+    deriving (Data, Eq, Ord, Generic, Show)
 
 -- | Different 16-bit half-precision floating point value
 --   ("Brain" or "bfloat16")
 data FPBFloatValue = FPBFloat Word16
-               deriving (Data, Eq, Ord, Generic, Show)
+    deriving (Data, Eq, Ord, Generic, Show)
 
 -- | x86 80-bit long double floating point value
 --   (note that there's also an m86k 80-bit float that's almost but
 --   not quite the same)
 data FP80Value = FP80_LongDouble Word16 Word64
-               deriving (Data, Eq, Ord, Generic, Show)
+    deriving (Data, Eq, Ord, Generic, Show)
 
 -- | IEEE quad-precision long-double floating point value
 data FP128Value = FP128_LongDouble Word64 Word64
-               deriving (Data, Eq, Ord, Generic, Show)
+    deriving (Data, Eq, Ord, Generic, Show)
 
 -- | PowerPC pair-of-doubles floating point value
 --   (The value represented is the sum of the two doubles, which
 --   normally but not necessarily have exponents chosen so this makes
 --   sense.)
 data FP128_PPCValue = FP128_PPC_DoubleDouble Double Double
-               deriving (Data, Eq, Ord, Generic, Show)
+    deriving (Data, Eq, Ord, Generic, Show)
 
 data ValMd' lab
   = ValMdString String
