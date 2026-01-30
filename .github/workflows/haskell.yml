@@ -25,10 +25,10 @@ jobs:
             build-targets: "lib:llvm-pretty"
       fail-fast: false
     name: ${{ matrix.os }} - GHC ${{ matrix.ghc }} - Cabal ${{ matrix.cabal }}
-    uses: GaloisInc/.github/.github/workflows/haskell-ci.yml@v1
+    uses: GaloisInc/.github/.github/workflows/haskell-ci.yml@v2
     with:
       cabal: ${{ matrix.cabal }}
-      cache-key-prefix: v2
+      cache-key-prefix: v3a
       ghc: ${{ matrix.ghc }}
       os: ${{ matrix.os }}
       test: ${{ matrix.test }}
