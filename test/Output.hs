@@ -372,22 +372,22 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
   , testCase "Positive Infinity (float)" $
     assertEqLines
       (ppToText $ ppLLVM37 ppValue (ValFloat (castWord32ToFloat 0x7F800000)))
-      "0x7f800000"
+      "0x7ff0000000000000"
 
   , testCase "Negative Infinity (float)" $
     assertEqLines
       (ppToText $ ppLLVM37 ppValue (ValFloat (castWord32ToFloat 0xFF800000)))
-      "0xff800000"
+      "0xfff0000000000000"
 
   , testCase "NaN 1 (float)" $
     assertEqLines
       (ppToText $ ppLLVM37 ppValue (ValFloat (castWord32ToFloat 0x7FC00000)))
-      "0x7fc00000"
+      "0x7ff8000000000000"
 
   , testCase "NaN 2 (float)" $
     assertEqLines
       (ppToText $ ppLLVM37 ppValue (ValFloat (castWord32ToFloat 0x7FD00000)))
-      "0x7fd00000"
+      "0x7ffa000000000000"
 
   , testCase "Positive Infinity (double)" $
     assertEqLines
