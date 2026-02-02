@@ -943,10 +943,14 @@ ppValue' pp val = case val of
       else float $ castWord32ToFloat $ bfloatToSingleBits x
   ValFloat f         ->
     if isInfinite f || isNaN f
+      -- shown as 0x<<16-hex-digits>>, per
+      -- https://llvm.org/docs/LangRef.html#simple-constants
       then text "0x" <> text (showHex (castDoubleToWord64 $ float2Double f) "")
       else float f
   ValDouble d        ->
     if isInfinite d || isNaN d
+      -- shown as 0x<<16-hex-digits>>, per
+      -- https://llvm.org/docs/LangRef.html#simple-constants
       then text "0x" <> text (showHex (castDoubleToWord64 d) "")
       else double d
   ValFP80 (FP80_LongDouble e s) ->
