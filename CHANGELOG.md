@@ -2,6 +2,9 @@
 
 ## next
 
+* Corrected the printing of non-normal single-precision floating point
+  constants.
+
 * Added missing `FloatType` case `BFloat` for 16-bit "Brain" floats.
 
 * Added missing `Value'` cases for floating point types:

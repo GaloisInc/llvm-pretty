@@ -28,7 +28,7 @@ import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
 import Data.List ( intersperse, nub )
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes,fromMaybe,isJust)
-import GHC.Float (castDoubleToWord64, castFloatToWord32, castWord32ToFloat)
+import GHC.Float (castDoubleToWord64, castWord32ToFloat, float2Double)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
 import Data.Int
@@ -943,10 +943,14 @@ ppValue' pp val = case val of
       else float $ castWord32ToFloat $ bfloatToSingleBits x
   ValFloat f         ->
     if isInfinite f || isNaN f
-      then text "0x" <> text (showHex (castFloatToWord32 f) "")
+      -- shown as 0x<<16-hex-digits>>, per
+      -- https://llvm.org/docs/LangRef.html#simple-constants
+      then text "0x" <> text (showHex (castDoubleToWord64 $ float2Double f) "")
       else float f
   ValDouble d        ->
     if isInfinite d || isNaN d
+      -- shown as 0x<<16-hex-digits>>, per
+      -- https://llvm.org/docs/LangRef.html#simple-constants
       then text "0x" <> text (showHex (castDoubleToWord64 d) "")
       else double d
   ValFP80 (FP80_LongDouble e s) ->
