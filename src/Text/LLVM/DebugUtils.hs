@@ -36,7 +36,6 @@ module Text.LLVM.DebugUtils
 
 import           Control.Applicative    ((<|>))
 import           Control.Monad          ((<=<))
-import           Data.Bits              (Bits(..))
 import           Data.IntMap            (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.List              (elemIndex, tails, stripPrefix)
@@ -227,7 +226,7 @@ debugInfoToStructField mdMap di =
      -- field records the offset of the overall bitfield from the start of the
      -- struct.
      -- (https://github.com/llvm/llvm-project/blob/ee7652569854af567ba83e5255d70e80cc8619a1/llvm/lib/CodeGen/AsmPrinter/CodeViewDebug.cpp#L2489-L2508)
-     let bitfield | testBit (didtFlags dt) 19
+     let bitfield | DIFlagBitField `elem` (didtFlags dt)
                   , Just extraData      <- didtExtraData dt
                   , Just bitfieldOffset <- getInteger mdMap extraData
                   = do size <- getSizeOrOffset (didtSize dt)

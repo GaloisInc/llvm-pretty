@@ -161,8 +161,11 @@ module Text.LLVM.AST
   , DwarfLang
   , DwarfTag
   , DwarfVirtuality
-  , DIFlags
-  , DIEmissionKind
+  , DIFlags, DIFlag(..)
+  , flagIndirectVirtualBase, flagAccessibility, flagPtrToMemberRep
+  , DISPFlags, DISPFlag(..)
+  , dispFlagVirtuality
+  , DIEmissionKind(..)
   , DIBasicType'(..), DIBasicType
   , DICompileUnit'(..), DICompileUnit
   , DICompositeType'(..), DICompositeType
@@ -174,7 +177,7 @@ module Text.LLVM.AST
   , DILexicalBlock'(..), DILexicalBlock
   , DILexicalBlockFile'(..), DILexicalBlockFile
   , DILocalVariable'(..), DILocalVariable
-  , DISubprogram'(..), DISubprogram
+  , DISubprogram'(..), DISubprogram, dispVirtuality
   , DISubrange'(..), DISubrange
   , DISubroutineType'(..), DISubroutineType
   , DIArgList'(..), DIArgList
@@ -1857,13 +1860,93 @@ data DINameSpace' lab = DINameSpace
 type DwarfAttrEncoding = Word16
 type DwarfLang = Word16
 type DwarfTag = Word16
-type DwarfVirtuality = Word8
--- See https://github.com/llvm-mirror/llvm/blob/release_38/include/llvm/IR/DebugInfoMetadata.h#L175
-type DIFlags = Word32
--- This seems to be defined internally as a small enum, and defined
--- differently across versions. Maybe turn this into a sum type once
--- it stabilizes.
-type DIEmissionKind = Word8
+
+type DwarfVirtuality = DISPFlags
+-- | See
+-- llvm-project/llvm/include/llvm/IR/{DebugInfoMetadata.h,DebugInfoFlags.def}
+type DISPFlags = [DISPFlag]
+data DISPFlag
+  = DISPFlagNonvirtual -- DISPFlagZero -- == 0
+  | DISPFlagVirtual -- == 1
+  | DISPFlagPureVirtual -- == 2
+  | DISPFlagLocalToUnit -- == 1 << 2
+  | DISPFlagDefinition -- == 1 << 3
+  | DISPFlagOptimized -- == 1 << 4
+  | DISPFlagPure -- == 1 << 5
+  | DISPFlagElemental -- == 1 << 6
+  | DISPFlagRecursive -- == 1 << 7
+  | DISPFlagMainSubprogram -- == 1 << 8
+  | DISPFlagDeleted -- == 1 << 9
+  | DISPFlag_unused10 -- == 1 << 10
+  | DISPFlagObjCDirect -- == 1 << 11
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+dispFlagVirtuality :: DISPFlags
+dispFlagVirtuality = [ DISPFlagVirtual, DISPFlagPureVirtual ]
+
+
+-- | See
+-- llvm-project/llvm/include/llvm/IR/{DebugInfoMetadata.h,DebugInfoFlags.def}
+type DIFlags = [DIFlag]
+data DIFlag
+  = DIFlagZero -- == 0
+  | DIFlagPrivate -- == 1
+  | DIFlagProtected -- == 2
+  | DIFlagPublic -- == 3
+  | DIFlagFwdDecl -- == 1 << 2
+  | DIFlagAppleBlock -- == 1 << 3
+  | DIFlagReservedBit4 -- == 1 << 4
+  | DIFlagVirtual -- == 1 << 5
+  | DIFlagArtificial -- == 1 << 6
+  | DIFlagExplicit -- == 1 << 7
+  | DIFlagPrototyped -- == 1 << 8
+  | DIFlagObjcClassComplete -- == 1 << 9
+  | DIFlagObjectPointer -- == 1 << 10
+  | DIFlagVector -- == 1 << 11
+  | DIFlagStaticMember -- == 1 << 12
+  | DIFlagLValueReference -- == 1 << 13
+  | DIFlagRValueReference -- == 1 << 14
+  | DIFlagExportSymbols -- == 1 << 15
+  | DIFlagSingleInheritance -- == 1 << 16
+  | DIFlagMultipleInheritance -- == 2 << 16
+  | DIFlagVirtualInheritance -- == 3 << 16
+  | DIFlagIntroducedVirtual -- == 1 << 18
+  | DIFlagBitField -- == 1 << 19
+  | DIFlagNoReturn -- == 1 << 20
+  | DIFlag_unspecified21 -- == 1 << 21
+  | DIFlagTypePassByValue -- == 1 << 22
+  | DIFlagTypePassByReference -- == 1 << 23
+  | DIFlagEnumClass -- == 1 << 24
+  | DIFlagThunk -- == 1 << 25
+  | DIFlagNonTrivial -- == 1 << 26
+  | DIFlagBigEndian -- == 1 << 27
+  | DIFlagLittleEndian -- == 1 << 28
+  | DIFlagAllCallsDescribed -- == 1 << 29
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
+
+-- | To avoid needing a dedicated value for IndirectVirtualBase, the combination
+-- of the following two flags are used because otherwise these make no sense when
+-- used together for inheritance.
+flagIndirectVirtualBase :: DIFlags
+flagIndirectVirtualBase = [ DIFlagFwdDecl, DIFlagVirtual ]
+
+flagAccessibility :: DIFlags
+flagAccessibility = [ DIFlagPrivate, DIFlagProtected, DIFlagPublic ]
+
+flagPtrToMemberRep :: DIFlags
+flagPtrToMemberRep = [ DIFlagSingleInheritance
+                     , DIFlagMultipleInheritance
+                     , DIFlagVirtualInheritance
+                     ]
+
+
+-- | Defined in llvm-project/llvm/include/llvm/IR/DebugInfoMetadata.h
+data DIEmissionKind
+  = NoDebug -- == 0
+  | FullDebug -- == 1
+  | LineTablesOnly -- == 2
+  | DebugDirectivesOnly -- == 3 == LastEmissionKind
+  deriving (Data, Eq, Generic, Ord, Show, Typeable)
 
 -- See https://github.com/llvm/llvm-project/commit/eb8901bda11fd55deeecd067fc4c9dcc0fb89984
 dwarf_DW_APPLE_ENUM_KIND_invalid :: Word32
@@ -2064,10 +2147,10 @@ data DISubprogram' lab = DISubprogram
   , dispIsDefinition   :: Bool
   , dispScopeLine      :: Word32
   , dispContainingType :: Maybe (ValMd' lab)
-  , dispVirtuality     :: DwarfVirtuality
   , dispVirtualIndex   :: Word32
   , dispThisAdjustment :: Int64
   , dispFlags          :: DIFlags
+  , dispSPFlags        :: DISPFlags
   , dispIsOptimized    :: Bool
   , dispUnit           :: Maybe (ValMd' lab)
   , dispTemplateParams :: Maybe (ValMd' lab)
@@ -2077,6 +2160,11 @@ data DISubprogram' lab = DISubprogram
   , dispAnnotations    :: Maybe (ValMd' lab)
     -- ^ Introduced in LLVM 14.
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
+
+dispVirtuality :: DISubprogram -> DISPFlags
+dispVirtuality sp =
+  let addIfSet f = if f `elem` dispSPFlags sp then (f:) else id
+  in foldr addIfSet [] $ dispFlagVirtuality
 
 type DISubprogram = DISubprogram' BlockLabel
 
