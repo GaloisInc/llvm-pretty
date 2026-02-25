@@ -1297,7 +1297,7 @@ ppDITemplateValueParameter = ppDITemplateValueParameter' ppLabel
 
 ppDIBasicType' :: Fmt i -> Fmt (DIBasicType' i)
 ppDIBasicType' pp bt = "!DIBasicType"
-  <> parens (mcommas
+  <> parens (mcommas $
        [ pure ("tag:"      <+> integral (dibtTag bt))
        , pure ("name:"     <+> doubleQuotes (text (dibtName bt)))
        ,     (("size:"     <+>) . ppSizeOrOffsetValMd' pp) <$> dibtSize bt
@@ -1308,7 +1308,14 @@ ppDIBasicType' pp bt = "!DIBasicType"
        , if dibtNumExtraInhabitants bt > 0
          then pure ("numExtraInhabitants:" <+> integral (dibtNumExtraInhabitants bt))
          else Nothing
-       ])
+       ]
+       ++
+       when' (llvmVer >= 22)
+       [ if dibtDataSize bt > 0
+         then pure ("dataSize:" <+> integral (dibtDataSize bt))
+         else Nothing
+       ]
+       )
 
 ppDICompileUnit' :: Fmt i -> Fmt (DICompileUnit' i)
 ppDICompileUnit' pp cu = "!DICompileUnit"

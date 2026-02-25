@@ -5,6 +5,7 @@
 * Support LLVM 22:
   * `DICompileUnit'` now has an additional `dicuSourceLanguageVersion :: Word64`
     field.
+  * `DIBasicType'` now has an additional `dibtDataSize :: Word32` field.
 
 * Corrected the printing of non-normal single-precision floating point
   constants.

@@ -1882,6 +1882,7 @@ data DIBasicType' lab = DIBasicType
   , dibtEncoding :: DwarfAttrEncoding
   , dibtFlags    :: Maybe DIFlags
   , dibtNumExtraInhabitants :: Word64 -- ^ added in LLVM 20.
+  , dibtDataSize :: Word32 -- ^ added in LLVM 22.
   } deriving (Data, Eq, Functor, Generic, Ord, Show)
 
 type DIBasicType = DIBasicType' BlockLabel
