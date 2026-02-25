@@ -74,6 +74,7 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
                               , dicuRangesBaseAddress = True
                               , dicuSysRoot = Just "the root"
                               , dicuSDK = Just "SDK"
+                              , dicuSourceLanguageVersion = 0
                               }
         dtt = ValMdDebugInfo
               $ DebugInfoTemplateTypeParameter

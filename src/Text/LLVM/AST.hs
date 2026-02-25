@@ -1882,6 +1882,7 @@ data DIBasicType' lab = DIBasicType
   , dibtEncoding :: DwarfAttrEncoding
   , dibtFlags    :: Maybe DIFlags
   , dibtNumExtraInhabitants :: Word64 -- ^ added in LLVM 20.
+  , dibtDataSize :: Word32 -- ^ added in LLVM 22.
   } deriving (Data, Eq, Functor, Generic, Ord, Show)
 
 type DIBasicType = DIBasicType' BlockLabel
@@ -1909,6 +1910,8 @@ data DICompileUnit' lab = DICompileUnit
   , dicuRangesBaseAddress  :: Bool
   , dicuSysRoot            :: Maybe String
   , dicuSDK                :: Maybe String
+  , dicuSourceLanguageVersion :: Word32
+    -- ^ added in LLVM 22
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DICompileUnit = DICompileUnit' BlockLabel

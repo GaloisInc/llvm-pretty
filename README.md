@@ -7,7 +7,12 @@ assembly when run.
 
 ## LLVM language feature support
 
-Currently, `llvm-pretty` supports LLVM versions up through 17. As a result of
+<!--
+If you update the latest LLVM version mentioned below, make sure to also update
+the definition of `llvmVlatest` in `Text.LLVM.PP`.
+-->
+
+Currently, `llvm-pretty` supports LLVM versions up through 22. As a result of
 the broad version coverage, the `llvm-pretty` AST is a superset of all versions
 of the LLVM AST. This means that the manner in which certain information is
 presented in the `llvm-pretty` AST (e.g., during pretty printing) will be

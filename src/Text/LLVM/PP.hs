@@ -75,8 +75,8 @@ llvmV3_8 = 3
 -- this is used for defaulting and otherwise reporting the maximum LLVM version
 -- known to be supported.
 llvmVlatest :: LLVMVer
-llvmVlatest = 19
-
+llvmVlatest = 22 -- If you update this, make sure to also update the latest LLVM
+                 -- version mentioned in the README.
 
 -- | The differences between various versions of the llvm textual AST.
 newtype Config = Config { cfgVer :: LLVMVer }
@@ -1297,7 +1297,7 @@ ppDITemplateValueParameter = ppDITemplateValueParameter' ppLabel
 
 ppDIBasicType' :: Fmt i -> Fmt (DIBasicType' i)
 ppDIBasicType' pp bt = "!DIBasicType"
-  <> parens (mcommas
+  <> parens (mcommas $
        [ pure ("tag:"      <+> integral (dibtTag bt))
        , pure ("name:"     <+> doubleQuotes (text (dibtName bt)))
        ,     (("size:"     <+>) . ppSizeOrOffsetValMd' pp) <$> dibtSize bt
@@ -1308,7 +1308,14 @@ ppDIBasicType' pp bt = "!DIBasicType"
        , if dibtNumExtraInhabitants bt > 0
          then pure ("numExtraInhabitants:" <+> integral (dibtNumExtraInhabitants bt))
          else Nothing
-       ])
+       ]
+       ++
+       when' (llvmVer >= 22)
+       [ if dibtDataSize bt > 0
+         then pure ("dataSize:" <+> integral (dibtDataSize bt))
+         else Nothing
+       ]
+       )
 
 ppDICompileUnit' :: Fmt i -> Fmt (DICompileUnit' i)
 ppDICompileUnit' pp cu = "!DICompileUnit"
@@ -1341,6 +1348,12 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
              <$> (dicuSysRoot cu)
        ,     (("sdk:"                   <+>) . doubleQuotes . text)
              <$> (dicuSDK cu)
+       ]
+       ++
+       when' (llvmVer >= 22)
+       [ if dicuSourceLanguageVersion cu > 0
+         then pure ("sourceLanguageVersion:" <+> integral (dicuSourceLanguageVersion cu))
+         else Nothing
        ]
        )
 
