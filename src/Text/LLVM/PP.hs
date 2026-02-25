@@ -1342,6 +1342,12 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
        ,     (("sdk:"                   <+>) . doubleQuotes . text)
              <$> (dicuSDK cu)
        ]
+       ++
+       when' (llvmVer >= 22)
+       [ if dicuSourceLanguageVersion cu > 0
+         then pure ("sourceLanguageVersion:" <+> integral (dicuSourceLanguageVersion cu))
+         else Nothing
+       ]
        )
 
 

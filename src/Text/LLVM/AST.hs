@@ -1909,6 +1909,8 @@ data DICompileUnit' lab = DICompileUnit
   , dicuRangesBaseAddress  :: Bool
   , dicuSysRoot            :: Maybe String
   , dicuSDK                :: Maybe String
+  , dicuSourceLanguageVersion :: Word32
+    -- ^ added in LLVM 22
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DICompileUnit = DICompileUnit' BlockLabel
