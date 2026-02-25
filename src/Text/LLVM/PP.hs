@@ -75,8 +75,8 @@ llvmV3_8 = 3
 -- this is used for defaulting and otherwise reporting the maximum LLVM version
 -- known to be supported.
 llvmVlatest :: LLVMVer
-llvmVlatest = 22
-
+llvmVlatest = 22 -- If you update this, make sure to also update the latest LLVM
+                 -- version mentioned in the README.
 
 -- | The differences between various versions of the llvm textual AST.
 newtype Config = Config { cfgVer :: LLVMVer }
