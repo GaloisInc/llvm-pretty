@@ -918,7 +918,7 @@ brTargets (BasicBlock _ stmts) =
 
 -- Attributes ------------------------------------------------------------------
 
--- | Symbol Linkage provides information on how the symbol should be handled
+-- | Symbol 'Linkage' provides information on how the symbol should be handled
 -- during linking operations.  See https://llvm.org/docs/LangRef.html for more
 -- details on the meanings of these flags.
 data Linkage
@@ -933,7 +933,7 @@ data Linkage
   | AvailableExternally
     -- ^ External declaration, never defined in the object file. Allows inlining
     -- and other optimizations knowing the symbol exists externally.  May be
-    -- discarded at will.  Only allowed on Declare, not on Define.
+    -- discarded at will.  Only allowed on 'Declare', not on 'Define'.
   | Linkonce
     -- ^ Merged with globals of the same name during linkage.  Useful for common
     -- inlines, templates, or generated code from translation units that may be
@@ -958,7 +958,7 @@ data Linkage
     -- ^ Like Weak, with C++ "one definition rule", meaning it can be inlined and
     -- constants can be folded.
   | External
-    -- ^ If none of the others applies, this is externally visible
+    -- ^ If none of the others applies, this is externally visible.
   | DLLImport
   | DLLExport
     deriving (Data, Eq, Enum, Generic, Ord, Show)
