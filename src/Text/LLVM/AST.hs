@@ -918,22 +918,47 @@ brTargets (BasicBlock _ stmts) =
 
 -- Attributes ------------------------------------------------------------------
 
--- | Symbol Linkage
+-- | Symbol 'Linkage' provides information on how the symbol should be handled
+-- during linking operations.  See https://llvm.org/docs/LangRef.html for more
+-- details on the meanings of these flags.
 data Linkage
   = Private
+    -- ^ Only accessible by objects in the current module.  May be renamed during
+    -- linking to avoid collisions. Not visible in the object file's symbol table.
   | LinkerPrivate
   | LinkerPrivateWeak
   | LinkerPrivateWeakDefAuto
   | Internal
+    -- ^ Similar to private but shows up as a local symbol (e.g. C @static@)
   | AvailableExternally
+    -- ^ External declaration, never defined in the object file. Allows inlining
+    -- and other optimizations knowing the symbol exists externally.  May be
+    -- discarded at will.  Only allowed on 'Declare', not on 'Define'.
   | Linkonce
+    -- ^ Merged with globals of the same name during linkage.  Useful for common
+    -- inlines, templates, or generated code from translation units that may be
+    -- overridden with a more definitive definition later.  May be discarded if
+    -- unreferenced.
   | Weak
+    -- ^ Same as Linkonce but may not be discarded (e.g. C @weak@).
   | Common
+    -- ^ Similar to "weak", but must have a zero initializer and may not be
+    -- marked "constant". Not valid for functions and aliases.
   | Appending
+    -- ^ Only valid for global variables of "pointer to array" type.  Similar to
+    -- section concatenation during linking.  No correspondence to an object file
+    -- feature.
   | ExternWeak
+    -- ^ Semantics follows ELF: object is weak until linked.  If not linked, it
+    -- becomes null instead of being undefined.
   | LinkonceODR
+    -- ^ Like Linkonce, with C++ "one definition rule", meaning it can be inlined and
+    -- constants can be folded.
   | WeakODR
+    -- ^ Like Weak, with C++ "one definition rule", meaning it can be inlined and
+    -- constants can be folded.
   | External
+    -- ^ If none of the others applies, this is externally visible.
   | DLLImport
   | DLLExport
     deriving (Data, Eq, Enum, Generic, Ord, Show)
