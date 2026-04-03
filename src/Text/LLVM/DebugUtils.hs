@@ -49,7 +49,7 @@ import qualified Data.IntMap as IntMap
 import           Data.List              (elemIndex, tails, stripPrefix)
 import           Data.Map               (Map)
 import qualified Data.Map    as Map
-import           Data.Maybe (fromMaybe, listToMaybe, maybeToList, mapMaybe)
+import           Data.Maybe             (fromMaybe, listToMaybe, maybeToList, mapMaybe)
 import           Data.Word              (Word16, Word64)
 import           Lens.Micro.Platform    ((^.), at, _Just, to)
 import           System.FilePath        ( (</>), equalFilePath, normalise )
@@ -182,6 +182,8 @@ getDebugInfo _ _                   = Nothing
 
 getMDFile :: MdMap -> ValMd -> Maybe FilePath
 getMDFile mdMap = \case
+  ValMdDebugInfo (DebugInfoFile i) -> pure $ difDirectory i </> difFilename i
+  --  ^^ found it! ^^ or else vvv keep looking (recursively) vvv
   ValMdLoc l -> getMDFile mdMap $ dlScope l
   ValMdRef i -> mdMap ^. at i . _Just . to (getMDFile mdMap)
   ValMdDebugInfo (DebugInfoGlobalVariable gv) ->
@@ -202,7 +204,6 @@ getMDFile mdMap = \case
   ValMdDebugInfo (DebugInfoNameSpace ns) -> getMDFile mdMap $ dinsFile ns
   ValMdDebugInfo (DebugInfoLabel bl) ->
     (getMDFile mdMap =<< dilFile bl) <|> (getMDFile mdMap =<< dilScope bl)
-  ValMdDebugInfo (DebugInfoFile i) -> pure $ difDirectory i </> difFilename i
   _ -> Nothing
 
 getInteger :: MdMap -> ValMd -> Maybe Integer
@@ -564,7 +565,7 @@ atFileLines handle seed file line mdule =
             (p,r) = splitAt (xl - fl) x
         in and [ fl <= xl
                , fn `equalFilePath` r
-               , null p || "/" == (take 1 $ reverse p)
+               , null p || "/" == take 1 (reverse p)
                ]
       locMatch di =
         let getMDLine = \case
