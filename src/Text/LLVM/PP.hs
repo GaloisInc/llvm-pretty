@@ -17,7 +17,152 @@
 --
 -- This is the pretty-printer for llvm assembly versions 3.6 and lower.
 --
-module Text.LLVM.PP where
+module Text.LLVM.PP
+  (
+    Config(cfgVer)
+  , LLVMVer, llvmVer, llvmVerToString
+  , llvmVlatest, llvmV3_5, llvmV3_6, llvmV3_7, llvmV3_8
+  , ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37, ppLLVM38
+  , LLVMPretty(llvmPP)
+  , ppModule
+  , ppSourceName
+  , ppNamedMd
+  , ppUnnamedMd
+  , ppGlobalAlias
+  , ppTargetTriple
+  , ppDataLayout
+  , ppLayoutSpec
+  , ppPointerSize
+  , ppStorage
+  , ppAlignment
+  , ppFunctionPointerAlignType
+  , ppMangling
+  , ppInlineAsm
+  , ppIdent
+  , ppSymbol
+  , ppPrimType
+  , ppFloatType
+  , ppType
+  , ppTypeDecl
+  , ppGlobal
+  , ppGlobalMetadata
+  , ppGlobalAttrs
+  , ppDeclare
+  , ppComdatName
+  , ppComdat
+  , ppSelectionKind
+  , ppDefineSig
+  , ppDefine
+  , ppFunAttr
+  , ppLabelDef
+  , ppLabel
+  , ppBasicBlock
+  , ppStmt
+  , ppAttachedMetadata
+  , ppLinkage
+  , ppVisibility
+  , ppGC
+  , ppTyped
+  , ppSignBits
+  , ppExact
+  , ppArithOp
+  , ppUnaryArithOp
+  , ppBitOp
+  , ppConvOp
+  , ppAtomicOrdering
+  , ppAtomicOp
+  , ppScope
+  , ppInstr
+  , ppLoad
+  , ppStore
+  , ppClauses
+  , ppClause
+  , ppTypedLabel
+  , ppSwitchEntry
+  , ppVectorIndex
+  , ppAlign
+  , ppAlloca
+  , ppCall
+  , ppCallBr
+  , ppCallSym
+  , ppGEP
+  , ppInvoke
+  , ppPhiArg
+  , ppICmpOp
+  , ppFCmpOp
+  , ppValue'
+  , ppValue
+  , ppValMd'
+  , ppValMd
+  , ppDebugLoc'
+  , ppDebugLoc
+  , ppTypedValMd
+  , ppMetadata
+  , ppMetadataNode'
+  , ppMetadataNode
+  , ppStringLiteral
+  , ppAsm
+  , ppConstExpr'
+  , ppConstExpr
+  , ppGepFlags
+  , ppDebugInfo'
+  , ppDebugRecords
+  , ppDebugRecord'
+  , ppDbgRecValue'
+  , ppDbgRecDeclare'
+  , ppDbgRecAssign'
+  , ppDbgRecValueSimple'
+  , ppDebugInfo
+  , ppDIImportedEntity'
+  , ppDIImportedEntity
+  , ppDILabel'
+  , ppDILabel
+  , ppDINameSpace'
+  , ppDINameSpace
+  , ppDITemplateTypeParameter'
+  , ppDITemplateTypeParameter
+  , ppDITemplateValueParameter'
+  , ppDITemplateValueParameter
+  , ppDIBasicType'
+  , ppDICompileUnit'
+  , ppDICompileUnit
+  , ppFlags
+  , ppDICompositeType'
+  , ppDICompositeType
+  , ppDIDerivedType'
+  , ppDIDerivedType
+  , ppDIEnumerator
+  , ppDIExpression
+  , ppDIFile
+  , ppDIGlobalVariable'
+  , ppDIGlobalVariable
+  , ppDIGlobalVariableExpression'
+  , ppDIGlobalVariableExpression
+  , ppDILexicalBlock'
+  , ppDILexicalBlock
+  , ppDILexicalBlockFile'
+  , ppDILexicalBlockFile
+  , ppDILocalVariable'
+  , ppDILocalVariable
+  , ppDISubprogram'
+  , ppDISubprogram
+  , ppDISubrange'
+  , ppDISubrange
+  , ppDISubroutineType'
+  , ppDISubroutineType
+  , ppDIArgList'
+  , ppDIArgList
+  , ppModuleAtLine
+  , ppArgList
+  , ppBool
+  , ppInt64ValMd'
+  , ppSizeOrOffsetValMd'
+  , ppMaybe
+  , hex
+  , onlyOnLLVM
+  , droppedInLLVM
+  )
+where
 
 import Text.LLVM.AST
 import Text.LLVM.DebugUtils
