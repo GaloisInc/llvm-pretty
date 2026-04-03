@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeApplications #-}
@@ -19,11 +20,13 @@
 module Text.LLVM.PP where
 
 import Text.LLVM.AST
+import Text.LLVM.DebugUtils
 import Text.LLVM.Triple.AST (TargetTriple)
 import Text.LLVM.Triple.Print (printTriple)
 
 import Control.Applicative ((<|>))
 import Data.Bits ( shiftL, shiftR, (.|.), (.&.) )
+import Data.Bool ( bool )
 import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
 import Data.List ( intersperse, nub )
 import qualified Data.Map as Map
@@ -407,25 +410,28 @@ ppSelectionKind k =
       ComdatNoDuplicates    -> "noduplicates"
       ComdatSameSize        -> "samesize"
 
-ppDefine :: Fmt Define
-ppDefine d = "define"
-         <+> ppMaybe ppLinkage (defLinkage d)
-         <+> ppMaybe ppVisibility (defVisibility d)
-         <+> ppType (defRetType d)
-         <+> ppSymbol (defName d)
-          <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
-         <+> hsep (ppFunAttr <$> defAttrs d)
-         <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
-         <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (defGC d)
-         <+> ppMds (defMetadata d)
-         <+> char '{'
-         $+$ vcat (map ppBasicBlock (defBody d))
-         $+$ char '}'
+ppDefineSig :: Fmt Define
+ppDefineSig d = "define"
+                <+> ppMaybe ppLinkage (defLinkage d)
+                <+> ppMaybe ppVisibility (defVisibility d)
+                <+> ppType (defRetType d)
+                <+> ppSymbol (defName d)
+                <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
+                <+> hsep (ppFunAttr <$> defAttrs d)
+                <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
+                <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (defGC d)
+                <+> ppMds (defMetadata d)
   where
   ppMds mdm =
     case Map.toList mdm of
       [] -> empty
       mds -> hsep [ "!" <> text k <+> ppValMd md | (k, md) <- mds ]
+
+ppDefine :: Fmt Define
+ppDefine d = ppDefineSig d
+             <+> char '{'
+             $+$ vcat (map ppBasicBlock (defBody d))
+             $+$ char '}'
 
 -- FunAttr ---------------------------------------------------------------------
 
@@ -1580,6 +1586,46 @@ ppDIArgList' pp args = "!DIArgList"
 
 ppDIArgList :: Fmt DIArgList
 ppDIArgList = ppDIArgList' ppLabel
+
+
+-- -------------------------------------------------------------------
+-- Auxiliary pretty-printing functions
+--
+-- These are alternative pretty-printing functions (intead of the pretty-printers
+-- for the basic AST elements above). These functions can be used in
+-- situations where additional or alternative pretty-printing functionality is
+-- needed.
+
+ppModuleAtLines :: (?config :: Config) => String -> Integer -> Fmt Module
+ppModuleAtLines file line =
+  toDoc . atFileLines (AddDocAtLine ?config) (Start empty) file line
+
+data AddDocAtLine = AddDocAtLine Config
+
+data DocBld = Start Doc | DF DocBld Define Doc | BS DocBld (Maybe BlockLabel) Doc
+
+instance AtFileLines DocBld AddDocAtLine where
+  atDefine _ d docbld = DF docbld d empty
+  atBlockStart _ _dr bb docbld = BS docbld (bbLabel bb) empty
+  atStmt (AddDocAtLine c) _dr br s =
+    let isContig = case br of
+          FirstBlockStmt -> True
+          ContiguousStmt -> True
+          FirstLineStmt -> False
+    in withConfig c $ emit $ bool (text "..." $$) (empty $$) isContig $ ppStmt s
+  atGlobal (AddDocAtLine c) g = withConfig c $ emit $ ppGlobal g
+
+emit :: Doc -> DocBld -> DocBld
+emit n = \case
+  DF b s d -> DF b s (d $$ n)
+  BS b l d -> BS b l (d $$ n)
+  Start d -> Start (d $$ n)
+
+toDoc :: Fmt DocBld
+toDoc = \case
+  DF b s d -> toDoc b $$ ppDefineSig s $$ nest 2 d
+  BS b l d -> toDoc b $$ text "" $$ ppMaybe ppLabelDef l $$ d
+  Start d -> d
 
 -- Utilities -------------------------------------------------------------------
 
