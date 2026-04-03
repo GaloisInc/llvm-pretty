@@ -1596,13 +1596,31 @@ ppDIArgList = ppDIArgList' ppLabel
 -- situations where additional or alternative pretty-printing functionality is
 -- needed.
 
-ppModuleAtLines :: (?config :: Config) => String -> Integer -> Fmt Module
-ppModuleAtLines file line =
+-- | This is an auxiliary pretty printer for showing just part of a module: the
+-- part corresponding to a specific source file and line in the source file
+-- (whereas ppModule or even ppDefine will show the *entire* module or
+-- definition/function).  A range of lines can be displayed by iterative calls
+-- over multiple lines.
+--
+-- > putStrLn$ ppLLVM llvmVlatest $ ppModuleAtLine "foo.c" 23 llvmModule
+--
+-- The above example shows all the lines in llvmModule that correspond to line 23
+-- of the "foo.c" source file.
+ppModuleAtLine :: (?config :: Config) => String -> Integer -> Fmt Module
+ppModuleAtLine file line =
   toDoc . atFileLines (AddDocAtLine ?config) (Start empty) file line
 
+-- internal helper for the AtFileLines instance below
 data AddDocAtLine = AddDocAtLine Config
 
-data DocBld = Start Doc | DF DocBld Define Doc | BS DocBld (Maybe BlockLabel) Doc
+-- internal helper for the AtFileLines instance below
+data DocBld = Start Doc -- ^ at the start: doc-so-far
+            | DF DocBld Define Doc
+              -- ^ atDefine: doc-so-far, the define, and the doc for the body of
+              -- the AtFileLines
+            | BS DocBld (Maybe BlockLabel) Doc
+            -- ^ atBlockStart: doc-so-far, block label (if any), and doc for the
+            -- block body
 
 instance AtFileLines DocBld AddDocAtLine where
   atDefine _ d docbld = DF docbld d empty
@@ -1615,12 +1633,14 @@ instance AtFileLines DocBld AddDocAtLine where
     in withConfig c $ emit $ bool (text "..." $$) (empty $$) isContig $ ppStmt s
   atGlobal (AddDocAtLine c) g = withConfig c $ emit $ ppGlobal g
 
+-- internal helper for the AtFileLines instance below
 emit :: Doc -> DocBld -> DocBld
 emit n = \case
   DF b s d -> DF b s (d $$ n)
   BS b l d -> BS b l (d $$ n)
   Start d -> Start (d $$ n)
 
+-- internal helper for the AtFileLines instance below
 toDoc :: Fmt DocBld
 toDoc = \case
   DF b s d -> toDoc b $$ ppDefineSig s $$ nest 2 d
