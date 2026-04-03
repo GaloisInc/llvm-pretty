@@ -19,7 +19,7 @@
 --
 module Text.LLVM.PP
   (
-    Config(cfgVer), withConfig
+    Config(Config, cfgVer), withConfig
   , LLVMVer, llvmVer, llvmVerToString
   , llvmVlatest, llvmV3_5, llvmV3_6, llvmV3_7, llvmV3_8
   , ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37, ppLLVM38
