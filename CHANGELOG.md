@@ -19,6 +19,14 @@
   * `ValFP128_PPC` containing an `FP128_PPCValue`
     (a wrapper around two `Double`s)
 
+* Added the `atFileLines` function to `DebugUtils.hs` which retrieves the
+  statements associated with a specific source file and line number for user
+  processing.
+
+* Added the `ppModuleAtLine` which can be used to pretty-print only the portion
+  of the bitcode that is associated with a specific source file and line number
+  (this uses the new `atFileLines` function internally).
+
 ## 0.14.0.0 -- 2026-01-23
 
 * Changes to support LLVM 19 (some of these changes are not backward-compatible):

@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# Language TransformListComp, MonadComprehensions #-}
 {- |
 Module           : Text.LLVM.DebugUtils
@@ -32,11 +34,16 @@ module Text.LLVM.DebugUtils
   -- * Line numbers of definitions
   , debugInfoGlobalLines
   , debugInfoDefineLines
+  , atFileLines
+  , AtFileLines(atDefine, atBlockStart, atStmt, atGlobal)
+  , DefineRel(..)
+  , BlockRel(..)
   ) where
 
 import           Control.Applicative    ((<|>))
 import           Control.Monad          ((<=<))
 import           Data.Bits              (Bits(..))
+import           Data.Bool              (bool)
 import           Data.IntMap            (IntMap)
 import qualified Data.IntMap as IntMap
 import           Data.List              (elemIndex, tails, stripPrefix)
@@ -44,6 +51,9 @@ import           Data.Map               (Map)
 import qualified Data.Map    as Map
 import           Data.Maybe             (fromMaybe, listToMaybe, maybeToList, mapMaybe)
 import           Data.Word              (Word16, Word64)
+import           Lens.Micro.Platform    ((^.), at, _Just, to)
+import           System.FilePath        ( (</>), equalFilePath, normalise
+                                        , hasTrailingPathSeparator )
 import           Text.LLVM.AST
 
 dbgKind :: String
@@ -170,6 +180,32 @@ getDebugInfo :: MdMap -> ValMd -> Maybe DebugInfo
 getDebugInfo mdMap (ValMdRef i)    = getDebugInfo mdMap =<< IntMap.lookup i mdMap
 getDebugInfo _ (ValMdDebugInfo di) = Just di
 getDebugInfo _ _                   = Nothing
+
+getMDFile :: MdMap -> ValMd -> Maybe FilePath
+getMDFile mdMap = \case
+  ValMdDebugInfo (DebugInfoFile i) -> pure $ difDirectory i </> difFilename i
+  --  ^^ found it! ^^ or else vvv keep looking (recursively) vvv
+  ValMdLoc l -> getMDFile mdMap $ dlScope l
+  ValMdRef i -> mdMap ^. at i . _Just . to (getMDFile mdMap)
+  ValMdDebugInfo (DebugInfoGlobalVariable gv) ->
+    (getMDFile mdMap =<< digvFile gv) <|> (getMDFile mdMap =<< digvScope gv)
+  ValMdDebugInfo (DebugInfoLocalVariable lv) ->
+    (getMDFile mdMap =<< dilvFile lv) <|> (getMDFile mdMap =<< dilvScope lv)
+  ValMdDebugInfo (DebugInfoSubprogram sp) ->
+    (getMDFile mdMap =<< dispFile sp) <|> (getMDFile mdMap =<< dispScope sp)
+  ValMdDebugInfo (DebugInfoLexicalBlock lb) ->
+    (getMDFile mdMap =<< dilbFile lb) <|> (getMDFile mdMap =<< dilbScope lb)
+  ValMdDebugInfo (DebugInfoLexicalBlockFile lf) ->
+    (getMDFile mdMap =<< dilbfFile lf) <|> (getMDFile mdMap $ dilbfScope lf)
+  ValMdDebugInfo (DebugInfoDerivedType dt) ->
+    (getMDFile mdMap =<< didtFile dt) <|> (getMDFile mdMap =<< didtScope dt)
+  ValMdDebugInfo (DebugInfoCompositeType ct) ->
+    (getMDFile mdMap =<< dictFile ct) <|> (getMDFile mdMap =<< dictScope ct)
+  ValMdDebugInfo (DebugInfoCompileUnit cu) -> getMDFile mdMap =<< dicuFile cu
+  ValMdDebugInfo (DebugInfoNameSpace ns) -> getMDFile mdMap $ dinsFile ns
+  ValMdDebugInfo (DebugInfoLabel bl) ->
+    (getMDFile mdMap =<< dilFile bl) <|> (getMDFile mdMap =<< dilScope bl)
+  _ -> Nothing
 
 getInteger :: MdMap -> ValMd -> Maybe Integer
 getInteger mdMap (ValMdRef i)                          = getInteger mdMap =<< IntMap.lookup i mdMap
@@ -514,3 +550,96 @@ debugInfoDefineLines = Map.fromList . mapMaybe go . modUnnamedMd
            )
          }) = Just (n, (fromIntegral l))
     go _ = Nothing
+
+
+-- | Given a file and line number and a handler, call the appropriate handler
+-- method on every Define, Block, and Stmt that is associated with the line
+-- number.
+atFileLines :: AtFileLines a b
+            => b -> a -> FilePath -> Integer -> Module -> a
+atFileLines handle seed file line mdule =
+  let mdMap = mkMdMap mdule
+      matchesFile x =
+        let fn = normalise file
+            fl = length fn
+            xl = length x
+            (p,r) = splitAt (xl - fl) x
+        in and [ fl <= xl
+               , fn `equalFilePath` r
+               , null p || hasTrailingPathSeparator p
+               ]
+      locMatch di =
+        let getMDLine = \case
+              ValMdLoc x@(DebugLoc {}) -> dlLine x
+              ValMdDebugInfo (DebugInfoSubprogram x) -> dispLine x
+              ValMdDebugInfo (DebugInfoLocalVariable x) -> dilvLine x
+              ValMdDebugInfo (DebugInfoLexicalBlock x) -> dilbLine x
+              ValMdDebugInfo (DebugInfoGlobalVariable x) -> digvLine x
+              ValMdDebugInfo (DebugInfoDerivedType x) -> didtLine x
+              ValMdDebugInfo (DebugInfoCompositeType x) -> dictLine x
+              ValMdDebugInfo (DebugInfoNameSpace x) -> dinsLine x
+              ValMdDebugInfo (DebugInfoLabel x) -> dilLine x
+              ValMdRef i -> maybe 0 getMDLine $ mdMap ^. at i
+              _ -> 0
+        in and [ maybe False matchesFile (getMDFile mdMap di)
+               , line == (toInteger $ getMDLine di)
+               ]
+      onGlobal a g =
+        bool a (atGlobal handle g a) $ any locMatch $ Map.elems $ globalMetadata g
+      onDefs a d =
+        let isMatch = any locMatch $ Map.elems $ defMetadata d
+            onDecl = bool id (atDefine handle d) isMatch
+        in snd $ foldl onBlock (FirstBlock isMatch, onDecl a) $ defBody d
+      onBlock (dr, a) bb =
+        let onBlockLabel = case bbStmts bb of
+                             [] -> id
+                             (s:_) -> bool id (atBlockStart handle dr bb)
+                                      $ any (locMatch . snd) $ stmtMetadata s
+            sseed = (dr, FirstBlockStmt, onBlockLabel a)
+            (_, _, blkstmts) = foldl onStmt sseed $ bbStmts bb
+        in (OtherBlock, blkstmts)
+      onStmt (dr, br, a) s =
+        bool
+        (dr, FirstLineStmt, a)
+        (dr, ContiguousStmt, atStmt handle dr br s a)
+        $ or [ any (locMatch . snd) $ stmtMetadata s
+             -- n.b. the DebugRecords describe associated data, but do not
+             -- (at this time, circa LLVM 22) contain instruction location
+             -- references, so they are not considered here.
+             , dr == FirstBlock True && null (stmtMetadata s)
+             ]
+  in foldl onGlobal (foldl onDefs seed $ modDefines mdule) $ modGlobals mdule
+
+-- | The handler passed to 'atFileLines' must be an instance of this class.
+--
+-- Here, @b@ is an object for which the following methods can be called with an
+-- accumulator @a@ and the corresponding LLVM AST element that has the @lab@
+-- label type.  The method will return an updated accumulator.
+class AtFileLines a b where
+  -- | The 'atDefine' method is called (before any enclosed 'BasicBlock' or
+  --   'Stmt' elements) if the file and line number are associated with the
+  --   'Define' signature line.
+  atDefine :: b -> Define -> a -> a
+  -- | The 'atBlockStart' method is called if the first 'Stmt' in the
+  --   'BasicBlock' is associated with the file and line number, and before any
+  --   'Stmt's in the block are passed to 'atStmt'.
+  --   the first block in the 'Define'.
+  atBlockStart :: b -> DefineRel -> BasicBlock -> a -> a
+  -- | The 'atStmt' method is called for every 'Stmt' in the basic block that is
+  --   associated with the file and line number.  The boolean value passed is
+  --   true if the 'Stmt' immediately follows a previous 'Stmt' that was
+  --   associated with the same line, or if this was the first 'Stmt' in the
+  --   block.
+  atStmt :: b -> DefineRel -> BlockRel -> Stmt -> a -> a
+  -- | The 'atGlobal' method is called for evey 'Global' that is associated with
+  -- the file and line number.
+  atGlobal :: b -> Global -> a -> a
+
+data DefineRel = FirstBlock Bool -- ^ first block of a 'Define', matched file & line?
+               | OtherBlock      -- ^ other blocks of a 'Define'
+  deriving Eq
+
+data BlockRel = FirstBlockStmt -- ^ first statement in a 'BasicBlock'
+              | ContiguousStmt -- ^ previous statement also matched the file & line
+              | FirstLineStmt  -- ^ previous statement did not match the file & line
+  deriving Eq

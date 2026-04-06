@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeApplications #-}
@@ -16,14 +17,161 @@
 --
 -- This is the pretty-printer for llvm assembly versions 3.6 and lower.
 --
-module Text.LLVM.PP where
+module Text.LLVM.PP
+  (
+    Config(Config, cfgVer), withConfig
+  , LLVMVer, llvmVer, llvmVerToString
+  , llvmVlatest, llvmV3_5, llvmV3_6, llvmV3_7, llvmV3_8
+  , ppLLVM, ppLLVM35, ppLLVM36, ppLLVM37, ppLLVM38
+  , LLVMPretty(llvmPP)
+  , ppModule
+  , ppSourceName
+  , ppNamedMd
+  , ppUnnamedMd
+  , ppGlobalAlias
+  , ppTargetTriple
+  , ppDataLayout
+  , ppLayoutSpec
+  , ppPointerSize
+  , ppStorage
+  , ppAlignment
+  , ppFunctionPointerAlignType
+  , ppMangling
+  , ppInlineAsm
+  , ppIdent
+  , ppSymbol
+  , ppPrimType
+  , ppFloatType
+  , ppType
+  , ppTypeDecl
+  , ppGlobal
+  , ppGlobalMetadata
+  , ppGlobalAttrs
+  , ppDeclare
+  , ppComdatName
+  , ppComdat
+  , ppSelectionKind
+  , ppDefineSig
+  , ppDefine
+  , ppFunAttr
+  , ppLabelDef
+  , ppLabel
+  , ppBasicBlock
+  , ppStmt
+  , ppAttachedMetadata
+  , ppLinkage
+  , ppVisibility
+  , ppGC
+  , ppTyped
+  , ppSignBits
+  , ppExact
+  , ppArithOp
+  , ppUnaryArithOp
+  , ppBitOp
+  , ppConvOp
+  , ppAtomicOrdering
+  , ppAtomicOp
+  , ppScope
+  , ppInstr
+  , ppLoad
+  , ppStore
+  , ppClauses
+  , ppClause
+  , ppTypedLabel
+  , ppSwitchEntry
+  , ppVectorIndex
+  , ppAlign
+  , ppAlloca
+  , ppCall
+  , ppCallBr
+  , ppCallSym
+  , ppGEP
+  , ppInvoke
+  , ppPhiArg
+  , ppICmpOp
+  , ppFCmpOp
+  , ppValue'
+  , ppValue
+  , ppValMd'
+  , ppValMd
+  , ppDebugLoc'
+  , ppDebugLoc
+  , ppTypedValMd
+  , ppMetadata
+  , ppMetadataNode'
+  , ppMetadataNode
+  , ppStringLiteral
+  , ppAsm
+  , ppConstExpr'
+  , ppConstExpr
+  , ppGepFlags
+  , ppDebugInfo'
+  , ppDebugRecords
+  , ppDebugRecord'
+  , ppDbgRecValue'
+  , ppDbgRecDeclare'
+  , ppDbgRecAssign'
+  , ppDbgRecValueSimple'
+  , ppDebugInfo
+  , ppDIImportedEntity'
+  , ppDIImportedEntity
+  , ppDILabel'
+  , ppDILabel
+  , ppDINameSpace'
+  , ppDINameSpace
+  , ppDITemplateTypeParameter'
+  , ppDITemplateTypeParameter
+  , ppDITemplateValueParameter'
+  , ppDITemplateValueParameter
+  , ppDIBasicType'
+  , ppDICompileUnit'
+  , ppDICompileUnit
+  , ppFlags
+  , ppDICompositeType'
+  , ppDICompositeType
+  , ppDIDerivedType'
+  , ppDIDerivedType
+  , ppDIEnumerator
+  , ppDIExpression
+  , ppDIFile
+  , ppDIGlobalVariable'
+  , ppDIGlobalVariable
+  , ppDIGlobalVariableExpression'
+  , ppDIGlobalVariableExpression
+  , ppDILexicalBlock'
+  , ppDILexicalBlock
+  , ppDILexicalBlockFile'
+  , ppDILexicalBlockFile
+  , ppDILocalVariable'
+  , ppDILocalVariable
+  , ppDISubprogram'
+  , ppDISubprogram
+  , ppDISubrange'
+  , ppDISubrange
+  , ppDISubroutineType'
+  , ppDISubroutineType
+  , ppDIArgList'
+  , ppDIArgList
+  , ppModuleAtLine
+  , ppArgList
+  , ppBool
+  , ppInt64ValMd'
+  , ppSizeOrOffsetValMd'
+  , ppMaybe
+  , hex
+  , onlyOnLLVM
+  , droppedInLLVM
+  )
+where
 
 import Text.LLVM.AST
+import Text.LLVM.DebugUtils
 import Text.LLVM.Triple.AST (TargetTriple)
 import Text.LLVM.Triple.Print (printTriple)
 
 import Control.Applicative ((<|>))
 import Data.Bits ( shiftL, shiftR, (.|.), (.&.) )
+import Data.Bool ( bool )
 import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
 import Data.List ( intersperse, nub )
 import qualified Data.Map as Map
@@ -407,25 +555,28 @@ ppSelectionKind k =
       ComdatNoDuplicates    -> "noduplicates"
       ComdatSameSize        -> "samesize"
 
-ppDefine :: Fmt Define
-ppDefine d = "define"
-         <+> ppMaybe ppLinkage (defLinkage d)
-         <+> ppMaybe ppVisibility (defVisibility d)
-         <+> ppType (defRetType d)
-         <+> ppSymbol (defName d)
-          <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
-         <+> hsep (ppFunAttr <$> defAttrs d)
-         <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
-         <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (defGC d)
-         <+> ppMds (defMetadata d)
-         <+> char '{'
-         $+$ vcat (map ppBasicBlock (defBody d))
-         $+$ char '}'
+ppDefineSig :: Fmt Define
+ppDefineSig d = "define"
+                <+> ppMaybe ppLinkage (defLinkage d)
+                <+> ppMaybe ppVisibility (defVisibility d)
+                <+> ppType (defRetType d)
+                <+> ppSymbol (defName d)
+                <> ppArgList (defVarArgs d) (map (ppTyped ppIdent) (defArgs d))
+                <+> hsep (ppFunAttr <$> defAttrs d)
+                <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
+                <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (defGC d)
+                <+> ppMds (defMetadata d)
   where
   ppMds mdm =
     case Map.toList mdm of
       [] -> empty
       mds -> hsep [ "!" <> text k <+> ppValMd md | (k, md) <- mds ]
+
+ppDefine :: Fmt Define
+ppDefine d = ppDefineSig d
+             <+> char '{'
+             $+$ vcat (map ppBasicBlock (defBody d))
+             $+$ char '}'
 
 -- FunAttr ---------------------------------------------------------------------
 
@@ -1580,6 +1731,66 @@ ppDIArgList' pp args = "!DIArgList"
 
 ppDIArgList :: Fmt DIArgList
 ppDIArgList = ppDIArgList' ppLabel
+
+
+-- -------------------------------------------------------------------
+-- Auxiliary pretty-printing functions
+--
+-- These are alternative pretty-printing functions (instead of the pretty-printers
+-- for the basic AST elements above). These functions can be used in
+-- situations where additional or alternative pretty-printing functionality is
+-- needed.
+
+-- | This is an auxiliary pretty printer for showing just part of a module: the
+-- part corresponding to a specific source file and line in the source file
+-- (whereas ppModule or even ppDefine will show the *entire* module or
+-- definition/function).  A range of lines can be displayed by iterative calls
+-- over multiple lines.
+--
+-- > putStrLn $ ppLLVM llvmVlatest $ ppModuleAtLine "foo.c" 23 llvmModule
+--
+-- The above example shows all the lines in llvmModule that correspond to line 23
+-- of the "foo.c" source file.
+ppModuleAtLine :: (?config :: Config) => String -> Integer -> Fmt Module
+ppModuleAtLine file line =
+  toDoc . atFileLines (AddDocAtLine ?config) (Start empty) file line
+
+-- internal helper for the AtFileLines instance below
+data AddDocAtLine = AddDocAtLine Config
+
+-- internal helper for the AtFileLines instance below
+data DocBld = Start Doc -- ^ at the start: doc-so-far
+            | DF DocBld Define Doc
+              -- ^ atDefine: doc-so-far, the define, and the doc for the body of
+              -- the AtFileLines
+            | BS DocBld (Maybe BlockLabel) Doc
+              -- ^ atBlockStart: doc-so-far, block label (if any), and doc for the
+              -- block body
+
+instance AtFileLines DocBld AddDocAtLine where
+  atDefine _ d docbld = DF docbld d empty
+  atBlockStart _ _dr bb docbld = BS docbld (bbLabel bb) empty
+  atStmt (AddDocAtLine c) _dr br s =
+    let isContig = case br of
+          FirstBlockStmt -> True
+          ContiguousStmt -> True
+          FirstLineStmt -> False
+    in withConfig c $ emit $ bool (text "..." $$) (empty $$) isContig $ ppStmt s
+  atGlobal (AddDocAtLine c) g = withConfig c $ emit $ ppGlobal g
+
+-- internal helper for the AtFileLines instance below
+emit :: Doc -> DocBld -> DocBld
+emit n = \case
+  DF b s d -> DF b s (d $$ n)
+  BS b l d -> BS b l (d $$ n)
+  Start d -> Start (d $$ n)
+
+-- internal helper for the AtFileLines instance below
+toDoc :: Fmt DocBld
+toDoc = \case
+  DF b s d -> toDoc b $$ ppDefineSig s $$ nest 2 d
+  BS b l d -> toDoc b $$ text "" $$ ppMaybe ppLabelDef l $$ d
+  Start d -> d
 
 -- Utilities -------------------------------------------------------------------
 
