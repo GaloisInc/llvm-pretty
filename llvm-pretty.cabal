@@ -56,6 +56,7 @@ Library
                        microlens        >= 0.4,
                        microlens-th     >= 0.4,
                        microlens-platform >= 0.4,
+                       -- microlens-platform provides the IxValue instance for IntMap
                        syb              >= 0.7,
                        template-haskell >= 2.7,
                        th-abstraction   >= 0.3.1 && <0.8

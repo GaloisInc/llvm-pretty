@@ -1736,7 +1736,7 @@ ppDIArgList = ppDIArgList' ppLabel
 -- -------------------------------------------------------------------
 -- Auxiliary pretty-printing functions
 --
--- These are alternative pretty-printing functions (intead of the pretty-printers
+-- These are alternative pretty-printing functions (instead of the pretty-printers
 -- for the basic AST elements above). These functions can be used in
 -- situations where additional or alternative pretty-printing functionality is
 -- needed.
@@ -1747,7 +1747,7 @@ ppDIArgList = ppDIArgList' ppLabel
 -- definition/function).  A range of lines can be displayed by iterative calls
 -- over multiple lines.
 --
--- > putStrLn$ ppLLVM llvmVlatest $ ppModuleAtLine "foo.c" 23 llvmModule
+-- > putStrLn $ ppLLVM llvmVlatest $ ppModuleAtLine "foo.c" 23 llvmModule
 --
 -- The above example shows all the lines in llvmModule that correspond to line 23
 -- of the "foo.c" source file.
@@ -1764,8 +1764,8 @@ data DocBld = Start Doc -- ^ at the start: doc-so-far
               -- ^ atDefine: doc-so-far, the define, and the doc for the body of
               -- the AtFileLines
             | BS DocBld (Maybe BlockLabel) Doc
-            -- ^ atBlockStart: doc-so-far, block label (if any), and doc for the
-            -- block body
+              -- ^ atBlockStart: doc-so-far, block label (if any), and doc for the
+              -- block body
 
 instance AtFileLines DocBld AddDocAtLine where
   atDefine _ d docbld = DF docbld d empty

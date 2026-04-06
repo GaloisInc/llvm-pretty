@@ -52,7 +52,8 @@ import qualified Data.Map    as Map
 import           Data.Maybe             (fromMaybe, listToMaybe, maybeToList, mapMaybe)
 import           Data.Word              (Word16, Word64)
 import           Lens.Micro.Platform    ((^.), at, _Just, to)
-import           System.FilePath        ( (</>), equalFilePath, normalise )
+import           System.FilePath        ( (</>), equalFilePath, normalise
+                                        , hasTrailingPathSeparator )
 import           Text.LLVM.AST
 
 dbgKind :: String
@@ -565,7 +566,7 @@ atFileLines handle seed file line mdule =
             (p,r) = splitAt (xl - fl) x
         in and [ fl <= xl
                , fn `equalFilePath` r
-               , null p || "/" == take 1 (reverse p)
+               , null p || hasTrailingPathSeparator p
                ]
       locMatch di =
         let getMDLine = \case
