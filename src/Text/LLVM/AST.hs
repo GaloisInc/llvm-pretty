@@ -10,6 +10,7 @@ incomplete: there are some values that new LLVM versions would accept but are
 not yet represented here.
 -}
 
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveDataTypeable, DeriveFunctor, DeriveGeneric #-}
@@ -25,7 +26,9 @@ module Text.LLVM.AST
     -- * Named Metadata
   , NamedMd(..)
     -- * Unnamed Metadata
-  , UnnamedMd(..)
+  , UnnamedMd(..), UnnamedMdIdx(UnnamedMdIdx, unnamedMdIdx)
+  , nonNullUnnamedMdIdx
+  , nextUnnamedMdIdx
     -- * Aliases
   , GlobalAlias(..)
     -- * Data Layout
@@ -278,14 +281,43 @@ emptyModule  = Module
 
 data NamedMd = NamedMd
   { nmName   :: String
-  , nmValues :: [Int]
+  , nmValues :: [UnnamedMdIdx]
   } deriving (Data, Eq, Generic, Ord, Show)
 
 
 -- Unnamed Metadata ------------------------------------------------------------
 
+-- | This is the type used to represent an unnamed metadata index.  A newtype
+-- wrapper is used to distinguish the specific use of this value as this
+-- particular type of index.
+--
+-- The Ord instance is provided to allow these indices to be used as Map keys.
+-- Although Num and Enum instances are provided to enable manipulation, care
+-- should be taken that these are all very carefully used only where needed and
+-- appropriate.  In general, the `nextUnnamedMdIdx` function is preferred.
+newtype UnnamedMdIdx = UnnamedMdIdx { unnamedMdIdx :: Int }
+  deriving (Data, Eq, Generic, Ord, Enum, Num, Show)
+
+-- | This is used when constructing an AST and a new unnamed metadata element is
+-- to be added.  It should be passed the current maximum known index and will
+-- return the new, unused index that should be used.
+nextUnnamedMdIdx :: UnnamedMdIdx -> UnnamedMdIdx
+nextUnnamedMdIdx (UnnamedMdIdx i) = UnnamedMdIdx $ i + 1
+
+-- | In the bitcode, an "optional" unnamed metadata index is indicated by 0 (not
+-- present) or the actual index + 1.  The parsing should treat these optional as
+-- a different type than an UnnamedMdIdx, but this is not presently detected at
+-- the parsing level, so this function is used to convert a parsed UnnamedMdIdx
+-- to the option of the correct index.
+--
+-- Note that it is NOT valid to call this twice (or not at all in the event you
+-- are starting with an optional form).
+nonNullUnnamedMdIdx :: UnnamedMdIdx -> Maybe UnnamedMdIdx
+nonNullUnnamedMdIdx (UnnamedMdIdx i) =
+  if i == 0 then Nothing else Just $ UnnamedMdIdx $ i - 1
+
 data UnnamedMd = UnnamedMd
-  { umIndex    :: !Int
+  { umIndex    :: !UnnamedMdIdx
   , umValues   :: ValMd
   , umDistinct :: Bool
   } deriving (Data, Eq, Generic, Ord, Show)
@@ -1626,7 +1658,7 @@ data FP128_PPCValue = FP128_PPC_DoubleDouble Double Double
 data ValMd' lab
   = ValMdString String
   | ValMdValue (Typed (Value' lab))
-  | ValMdRef Int
+  | ValMdRef UnnamedMdIdx
   | ValMdNode [Maybe (ValMd' lab)]
   | ValMdLoc (DebugLoc' lab)
   | ValMdDebugInfo (DebugInfo' lab)
