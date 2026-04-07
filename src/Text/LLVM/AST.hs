@@ -287,18 +287,18 @@ data NamedMd = NamedMd
 
 -- Unnamed Metadata ------------------------------------------------------------
 
--- | This is the type used to represent an Unnamed Metadata index.  A newtype
+-- | This is the type used to represent an unnamed metadata index.  A newtype
 -- wrapper is used to distinguish the specific use of this value as this
 -- particular type of index.
 --
 -- The Ord instance is provided to allow these indices to be used as Map keys.
--- Although Num and Enum are provided to enable manipulation, care should be
--- taken that these are all very carefully used only where needed and
--- appropriate.  In general, the `nextUnnamedMdIdx` is preferred.
+-- Although Num and Enum instances are provided to enable manipulation, care
+-- should be taken that these are all very carefully used only where needed and
+-- appropriate.  In general, the `nextUnnamedMdIdx` function is preferred.
 newtype UnnamedMdIdx = UnnamedMdIdx { unnamedMdIdx :: Int }
   deriving (Data, Eq, Generic, Ord, Enum, Num, Show)
 
--- | This is used when constructing an AST and a new Unnamed Metadata element is
+-- | This is used when constructing an AST and a new unnamed metadata element is
 -- to be added.  It should be passed the current maximum known index and will
 -- return the new, unused index that should be used.
 nextUnnamedMdIdx :: UnnamedMdIdx -> UnnamedMdIdx
