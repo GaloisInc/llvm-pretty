@@ -1,6 +1,6 @@
 # Revision history for llvm-pretty
 
-## next
+## next (MAJOR)
 
 * Support LLVM 22:
   * `DICompileUnit'` now has an additional `dicuSourceLanguageVersion :: Word64`
@@ -26,6 +26,9 @@
 * Added the `ppModuleAtLine` which can be used to pretty-print only the portion
   of the bitcode that is associated with a specific source file and line number
   (this uses the new `atFileLines` function internally).
+
+* Breaking change: Unnamed metadata indexes are in an `UnnamedMdIdx` newtype
+  wrapper now instead of being an undecorated `Int`.
 
 ## 0.14.0.0 -- 2026-01-23
 

@@ -172,12 +172,14 @@ data UnionFieldInfo = UnionFieldInfo
 
 -- | Compute an 'IntMap' of the unnamed metadata in a module
 mkMdMap :: Module -> IntMap ValMd
-mkMdMap m = IntMap.fromList [ (umIndex md, umValues md) | md <- modUnnamedMd m ]
+mkMdMap m = IntMap.fromList [ (unnamedMdIdx $ umIndex md, umValues md)
+                            | md <- modUnnamedMd m ]
 
 ------------------------------------------------------------------------
 
 getDebugInfo :: MdMap -> ValMd -> Maybe DebugInfo
-getDebugInfo mdMap (ValMdRef i)    = getDebugInfo mdMap =<< IntMap.lookup i mdMap
+getDebugInfo mdMap (ValMdRef (UnnamedMdIdx i)) =
+  getDebugInfo mdMap =<< IntMap.lookup i mdMap
 getDebugInfo _ (ValMdDebugInfo di) = Just di
 getDebugInfo _ _                   = Nothing
 
@@ -186,7 +188,7 @@ getMDFile mdMap = \case
   ValMdDebugInfo (DebugInfoFile i) -> pure $ difDirectory i </> difFilename i
   --  ^^ found it! ^^ or else vvv keep looking (recursively) vvv
   ValMdLoc l -> getMDFile mdMap $ dlScope l
-  ValMdRef i -> mdMap ^. at i . _Just . to (getMDFile mdMap)
+  ValMdRef i -> mdMap ^. at (unnamedMdIdx i) . _Just . to (getMDFile mdMap)
   ValMdDebugInfo (DebugInfoGlobalVariable gv) ->
     (getMDFile mdMap =<< digvFile gv) <|> (getMDFile mdMap =<< digvScope gv)
   ValMdDebugInfo (DebugInfoLocalVariable lv) ->
@@ -208,12 +210,12 @@ getMDFile mdMap = \case
   _ -> Nothing
 
 getInteger :: MdMap -> ValMd -> Maybe Integer
-getInteger mdMap (ValMdRef i)                          = getInteger mdMap =<< IntMap.lookup i mdMap
+getInteger mdMap (ValMdRef (UnnamedMdIdx i))           = getInteger mdMap =<< IntMap.lookup i mdMap
 getInteger _     (ValMdValue (Typed _ (ValInteger i))) = Just i
 getInteger _     _                                     = Nothing
 
 getList :: MdMap -> ValMd -> Maybe [Maybe ValMd]
-getList mdMap (ValMdRef i) = getList mdMap =<< IntMap.lookup i mdMap
+getList mdMap (ValMdRef (UnnamedMdIdx i)) = getList mdMap =<< IntMap.lookup i mdMap
 getList _ (ValMdNode di)   = Just di
 getList _ _                = Nothing
 
@@ -497,7 +499,7 @@ debugInfoArgNames m d =
     Just (ValMdRef s) -> scopeArgs s
     _ -> IntMap.empty
   where
-    scopeArgs :: Int -> IntMap String
+    scopeArgs :: UnnamedMdIdx -> IntMap String
     scopeArgs s = IntMap.fromList . mapMaybe go $ modUnnamedMd m
       where
         go :: UnnamedMd -> Maybe (Int, String)
@@ -579,7 +581,7 @@ atFileLines handle seed file line mdule =
               ValMdDebugInfo (DebugInfoCompositeType x) -> dictLine x
               ValMdDebugInfo (DebugInfoNameSpace x) -> dinsLine x
               ValMdDebugInfo (DebugInfoLabel x) -> dilLine x
-              ValMdRef i -> maybe 0 getMDLine $ mdMap ^. at i
+              ValMdRef (UnnamedMdIdx i) -> maybe 0 getMDLine $ mdMap ^. at i
               _ -> 0
         in and [ maybe False matchesFile (getMDFile mdMap di)
                , line == (toInteger $ getMDLine di)

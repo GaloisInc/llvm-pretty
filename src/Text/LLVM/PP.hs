@@ -309,11 +309,11 @@ ppSourceName (Just sn) = "source_filename" <+> char '=' <+> doubleQuotes (text s
 ppNamedMd :: Fmt NamedMd
 ppNamedMd nm =
   sep [ ppMetadata (text (nmName nm)) <+> char '='
-      , ppMetadata (braces (commas (map (ppMetadata . int) (nmValues nm)))) ]
+      , ppMetadata (braces (commas (map (ppMetadata . int . unnamedMdIdx) (nmValues nm)))) ]
 
 ppUnnamedMd :: Fmt UnnamedMd
 ppUnnamedMd um =
-  sep [ ppMetadata (int (umIndex um)) <+> char '='
+  sep [ ppMetadata (int (unnamedMdIdx $ umIndex um)) <+> char '='
       , distinct <+> ppValMd (umValues um) ]
   where
   distinct | umDistinct um = "distinct"
@@ -1150,7 +1150,7 @@ ppValMd' :: Fmt i -> Fmt (ValMd' i)
 ppValMd' pp m = case m of
   ValMdString str   -> ppMetadata (ppStringLiteral str)
   ValMdValue tv     -> ppTyped (ppValue' pp) tv
-  ValMdRef i        -> ppMetadata (int i)
+  ValMdRef i        -> ppMetadata (int $ unnamedMdIdx i)
   ValMdNode vs      -> ppMetadataNode' pp vs
   ValMdLoc l        -> ppDebugLoc' pp l
   ValMdDebugInfo di -> ppDebugInfo' pp di
