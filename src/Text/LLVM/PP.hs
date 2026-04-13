@@ -57,7 +57,7 @@ module Text.LLVM.PP
   , ppFunAttr
   , ppLabelDef
   , ppLabel
-  , LabelPrinter(labelPrinter)
+  , PrettyLabel(ppLabel')
   , ppBasicBlock
   , ppStmt
   , ppAttachedMetadata
@@ -629,31 +629,32 @@ ppBasicBlock bb = ppMaybe ppLabelDef (bbLabel bb)
               $+$ nest 2 (vcat (map ppStmt (bbStmts bb)))
 
 
--- | Most of the pretty printing functions in this module are written for the
--- parameterized label data form and thus take a Fmt argument for handling the
--- parameterized label type.
+-- | Most of the pretty printing functions (based on 'Pretty') in this module are
+-- written for the parameterized label data form and thus take a 'Fmt' argument
+-- for handling the parameterized label type.
 --
--- When the parameterized label type is known to be 'BlockLabel', then ppLabel
+-- When the parameterized label type is known to be 'BlockLabel', then 'ppLabel'
 -- can be passed as this first argument to those pretty printing functions.
 --
 -- When the parameterized label type is not known (e.g. when implementing other
--- libraries that utilize llvm-pretty), the library may need to invoke the pretty
--- printer without passing an explicit label printer, and can instead use the
--- following class as a constraint for an instance that will be resolved later.
+-- libraries that utilize @llvm-pretty@), the library may need to invoke the
+-- pretty printer without passing an explicit label printer, and can instead use
+-- the following class as a constraint for an instance that will be resolved
+-- later.
 --
 -- For example:
 --
 -- > data Something lab = Something { ..., val :: Value' lab, ... }
 -- >
--- > instance LabelPrinter lab => Pretty Something where
--- >   pretty s = .... <> ppValue' astLabelPrinter <>
+-- > instance PrettyLabel lab => Pretty Something where
+-- >   pretty s = .... <> ppValue' ppLabel' <>
 --
 
-class LabelPrinter lab where
-  labelPrinter :: Fmt lab
+class PrettyLabel lab where
+  ppLabel' :: Fmt lab
 
-instance LabelPrinter BlockLabel where
-  labelPrinter = ppLabel
+instance PrettyLabel BlockLabel where
+  ppLabel' = ppLabel
 
 
 -- Statements ------------------------------------------------------------------
