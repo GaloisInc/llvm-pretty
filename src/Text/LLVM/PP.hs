@@ -629,9 +629,9 @@ ppBasicBlock bb = ppMaybe ppLabelDef (bbLabel bb)
               $+$ nest 2 (vcat (map ppStmt (bbStmts bb)))
 
 
--- | Most of the pretty printing functions (based on 'Pretty') in this module are
--- written for the parameterized label data form and thus take a 'Fmt' argument
--- for handling the parameterized label type.
+-- | Many of the pretty printing functions (based on 'Pretty') in this module are
+-- written for the monomorphized `BlockLabel` version of the AST objects, but
+-- some (those ending with a "tick" or single-quote) support the parameterized form.
 --
 -- When the parameterized label type is known to be 'BlockLabel', then 'ppLabel'
 -- can be passed as this first argument to those pretty printing functions.
@@ -649,6 +649,11 @@ ppBasicBlock bb = ppMaybe ppLabelDef (bbLabel bb)
 -- > instance PrettyLabel lab => Pretty Something where
 -- >   pretty s = .... <> ppValue' ppLabel' <>
 --
+-- Note that the `PrettyLabel` class is very similar to the `Pretty` class, but
+-- unlike the latter's `pretty` method, the `PrettyLabel` returns the `Fmt`
+-- object that allows the pretty-printing to be affected by the implicit `Config`
+-- parameter; this aligns the `PrettyLabel` usage to the other pretty-printing
+-- functions in this module.
 
 class PrettyLabel lab where
   ppLabel' :: Fmt lab
