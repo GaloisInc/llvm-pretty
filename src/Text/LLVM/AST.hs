@@ -179,6 +179,7 @@ module Text.LLVM.AST
   , DILocalVariable'(..), DILocalVariable
   , DISubprogram'(..), DISubprogram
   , DISubrange'(..), DISubrange
+  , DISubrangeType'(..), DISubrangeType
   , DISubroutineType'(..), DISubroutineType
   , DIArgList'(..), DIArgList
   , dwarf_DW_APPLE_ENUM_KIND_invalid
@@ -1860,6 +1861,7 @@ data DebugInfo' lab
   | DebugInfoLabel (DILabel' lab)
   | DebugInfoArgList (DIArgList' lab)
   | DebugInfoAssignID -- ^ Introduced in LLVM 17.
+  | DebugInfoSubrangeType (DISubrangeType' lab)
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DebugInfo = DebugInfo' BlockLabel
@@ -1943,6 +1945,23 @@ data DIBasicType' lab = DIBasicType
   } deriving (Data, Eq, Functor, Generic, Ord, Show)
 
 type DIBasicType = DIBasicType' BlockLabel
+
+data DISubrangeType' lab = DISubrangeType -- Added in LLVM 21
+  { disrtName       :: Maybe String
+  , disrtFile       :: Maybe (ValMd' lab)
+  , disrtLine       :: Word32
+  , disrtScope      :: Maybe (ValMd' lab)
+  , disrtBaseType   :: Maybe (ValMd' lab) -- ^ a type
+  , disrtSize       :: Maybe (ValMd' lab) -- ^ in bits. signed constant, DIVariable, DIGlobalVariable, or DIExpression
+  , disrtAlign      :: Word64 -- ^ in bits
+  , disrtFlags      :: DIFlags
+  , disrtLowerBound :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, DIGlobalVariable, or DIExpression
+  , disrtUpperBound :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, DIGlobalVariable, or DIExpression
+  , disrtStride     :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, DIGlobalVariable, or DIExpression
+  , disrtBias       :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, DIGlobalVariable, or DIExpression
+  } deriving (Data, Eq, Functor, Generic, Ord, Show)
+
+type DISubrangeType = DISubrangeType' BlockLabel
 
 data DICompileUnit' lab = DICompileUnit
   { dicuLanguage           :: DwarfLang

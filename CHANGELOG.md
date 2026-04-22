@@ -7,6 +7,9 @@
     field.
   * `DIBasicType'` now has an additional `dibtDataSize :: Word32` field.
 
+* Support LLVM 21:
+  * Added support for the `DISubrangeType` metadata.
+
 * Corrected the printing of non-normal single-precision floating point
   constants.
 

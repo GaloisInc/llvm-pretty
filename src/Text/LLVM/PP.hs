@@ -126,6 +126,8 @@ module Text.LLVM.PP
   , ppDITemplateValueParameter'
   , ppDITemplateValueParameter
   , ppDIBasicType'
+  , ppDISubrangeType'
+  , ppDISubrangeType
   , ppDICompileUnit'
   , ppDICompileUnit
   , ppFlags
@@ -1346,6 +1348,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoLocalVariable lv     -> ppDILocalVariable' pp lv
   DebugInfoSubprogram sp        -> ppDISubprogram' pp sp
   DebugInfoSubrange sr          -> ppDISubrange' pp sr
+  DebugInfoSubrangeType srt     -> ppDISubrangeType' pp srt
   DebugInfoSubroutineType st    -> ppDISubroutineType' pp st
   DebugInfoNameSpace ns         -> ppDINameSpace' pp ns
   DebugInfoTemplateTypeParameter dttp  -> ppDITemplateTypeParameter' pp dttp
@@ -1502,6 +1505,26 @@ ppDIBasicType' pp bt = "!DIBasicType"
          else Nothing
        ]
        )
+
+ppDISubrangeType' :: Fmt i -> Fmt (DISubrangeType' i)
+ppDISubrangeType' pp srt = "!DISubrangeType"
+  <> parens (mcommas
+       [     (("name:"     <+>) . doubleQuotes . text) <$> (disrtName srt)
+       ,     (("file:"     <+>) . ppValMd' pp) <$> (disrtFile srt)
+       , pure ("line:"     <+> integral (disrtLine srt))
+       ,     (("scope:"    <+>) . ppValMd' pp) <$> (disrtScope srt)
+       ,     (("size:"     <+>) . ppValMd' pp) <$> (disrtSize srt)
+       , pure ("align:"    <+> integral (disrtAlign srt))
+       , pure ("flags:"    <+> integral (disrtFlags srt))
+       ,     (("baseType:" <+>) . ppValMd' pp) <$> (disrtBaseType srt)
+       , (("lowerBound:"   <+>) . ppInt64ValMd' True pp) <$> disrtLowerBound srt
+       , (("upperBound:"   <+>) . ppInt64ValMd' True pp) <$> disrtUpperBound srt
+       , (("stride:"       <+>) . ppInt64ValMd' True pp) <$> disrtStride srt
+       , (("bias:"         <+>) . ppInt64ValMd' True pp) <$> disrtBias srt
+       ])
+
+ppDISubrangeType :: Fmt DISubrangeType
+ppDISubrangeType = ppDISubrangeType' ppLabel
 
 ppDICompileUnit' :: Fmt i -> Fmt (DICompileUnit' i)
 ppDICompileUnit' pp cu = "!DICompileUnit"
@@ -1859,7 +1882,7 @@ ppInt64ValMd' canFallBack pp = go
           ValMdValue tv
             | PrimType (Integer _) <- typedType tv
             , ValInteger i <- typedValue tv
-              -> integer i  -- 64 bits is the largest Int, so no conversion needed
+              -> integer i  -- 64 bits is the largest Int, so no conversion needed.
           o@(ValMdDebugInfo (DebugInfoGlobalVariable gv)) ->
             case digvVariable gv of
               Nothing -> when' canFallBack $ ppValMd' pp o

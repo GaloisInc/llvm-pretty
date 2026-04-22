@@ -32,6 +32,7 @@ concat <$> mapM (makeLensesWith (lensRules & lensField .~ (\_ _ n -> [TopName $ 
     , ''DIFile
     , ''DISubrange'
     , ''DIBasicType'
+    , ''DISubrangeType'
     , ''DIExpression
     , ''DISubprogram'
     , ''DISubroutineType'
