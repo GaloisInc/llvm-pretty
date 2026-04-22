@@ -1946,19 +1946,19 @@ data DIBasicType' lab = DIBasicType
 
 type DIBasicType = DIBasicType' BlockLabel
 
-data DISubrangeType' lab = DISubrangeType -- Added in LLVM 22
+data DISubrangeType' lab = DISubrangeType -- Added in LLVM 21
   { disrtName       :: Maybe String
   , disrtFile       :: Maybe (ValMd' lab)
   , disrtLine       :: Word32
   , disrtScope      :: Maybe (ValMd' lab)
   , disrtBaseType   :: Maybe (ValMd' lab) -- ^ a type
-  , disrtSize       :: Maybe (ValMd' lab) -- ^ in bits. signed constant, DIVariable, or DIExpression
+  , disrtSize       :: Maybe (ValMd' lab) -- ^ in bits. signed constant, DIVariable, DIGlobalVariable, or DIExpression
   , disrtAlign      :: Word64 -- ^ in bits
   , disrtFlags      :: DIFlags
-  , disrtLowerBound :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, or DIExpression
-  , disrtUpperBound :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, or DIExpression
-  , disrtStride     :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, or DIExpression
-  , disrtBias       :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, or DIExpression
+  , disrtLowerBound :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, DIGlobalVariable, or DIExpression
+  , disrtUpperBound :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, DIGlobalVariable, or DIExpression
+  , disrtStride     :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, DIGlobalVariable, or DIExpression
+  , disrtBias       :: Maybe (ValMd' lab) -- ^ signed constant, DIVariable, DIGlobalVariable, or DIExpression
   } deriving (Data, Eq, Functor, Generic, Ord, Show)
 
 type DISubrangeType = DISubrangeType' BlockLabel
