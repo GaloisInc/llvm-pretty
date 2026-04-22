@@ -1882,9 +1882,7 @@ ppInt64ValMd' canFallBack pp = go
           ValMdValue tv
             | PrimType (Integer _) <- typedType tv
             , ValInteger i <- typedValue tv
-              ->
-                -- 64 bits is the largest Int, so no conversion needed.
-                integer i
+              -> integer i  -- 64 bits is the largest Int, so no conversion needed.
           o@(ValMdDebugInfo (DebugInfoGlobalVariable gv)) ->
             case digvVariable gv of
               Nothing -> when' canFallBack $ ppValMd' pp o
