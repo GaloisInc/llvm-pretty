@@ -174,7 +174,7 @@ import Text.LLVM.Triple.AST (TargetTriple)
 import Text.LLVM.Triple.Print (printTriple)
 
 import Control.Applicative ((<|>))
-import Data.Bits ( shiftL, shiftR, (.|.), (.&.), complement, testBit )
+import Data.Bits ( shiftL, shiftR, (.|.), (.&.) )
 import Data.Bool ( bool )
 import Data.Char (isAlphaNum,isAscii,isDigit,isPrint,ord,toUpper)
 import Data.List ( intersperse, nub )
@@ -184,7 +184,7 @@ import GHC.Float (castDoubleToWord64, castWord32ToFloat, float2Double)
 import Numeric (showHex)
 import Text.PrettyPrint.HughesPJ
 import Data.Int
-import Data.Word (Word16, Word32, Word64)
+import Data.Word (Word16, Word32)
 import Prelude hiding ((<>))
 
 
@@ -1883,15 +1883,8 @@ ppInt64ValMd' canFallBack pp = go
             | PrimType (Integer _) <- typedType tv
             , ValInteger i <- typedValue tv
               ->
-                -- 64 bits is the largest Int, so no conversion needed.  However,
-                -- we intend to be compatible with LLVM's own tooling, and the
-                -- latter will parse these values as signed and will therefore
-                -- fail to parse a value with the high bit set.  Therefore this
-                -- must emit a signed value as well.
-                let v = fromInteger i :: Word64
-                in if testBit v 63
-                   then char '-' <> integer (toInteger $ complement v + 1)
-                   else integer i
+                -- 64 bits is the largest Int, so no conversion needed.
+                integer i
           o@(ValMdDebugInfo (DebugInfoGlobalVariable gv)) ->
             case digvVariable gv of
               Nothing -> when' canFallBack $ ppValMd' pp o
