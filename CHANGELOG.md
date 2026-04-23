@@ -9,6 +9,7 @@
 
 * Support LLVM 21:
   * Added support for the `DISubrangeType` metadata.
+  * Added support for the `DIFixedPointType` metadata.
 
 * Corrected the printing of non-normal single-precision floating point
   constants.

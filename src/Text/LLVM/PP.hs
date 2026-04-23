@@ -136,6 +136,8 @@ module Text.LLVM.PP
   , ppDIDerivedType'
   , ppDIDerivedType
   , ppDIEnumerator
+  , ppDIFixedPointType'
+  , ppDIFixedPointType
   , ppDIExpression
   , ppDIFile
   , ppDIGlobalVariable'
@@ -1349,6 +1351,7 @@ ppDebugInfo' pp di = case di of
   DebugInfoSubprogram sp        -> ppDISubprogram' pp sp
   DebugInfoSubrange sr          -> ppDISubrange' pp sr
   DebugInfoSubrangeType srt     -> ppDISubrangeType' pp srt
+  DebugInfoFixedPointType fpt   -> ppDIFixedPointType' pp fpt
   DebugInfoSubroutineType st    -> ppDISubroutineType' pp st
   DebugInfoNameSpace ns         -> ppDINameSpace' pp ns
   DebugInfoTemplateTypeParameter dttp  -> ppDITemplateTypeParameter' pp dttp
@@ -1634,6 +1637,35 @@ ppDIEnumerator n v u = "!DIEnumerator"
                     , "value:" <+> integral v
                     , "isUnsigned:" <+> ppBool u
                     ])
+
+ppDIFixedPointType' :: Fmt i -> Fmt (DIFixedPointType' i)
+ppDIFixedPointType' pp t = "!DIFixedPointType"
+  <> parens (mcommas $
+       [ pure ("tag:"       <+> integral (difptTag t))
+       ,     (("name:"     <+>) . doubleQuotes . text) <$> (difptName t)
+       ,     (("size:"     <+>) . ppValMd' pp) <$> (difptSize t)
+       , pure ("align:"    <+> integral (difptAlign t))
+       , pure ("encoding:" <+> integral (difptEncoding t))
+       , pure ("flags:"    <+> integral (difptFlags t))
+       ]
+       ++ case difptKind t of
+            FixedPointBinary v ->
+              [ pure "kind: Binary"
+              , pure ("factor:" <+> integral v)
+              ]
+            FixedPointDecimal v ->
+              [ pure "kind: Decimal"
+              , pure ("factor:" <+> integral v)
+              ]
+            FixedPointRational n d ->
+              [ pure "kind: Rational"
+              , pure ("numerator:" <+> integral n)
+              , pure ("denominator:" <+> integral d)
+              ]
+       )
+
+ppDIFixedPointType :: Fmt DIFixedPointType
+ppDIFixedPointType = ppDIFixedPointType' ppLabel
 
 ppDIExpression :: Fmt DIExpression
 ppDIExpression e = "!DIExpression"
