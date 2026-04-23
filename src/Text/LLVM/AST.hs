@@ -170,6 +170,8 @@ module Text.LLVM.AST
   , DICompileUnit'(..), DICompileUnit
   , DICompositeType'(..), DICompositeType
   , DIDerivedType'(..), DIDerivedType
+  , DIFixedPointType'(..), DIFixedPointType
+  , DIFixedPointKind'(..), DIFixedPointKind
   , DIExpression(..)
   , DIFile(..)
   , DIGlobalVariable'(..), DIGlobalVariable
@@ -1862,6 +1864,7 @@ data DebugInfo' lab
   | DebugInfoArgList (DIArgList' lab)
   | DebugInfoAssignID -- ^ Introduced in LLVM 17.
   | DebugInfoSubrangeType (DISubrangeType' lab)
+  | DebugInfoFixedPointType (DIFixedPointType' lab)
     deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DebugInfo = DebugInfo' BlockLabel
@@ -2064,6 +2067,26 @@ data DIDerivedType' lab = DIDerivedType
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DIDerivedType = DIDerivedType' BlockLabel
+
+data DIFixedPointType' lab = DIFixedPointType -- Added in LLVM 21
+  { difptTag      :: DwarfTag
+  , difptName     :: Maybe String
+  , difptSize     :: Maybe (ValMd' lab) -- ^ in bits. signed constant, DIVariable, DIGlobalVariable, or DIExpression
+  , difptAlign    :: Word64 -- ^ in bits
+  , difptEncoding :: DwarfAttrEncoding -- only DW_ATE_signed_fixed or DW_ATE_unsigned_fixed
+  , difptFlags    :: DIFlags
+  -- n.b. in the bitcode representation, kind, factor, numerator, and denominator
+  -- are all present, and kind controls which are actually used.
+  , difptKind     :: DIFixedPointKind' lab
+  } deriving (Data, Eq, Functor, Generic, Ord, Show)
+
+data DIFixedPointKind' lab = FixedPointBinary Integer  -- signed
+                           | FixedPointDecimal Integer -- signed
+                           | FixedPointRational Integer Integer
+  deriving (Data, Eq, Functor, Generic, Ord, Show)
+
+type DIFixedPointType = DIFixedPointType' BlockLabel
+type DIFixedPointKind = DIFixedPointKind' BlockLabel
 
 data DIExpression = DIExpression
   { dieElements :: [Word64]
