@@ -477,7 +477,9 @@ ppType :: Fmt Type
 ppType (PrimType pt)     = ppPrimType pt
 ppType (Alias i)         = ppIdent i
 ppType (Array len ty)    = brackets (integral len <+> char 'x' <+> ppType ty)
-ppType (PtrTo ty)        = ppType ty <> char '*'
+ppType (PtrTo ty)        = ppType ty <> case ty of
+                                          PtrOpaque -> mempty
+                                          _ -> char '*'
 ppType PtrOpaque         = "ptr"
 ppType (Struct ts)       = structBraces (commas (map ppType ts))
 ppType (PackedStruct ts) = angles (structBraces (commas (map ppType ts)))
