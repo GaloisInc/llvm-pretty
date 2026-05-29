@@ -12,13 +12,17 @@
 module Output ( tests ) where
 
 import           Control.Monad ( unless )
+import           Data.Functor.Identity (Identity(..))
 import qualified Data.Text as T
 import           GHC.Float (castWord32ToFloat, castWord64ToDouble)
 import qualified Test.Tasty as Tasty
 import           Test.Tasty.HUnit
+import qualified Text.Parsec as Parsec
 import qualified Text.PrettyPrint as PP
 
 import           Text.LLVM.AST
+import           Text.LLVM.Labels (relabel)
+import           Text.LLVM.Parser (pPrimType)
 import           Text.LLVM.PP
 
 import           TQQDefs
@@ -425,6 +429,312 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
       (ppToText $ ppLLVM37 ppValue (ValFP128_PPC (FP128_PPC_DoubleDouble 0.0 0.0)))
       "0xM00000000000000000000000000000000"
 
+  -- Windows SEH funclet pretty-printing spot-checks.  Full round-trip
+  -- coverage through bitcode lives in llvm-pretty-bc-parser's disasm-test
+  -- (seh-funclets.ll).
+
+  , let ppWide = T.pack . PP.renderStyle (PP.Style PP.PageMode 200 1.0)
+        tokTy = PrimType Token
+        none0 = Typed tokTy ValZeroInit
+        noneN = Typed tokTy ValNull
+        tok   = Typed tokTy (ValIdent (Ident "cs"))
+        bb    = Named (Ident "handler") :: BlockLabel
+        bbUnw = Named (Ident "unw")     :: BlockLabel
+        bb2   = Named (Ident "h2")      :: BlockLabel
+        argi  = Typed (PrimType (Integer 32)) (ValInteger 0)
+        seh i = ppWide $ ppLLVM 19 $ ppInstr i
+    in Tasty.testGroup "SEH funclet pretty-printing"
+       [ testCase "cleanuppad within none (ValZeroInit)" $
+         assertEqLines
+           (seh (CleanupPad none0 []))
+           "cleanuppad within none []"
+
+       , testCase "cleanuppad within none (ValNull)" $
+         assertEqLines
+           (seh (CleanupPad noneN []))
+           "cleanuppad within none []"
+
+       , testCase "catchpad within <ssa-token>" $
+         assertEqLines
+           (seh (CatchPad tok [argi]))
+           "catchpad within %cs [i32 0]"
+
+       , testCase "catchret to label" $
+         assertEqLines
+           (seh (CatchRet tok bb))
+           "catchret from %cs to label %handler"
+
+       , testCase "cleanupret unwind to caller" $
+         assertEqLines
+           (seh (CleanupRet tok Nothing))
+           "cleanupret from %cs unwind to caller"
+
+       , testCase "cleanupret unwind label" $
+         assertEqLines
+           (seh (CleanupRet tok (Just bbUnw)))
+           "cleanupret from %cs unwind label %unw"
+
+       , testCase "catchswitch within none unwind to caller" $
+         assertEqLines
+           (seh (CatchSwitch none0 [bb] Nothing))
+           "catchswitch within none [label %handler] unwind to caller"
+
+       , testCase "catchswitch within token, multiple handlers, explicit unwind" $
+         assertEqLines
+           (seh (CatchSwitch tok [bb, bb2] (Just bbUnw)))
+           "catchswitch within %cs [label %handler, label %h2] unwind label %unw"
+       ]
+
+  -- Operand bundle pretty-printing spot-checks.  Full round-trip
+  -- coverage through bitcode lives in llvm-pretty-bc-parser's disasm-test
+  -- (windows-seh-funclets.bc).
+
+  , let ppWide = T.pack . PP.renderStyle (PP.Style PP.PageMode 200 1.0)
+        tokTy = PrimType Token
+        tok   = Typed tokTy (ValIdent (Ident "cs"))
+        bb    = Named (Ident "ok")  :: BlockLabel
+        bbUnw = Named (Ident "unw") :: BlockLabel
+        fnTy  = FunTy (PrimType Void) [] False
+        fnPtr = ValSymbol (Symbol "callee")
+        funBd = OperandBundle "funclet" [tok]
+        deopt = OperandBundle "deopt"   []
+        bundle i = ppWide $ ppLLVM 19 $ ppInstr i
+    in Tasty.testGroup "Operand bundle pretty-printing"
+       [ testCase "Call with empty bundle list omits the brackets" $
+         assertEqLines
+           (bundle (Call False fnTy fnPtr [] []))
+           "call void @callee()"
+
+       , testCase "Call with funclet bundle" $
+         assertEqLines
+           (bundle (Call False fnTy fnPtr [] [funBd]))
+           "call void @callee() [\"funclet\"(token %cs)]"
+
+       , testCase "Call with multiple bundles" $
+         assertEqLines
+           (bundle (Call False fnTy fnPtr [] [funBd, deopt]))
+           "call void @callee() [\"funclet\"(token %cs), \"deopt\"()]"
+
+       , testCase "Invoke with funclet bundle (bundle precedes 'to'/'unwind')" $
+         assertEqLines
+           (bundle (Invoke (PrimType Void) fnPtr [] bb bbUnw [funBd]))
+           "invoke void @callee() [\"funclet\"(token %cs)] to label %ok unwind label %unw"
+
+       , testCase "Invoke with empty bundle list omits the brackets" $
+         assertEqLines
+           (bundle (Invoke (PrimType Void) fnPtr [] bb bbUnw []))
+           "invoke void @callee() to label %ok unwind label %unw"
+       ]
+
+  , let ppWide = T.pack . PP.renderStyle (PP.Style PP.PageMode 200 1.0)
+        -- A minimal Define with no body; we only render the signature
+        -- via ppDefineSig.
+        baseDef = Define
+          { defLinkage     = Nothing
+          , defVisibility  = Nothing
+          , defRetType     = PrimType Void
+          , defName        = Symbol "f"
+          , defArgs        = []
+          , defVarArgs     = False
+          , defAttrs       = []
+          , defSection     = Nothing
+          , defGC          = Nothing
+          , defBody        = []
+          , defMetadata    = mempty
+          , defComdat      = Nothing
+          , defPersonality = Nothing
+          }
+        persFn = Typed PtrOpaque (ValSymbol (Symbol "__gxx_personality_v0"))
+        sig d  = ppWide (ppLLVM 19 (ppDefineSig d))
+    in Tasty.testGroup "Define personality clause"
+       [ testCase "no personality omits the clause" $
+         do let out = sig baseDef
+            assertBool ("unexpected 'personality' in: " ++ T.unpack out)
+                       (not ("personality" `T.isInfixOf` out))
+
+       , testCase "Just personality emits the clause after gc/section" $
+         assertEqLines
+           (sig (baseDef { defPersonality = Just persFn }))
+           "define void @f() personality ptr @__gxx_personality_v0"
+       ]
+
+  ----------------------------------------------------------------------
+  -- Behavioural contracts for the new SEH constructors / bundle field.
+  -- These are pure functions exposed by the AST and they have downstream
+  -- consumers (CFG analyses, label-renaming passes), so a regression
+  -- here would silently corrupt translation.  They are not exercised by
+  -- the pretty-printing spot-checks above.
+
+  , Tasty.testGroup "Token PrimType"
+    [ testCase "ppPrimType Token" $
+      assertEqLines
+        (T.pack (PP.render (ppLLVM 19 (ppPrimType Token))))
+        "token"
+
+    , testCase "pPrimType parses \"token\"" $
+      case Parsec.parse pPrimType "" "token" of
+        Right Token -> return ()
+        Right other -> assertFailure ("parsed wrong PrimType: " ++ show other)
+        Left  err   -> assertFailure ("parse failed: " ++ show err)
+    ]
+
+  , let tokTy = PrimType Token
+        tok   = Typed tokTy (ValIdent (Ident "cs"))
+        bb    = Named (Ident "h")   :: BlockLabel
+        bbUnw = Named (Ident "unw") :: BlockLabel
+    in Tasty.testGroup "isTerminator for SEH instructions"
+       [ testCase "CleanupRet is a terminator" $
+         assertBool "" (isTerminator (CleanupRet tok Nothing))
+       , testCase "CatchRet is a terminator" $
+         assertBool "" (isTerminator (CatchRet tok bb))
+       , testCase "CatchSwitch is a terminator" $
+         assertBool "" (isTerminator (CatchSwitch tok [bb] (Just bbUnw)))
+       , testCase "CleanupPad is NOT a terminator" $
+         assertBool "" (not (isTerminator (CleanupPad tok [])))
+       , testCase "CatchPad is NOT a terminator" $
+         assertBool "" (not (isTerminator (CatchPad tok [])))
+       ]
+
+  , let tokTy = PrimType Token
+        tok   = Typed tokTy (ValIdent (Ident "cs"))
+        bbH   = Named (Ident "h")   :: BlockLabel
+        bbH2  = Named (Ident "h2")  :: BlockLabel
+        bbUnw = Named (Ident "unw") :: BlockLabel
+        -- Build a one-statement basic block whose terminator is the
+        -- supplied SEH instruction and ask brTargets what its successors
+        -- are.  This is what downstream CFG construction relies on.
+        bb i  = BasicBlock { bbLabel = Just (Named (Ident "entry"))
+                           , bbStmts = [Effect i mempty []]
+                           }
+    in Tasty.testGroup "brTargets for SEH terminators"
+       [ testCase "CatchRet has the catchret destination as its sole successor" $
+         assertEqual ""
+           [bbH]
+           (brTargets (bb (CatchRet tok bbH)))
+       , testCase "CatchSwitch enumerates handlers then unwind dest" $
+         assertEqual ""
+           [bbH, bbH2, bbUnw]
+           (brTargets (bb (CatchSwitch tok [bbH, bbH2] (Just bbUnw))))
+       , testCase "CatchSwitch with 'unwind to caller' enumerates only handlers" $
+         assertEqual ""
+           [bbH, bbH2]
+           (brTargets (bb (CatchSwitch tok [bbH, bbH2] Nothing)))
+       , testCase "CleanupRet with unwind label exposes the unwind dest" $
+         assertEqual ""
+           [bbUnw]
+           (brTargets (bb (CleanupRet tok (Just bbUnw))))
+       , testCase "CleanupRet 'unwind to caller' has no successors" $
+         assertEqual ""
+           []
+           (brTargets (bb (CleanupRet tok Nothing)))
+       ]
+
+  , let tokTy = PrimType Token
+        tok   = Typed tokTy (ValIdent (Ident "cs"))
+        bbA   = Named (Ident "a") :: BlockLabel
+        bbB   = Named (Ident "b") :: BlockLabel
+        -- A relabeller that uppercases every BlockLabel's identifier so
+        -- we can assert that every lab field of a constructor was
+        -- actually visited by the HasLabel instance.  (A no-op identity
+        -- relabel would pass even if the instance forgot a field.)
+        up :: Maybe Symbol -> BlockLabel -> Identity BlockLabel
+        up _ (Named (Ident s)) = pure (Named (Ident (map toUpper s)))
+        up _ a                 = pure a
+        toUpper c | c >= 'a' && c <= 'z' = toEnum (fromEnum c - 32)
+                  | otherwise            = c
+        go :: Instr' BlockLabel -> Instr' BlockLabel
+        go = runIdentity . relabel up
+    in Tasty.testGroup "HasLabel covers every SEH lab field"
+       [ testCase "CatchRet destination is relabeled" $
+         assertEqual ""
+           (CatchRet tok (Named (Ident "A")))
+           (go (CatchRet tok bbA))
+       , testCase "CatchSwitch handlers + unwind are all relabeled" $
+         assertEqual ""
+           (CatchSwitch tok
+              [Named (Ident "A"), Named (Ident "B")]
+              (Just (Named (Ident "A"))))
+           (go (CatchSwitch tok [bbA, bbB] (Just bbA)))
+       , testCase "CleanupRet Nothing unwind stays Nothing" $
+         assertEqual ""
+           (CleanupRet tok Nothing)
+           (go (CleanupRet tok Nothing))
+       , testCase "CleanupRet Just unwind is relabeled" $
+         assertEqual ""
+           (CleanupRet tok (Just (Named (Ident "A"))))
+           (go (CleanupRet tok (Just bbA)))
+       , testCase "CatchPad / CleanupPad args traversed (no lab fields)" $
+         do let r1 = go (CatchPad   tok [])
+                r2 = go (CleanupPad tok [])
+            assertEqual "CatchPad"   (CatchPad   tok []) r1
+            assertEqual "CleanupPad" (CleanupPad tok []) r2
+       ]
+
+  , let tokTy = PrimType Token
+        tok   = Typed tokTy (ValIdent (Ident "cs"))
+        fnTy  = FunTy (PrimType Void) [] False
+        fnPtr = ValSymbol (Symbol "callee")
+        bbA   = Named (Ident "a") :: BlockLabel
+        bbB   = Named (Ident "b") :: BlockLabel
+        funBd = OperandBundle "funclet" [tok]
+        up :: Maybe Symbol -> BlockLabel -> Identity BlockLabel
+        up _ (Named (Ident s)) = pure (Named (Ident (map toUpper s)))
+        up _ a                 = pure a
+        toUpper c | c >= 'a' && c <= 'z' = toEnum (fromEnum c - 32)
+                  | otherwise            = c
+        go :: Instr' BlockLabel -> Instr' BlockLabel
+        go = runIdentity . relabel up
+    in Tasty.testGroup "Operand bundles + relabel"
+       [ -- The bundle list itself contains no labels (the funclet
+         -- token's value is an Ident not a BlockLabel), so we just
+         -- assert that bundle traversal is wired in and doesn't
+         -- accidentally drop the bundle.
+         testCase "Call preserves its operand bundles through relabel" $
+         assertEqual ""
+           (Call False fnTy fnPtr [] [funBd])
+           (go (Call False fnTy fnPtr [] [funBd]))
+
+       , testCase "Invoke relabels to/unwind and preserves bundles" $
+         assertEqual ""
+           (Invoke (PrimType Void) fnPtr []
+              (Named (Ident "A")) (Named (Ident "B")) [funBd])
+           (go (Invoke (PrimType Void) fnPtr [] bbA bbB [funBd]))
+
+       , testCase "CallBr relabels default + indirect dests and preserves bundles" $
+         assertEqual ""
+           (CallBr (PrimType Void) fnPtr []
+              (Named (Ident "A")) [Named (Ident "B")] [funBd])
+           (go (CallBr (PrimType Void) fnPtr [] bbA [bbB] [funBd]))
+       ]
+
+  , let ppWide = T.pack . PP.renderStyle (PP.Style PP.PageMode 200 1.0)
+        tokTy = PrimType Token
+        tok   = Typed tokTy (ValIdent (Ident "cs"))
+        fnPtr = ValSymbol (Symbol "callee")
+        bbA   = Named (Ident "a") :: BlockLabel
+        bbB   = Named (Ident "b") :: BlockLabel
+        funBd = OperandBundle "funclet" [tok]
+        deopt = OperandBundle "deopt"
+                  [ Typed (PrimType (Integer 32)) (ValInteger 7)
+                  , Typed (PrimType (Integer 64)) (ValInteger 99)
+                  ]
+        instr i = ppWide $ ppLLVM 19 $ ppInstr i
+    in Tasty.testGroup "Operand bundle PP (extra)"
+       [ testCase "ppOperandBundle of a multi-arg deopt" $
+         assertEqLines
+           (ppWide (ppLLVM 19 (ppOperandBundle deopt)))
+           "\"deopt\"(i32 7, i64 99)"
+
+       , testCase "ppOperandBundles of [] renders to the empty doc" $
+         assertEqLines
+           (ppWide (ppLLVM 19 (ppOperandBundles [])))
+           ""
+
+       , testCase "CallBr with funclet bundle (bundle precedes 'to')" $
+         assertEqLines
+           (instr (CallBr (PrimType Void) fnPtr [] bbA [bbB] [funBd]))
+           "callbr void @callee() [\"funclet\"(token %cs)] to label %a [label %b]"
+       ]
   ]
 
 ----------------------------------------------------------------------

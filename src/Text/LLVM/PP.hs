@@ -89,6 +89,8 @@ module Text.LLVM.PP
   , ppCallSym
   , ppGEP
   , ppInvoke
+  , ppOperandBundles
+  , ppOperandBundle
   , ppPhiArg
   , ppICmpOp
   , ppFCmpOp
@@ -462,6 +464,7 @@ ppPrimType Void           = "void"
 ppPrimType (Integer i)    = char 'i' <> integer (toInteger i)
 ppPrimType (FloatType ft) = ppFloatType ft
 ppPrimType X86mmx         = "x86mmx"
+ppPrimType Token          = "token"
 ppPrimType Metadata       = "metadata"
 
 ppFloatType :: Fmt FloatType
@@ -571,6 +574,8 @@ ppDefineSig d = "define"
                 <+> hsep (ppFunAttr <$> defAttrs d)
                 <+> ppMaybe (\s  -> "section" <+> doubleQuotes (text s)) (defSection d)
                 <+> ppMaybe (\gc -> "gc" <+> ppGC gc) (defGC d)
+                <+> ppMaybe (\p  -> "personality" <+> ppTyped ppValue p)
+                            (defPersonality d)
                 <+> ppMds (defMetadata d)
   where
   ppMds mdm =
@@ -807,8 +812,8 @@ ppInstr instr = case instr of
                          <> comma <+> ppValue r
   Conv op a ty           -> ppConvOp op <+> ppTyped ppValue a
                         <+> "to" <+> ppType ty
-  Call tc ty f args      -> ppCall tc ty f args
-  CallBr ty f args u es  -> ppCallBr ty f args u es
+  Call tc ty f args bs   -> ppCall tc ty f args bs
+  CallBr ty f args u es bs -> ppCallBr ty f args u es bs
   Alloca ty len align    -> ppAlloca ty len align
   Load ty ptr mo ma      -> ppLoad ty ptr mo ma
   Store a ptr mo ma      -> ppStore a ptr mo ma
@@ -854,7 +859,7 @@ ppInstr instr = case instr of
                         <+> ppLabel t
                          <> comma <+> ppType (PrimType Label)
                         <+> ppLabel f
-  Invoke ty f args to uw -> ppInvoke ty f args to uw
+  Invoke ty f args to uw bs -> ppInvoke ty f args to uw bs
   Unreachable            -> "unreachable"
   Unwind                 -> "unwind"
   VaArg al t             -> "va_arg" <+> ppTyped ppValue al
@@ -890,6 +895,24 @@ ppInstr instr = case instr of
                         $$ nest 2 (ppClauses c cs)
   Resume tv           -> "resume" <+> ppTyped ppValue tv
   Freeze tv           -> "freeze" <+> ppTyped ppValue tv
+
+  CleanupPad parent args ->
+    "cleanuppad" <+> "within" <+> ppFunclet parent
+                 <+> char '[' <> commas (map (ppTyped ppValue) args) <> char ']'
+  CatchPad parent args ->
+    "catchpad" <+> "within" <+> ppFunclet parent
+               <+> char '[' <> commas (map (ppTyped ppValue) args) <> char ']'
+  CleanupRet pad unwind ->
+    "cleanupret" <+> "from" <+> ppFunclet pad
+                 <+> maybe "unwind to caller"
+                           (\l -> "unwind" <+> ppTypedLabel l) unwind
+  CatchRet pad dest ->
+    "catchret" <+> "from" <+> ppFunclet pad <+> "to" <+> ppTypedLabel dest
+  CatchSwitch parent handlers defUnwind ->
+    "catchswitch" <+> "within" <+> ppFunclet parent
+                  <+> char '[' <> commas (map ppTypedLabel handlers) <> char ']'
+                  <+> maybe "unwind to caller"
+                            (\l -> "unwind" <+> ppTypedLabel l) defUnwind
 
 ppLoad :: Type -> Typed (Value' BlockLabel) -> Maybe AtomicOrdering -> Fmt (Maybe Align)
 ppLoad ty ptr mo ma =
@@ -940,6 +963,14 @@ ppClause c = case c of
 ppTypedLabel :: Fmt BlockLabel
 ppTypedLabel i = ppType (PrimType Label) <+> ppLabel i
 
+-- | Pretty-print the parent token operand of an SEH funclet instruction.
+-- Unlike @ppTyped ppValue@, this emits no type prefix and renders
+-- 'ConstantTokenNone' as @none@.
+ppFunclet :: Fmt (Typed (Value' BlockLabel))
+ppFunclet (Typed (PrimType Token) ValZeroInit) = "none"
+ppFunclet (Typed (PrimType Token) ValNull)     = "none"
+ppFunclet (Typed _                v)           = ppValue v
+
 ppSwitchEntry :: Type -> Fmt (Integer,BlockLabel)
 ppSwitchEntry ty (i,l) = ppType ty <+> integer i <> comma <+> ppTypedLabel l
 
@@ -960,20 +991,22 @@ ppAlloca ty mbLen mbAlign = "alloca" <+> ppType ty <> len <> align
     a <- mbAlign
     return (comma <+> "align" <+> int a)
 
-ppCall :: Bool -> Type -> Value -> Fmt [Typed Value]
-ppCall tc ty f args
+ppCall :: Bool -> Type -> Value -> [Typed Value] -> Fmt [OperandBundle]
+ppCall tc ty f args bs
   | tc        = "tail" <+> body
   | otherwise = body
   where
   body = "call" <+> ppCallSym ty f
       <> parens (commas (map (ppTyped ppValue) args))
+     <+> ppOperandBundles bs
 
 -- | Note that the textual syntax changed in LLVM 10 (@callbr@ was introduced in
 -- LLVM 9).
-ppCallBr :: Type -> Value -> [Typed Value] -> BlockLabel -> Fmt [BlockLabel]
-ppCallBr ty f args to indirectDests =
+ppCallBr :: Type -> Value -> [Typed Value] -> BlockLabel -> [BlockLabel] -> Fmt [OperandBundle]
+ppCallBr ty f args to indirectDests bs =
   "callbr"
      <+> ppCallSym ty f <> parens (commas (map (ppTyped ppValue) args))
+     <+> ppOperandBundles bs
      <+> "to" <+> ppLab to <+> brackets (commas (map ppLab indirectDests))
   where
     ppLab l = ppType (PrimType Label) <+> ppLabel l
@@ -1017,13 +1050,26 @@ ppGEP gf ty ptr ixs =
 
   explicit = ppType ty <> comma
 
-ppInvoke :: Type -> Value -> [Typed Value] -> BlockLabel -> Fmt BlockLabel
-ppInvoke ty f args to uw = body
+ppInvoke :: Type -> Value -> [Typed Value] -> BlockLabel -> BlockLabel -> Fmt [OperandBundle]
+ppInvoke ty f args to uw bs = body
   where
   body = "invoke" <+> ppCallSym ty f
       <> parens (commas (map (ppTyped ppValue) args))
+     <+> ppOperandBundles bs
      <+> "to" <+> ppType (PrimType Label) <+> ppLabel to
      <+> "unwind" <+> ppType (PrimType Label) <+> ppLabel uw
+
+-- | Pretty-print a list of operand bundles as @[ "tag"(args), ... ]@,
+-- or 'empty' if the list is empty.
+ppOperandBundles :: Fmt [OperandBundle]
+ppOperandBundles []  = empty
+ppOperandBundles bs  =
+  brackets (commas (map ppOperandBundle bs))
+
+ppOperandBundle :: Fmt OperandBundle
+ppOperandBundle (OperandBundle tag args) =
+  doubleQuotes (text tag)
+    <> parens (commas (map (ppTyped ppValue) args))
 
 ppPhiArg :: Fmt (Value,BlockLabel)
 ppPhiArg (v,l) = char '[' <+> ppValue v <> comma <+> ppLabel l <+> char ']'

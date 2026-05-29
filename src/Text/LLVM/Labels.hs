@@ -25,14 +25,16 @@ instance HasLabel Instr' where
                                 <$> traverse (relabel f) l
                                 <*> relabel f r
   relabel f (Conv op l r)         = Conv op <$> traverse (relabel f) l <*> pure r
-  relabel f (Call t r n as)       = Call t r
+  relabel f (Call t r n as bs)    = Call t r
                                 <$> relabel f n
                                 <*> traverse (traverse (relabel f)) as
-  relabel f (CallBr r n as u es)  = CallBr r
+                                <*> traverse (relabel f) bs
+  relabel f (CallBr r n as u es bs) = CallBr r
                                 <$> relabel f n
                                 <*> traverse (traverse (relabel f)) as
                                 <*> f Nothing u
                                 <*> traverse (f Nothing) es
+                                <*> traverse (relabel f) bs
   relabel f (Alloca t n a)        = Alloca t
                                 <$> traverse (traverse (relabel f)) n
                                 <*> pure a
@@ -89,11 +91,12 @@ instance HasLabel Instr' where
                                 <$> traverse (relabel f) c
                                 <*> f Nothing l
                                 <*> f Nothing r
-  relabel f (Invoke r s as u e)   = Invoke r
+  relabel f (Invoke r s as u e bs) = Invoke r
                                 <$> relabel f s
                                 <*> traverse (traverse (relabel f)) as
                                 <*> f Nothing u
                                 <*> f Nothing e
+                                <*> traverse (relabel f) bs
   relabel f (VaArg al t)          = VaArg
                                 <$> traverse (relabel f) al
                                 <*> pure t
@@ -122,8 +125,26 @@ instance HasLabel Instr' where
   relabel f (Resume tv)           = Resume <$> traverse (relabel f) tv
   relabel f (Freeze tv)           = Freeze <$> traverse (relabel f) tv
 
+  relabel f (CleanupPad p as)     = CleanupPad
+                                <$> traverse (relabel f) p
+                                <*> traverse (traverse (relabel f)) as
+  relabel f (CatchPad p as)       = CatchPad
+                                <$> traverse (relabel f) p
+                                <*> traverse (traverse (relabel f)) as
+  relabel f (CleanupRet p d)      = CleanupRet
+                                <$> traverse (relabel f) p
+                                <*> traverse (f Nothing) d
+  relabel f (CatchRet p d)        = CatchRet
+                                <$> traverse (relabel f) p
+                                <*> f Nothing d
+  relabel f (CatchSwitch p hs d)  = CatchSwitch
+                                <$> traverse (relabel f) p
+                                <*> traverse (f Nothing) hs
+                                <*> traverse (f Nothing) d
+
 instance HasLabel Stmt'                       where relabel = $(generateRelabel 'relabel ''Stmt')
 instance HasLabel Clause'                     where relabel = $(generateRelabel 'relabel ''Clause')
+instance HasLabel OperandBundle'              where relabel = $(generateRelabel 'relabel ''OperandBundle')
 instance HasLabel Value'                      where relabel = $(generateRelabel 'relabel ''Value')
 instance HasLabel ValMd'                      where relabel = $(generateRelabel 'relabel ''ValMd')
 instance HasLabel DebugRecord'                where relabel = $(generateRelabel 'relabel ''DebugRecord')

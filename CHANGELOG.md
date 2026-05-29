@@ -2,6 +2,28 @@
 
 ## next (MAJOR)
 
+* Added Windows SEH funclet instructions to `Instr'`: `CatchSwitch`,
+  `CatchPad`, `CleanupPad`, `CatchRet`, `CleanupRet`.  Also added the
+  `ConstantTokenNone` value and the `Token` case in `PrimType` for the LLVM
+  `token` primitive type.
+* `Define` gained a `defPersonality :: Maybe (Typed (Value' BlockLabel))`
+  field for the function's `personality` clause (required by the IR
+  verifier whenever the body contains `landingpad` or any SEH funclet
+  instruction).
+* Added **operand bundle** support on `Call`, `Invoke`, and `CallBr`:
+  * New `OperandBundle' lab` AST type (tag string + typed arguments),
+    re-exported as `OperandBundle = OperandBundle' BlockLabel`.
+  * The `Call`, `Invoke`, and `CallBr` constructors gained a trailing
+    `[OperandBundle' lab]` field.  **Breaking change**: existing pattern
+    matches and constructor applications must pass `[]` to preserve the
+    previous behaviour.
+  * Pretty-printing emits the LLVM textual syntax
+    `[ "tag"(typed args), ... ]` between the argument list and any
+    trailing clauses (e.g. the `to`/`unwind` labels of an `invoke`); an
+    empty bundle list emits nothing.
+  * The smart constructors in `Text.LLVM` (`call`, `call_`, `invoke`)
+    pass `[]` to preserve the previous behaviour.
+
 * Support LLVM 22:
   * `DICompileUnit'` now has an additional `dicuSourceLanguageVersion :: Word64`
     field.

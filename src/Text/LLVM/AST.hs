@@ -121,6 +121,7 @@ module Text.LLVM.AST
   , Align
   , Instr'(..), Instr
   , Clause'(..), Clause
+  , OperandBundle'(..), OperandBundle
   , isTerminator
   , isComment
   , isPhi
@@ -541,6 +542,7 @@ data PrimType
   | Integer Word32
   | FloatType FloatType
   | X86mmx
+  | Token
   | Metadata
     deriving (Data, Eq, Generic, Ord, Show, Lift)
 
@@ -879,6 +881,7 @@ data Define = Define
   , defBody       :: [BasicBlock]
   , defMetadata   :: FnMdAttachments
   , defComdat     :: Maybe String
+  , defPersonality :: Maybe (Typed (Value' BlockLabel))
   } deriving (Data, Eq, Generic, Ord, Show)
 
 defFunType :: Define -> Type
@@ -944,11 +947,14 @@ type BasicBlock = BasicBlock' BlockLabel
 brTargets :: BasicBlock' lab -> [lab]
 brTargets (BasicBlock _ stmts) =
   case stmtInstr (last stmts) of
-    Br _ t1 t2         -> [t1, t2]
-    Invoke _ _ _ to uw -> [to, uw]
-    Jump t             -> [t]
+    Br _ t1 t2           -> [t1, t2]
+    Invoke _ _ _ to uw _ -> [to, uw]
+    Jump t               -> [t]
     Switch _ l ls      -> l : map snd ls
     IndirectBr _ ls    -> ls
+    CatchRet _ bb      -> [bb]
+    CatchSwitch _ hs d -> hs ++ maybe [] (:[]) d
+    CleanupRet _ d     -> maybe [] (:[]) d
     _                  -> []
 
 -- Attributes ------------------------------------------------------------------
@@ -1247,19 +1253,21 @@ data Instr' lab
          * Middle of basic block.
          * The result matches the 3rd parameter. -}
 
-  | Call Bool Type (Value' lab) [Typed (Value' lab)]
+  | Call Bool Type (Value' lab) [Typed (Value' lab)] [OperandBundle' lab]
     {- ^ * Call a function.
             The boolean is tail-call hint (XXX: needs to be updated)
          * Middle of basic block.
-         * The result is as indicated by the provided type. -}
+         * The result is as indicated by the provided type.
+         * The final list is the operand bundles attached to the call. -}
 
-  | CallBr Type (Value' lab) [Typed (Value' lab)] lab [lab]
+  | CallBr Type (Value' lab) [Typed (Value' lab)] lab [lab] [OperandBundle' lab]
     {- ^ * Call a function in asm-goto style:
              return type;
              function operand;
              arguments;
              default basic block destination;
-             other basic block destinations.
+             other basic block destinations;
+             operand bundles attached to the call.
          * Middle of basic block.
          * The result is as indicated by the provided type.
          * Introduced in LLVM 9. -}
@@ -1417,7 +1425,7 @@ data Instr' lab
            block, otherwise jump to the second.
          * Ends basic block. -}
 
-  | Invoke Type (Value' lab) [Typed (Value' lab)] lab lab
+  | Invoke Type (Value' lab) [Typed (Value' lab)] lab lab [OperandBundle' lab]
     {- ^ * Calls the specified target function, then branches to the success
            label.  If an exception occurs during the call, the exception unwind
            handling branches to the second label.
@@ -1427,6 +1435,7 @@ data Instr' lab
            3. arguments to the function
            4. successful return target label
            5. on-exception unwind target label
+           6. operand bundles attached to the invoke.
          * Ends basic block. -}
 
   | Comment String
@@ -1481,6 +1490,34 @@ data Instr' lab
            returns its argument.
          * Middle of basic block. -}
 
+  | CleanupPad (Typed (Value' lab)) [Typed (Value' lab)]
+    {- ^ * Windows SEH: begins a cleanup handler.
+         * Arguments: parent exception pad token, list of args.
+         * Middle of basic block.
+         * Returns a token. -}
+
+  | CatchPad (Typed (Value' lab)) [Typed (Value' lab)]
+    {- ^ * Windows SEH: begins a catch handler.
+         * Arguments: parent catchswitch token, list of args.
+         * Middle of basic block.
+         * Returns a token. -}
+
+  | CleanupRet (Typed (Value' lab)) (Maybe lab)
+    {- ^ * Windows SEH: return from a cleanup handler.
+         * Arguments: cleanuppad token, optional unwind destination.
+         * Ends basic block. -}
+
+  | CatchRet (Typed (Value' lab)) lab
+    {- ^ * Windows SEH: return from a catch handler.
+         * Arguments: catchpad token, successor basic block.
+         * Ends basic block. -}
+
+  | CatchSwitch (Typed (Value' lab)) [lab] (Maybe lab)
+    {- ^ * Windows SEH: dispatches to catch handlers.
+         * Arguments: parent pad token, list of handler basic blocks,
+           optional default unwind destination.
+         * Ends basic block. -}
+
     deriving (Data, Eq, Functor, Generic, Ord, Show)
 
 type Instr = Instr' BlockLabel
@@ -1492,21 +1529,33 @@ data Clause' lab
 
 type Clause = Clause' BlockLabel
 
+-- | An operand bundle attached to a 'Call', 'Invoke', or 'CallBr'
+-- instruction (e.g. @[ "funclet"(token %x) ]@ or @[ "deopt"(...) ]@).
+data OperandBundle' lab = OperandBundle
+  { obTag  :: String
+  , obArgs :: [Typed (Value' lab)]
+  } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
+
+type OperandBundle = OperandBundle' BlockLabel
+
 
 isTerminator :: Instr' lab -> Bool
 isTerminator instr = case instr of
-  Ret{}        -> True
-  RetVoid      -> True
-  Jump{}       -> True
-  CallBr{}     -> True
-  Br{}         -> True
-  Unreachable  -> True
-  Unwind       -> True
-  Invoke{}     -> True
-  IndirectBr{} -> True
-  Switch{}     -> True
-  Resume{}     -> True
-  _            -> False
+  Ret{}         -> True
+  RetVoid       -> True
+  Jump{}        -> True
+  CallBr{}      -> True
+  Br{}          -> True
+  Unreachable   -> True
+  Unwind        -> True
+  Invoke{}      -> True
+  IndirectBr{}  -> True
+  Switch{}      -> True
+  Resume{}      -> True
+  CleanupRet{}  -> True
+  CatchRet{}    -> True
+  CatchSwitch{} -> True
+  _             -> False
 
 isComment :: Instr' lab -> Bool
 isComment Comment{} = True

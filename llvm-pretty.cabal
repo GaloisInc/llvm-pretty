@@ -78,6 +78,7 @@ Test-suite llvm-pretty-test
   Build-depends:
     llvm-pretty,
     base,
+    parsec,
     pretty,
     tasty,
     tasty-hunit,
