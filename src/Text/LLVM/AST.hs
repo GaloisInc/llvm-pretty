@@ -247,7 +247,7 @@ data Module = Module
 instance
 #if __GLASGOW_HASKELL__ >= 910
   -- Deprecation of instances was added in GHC 9.10
- {-# DEPRECATED "Unsafe! use llvmModuleCombine instead" #-}
+ {-# DEPRECATED "Unsafe! Scheduled for removal: use llvmModuleCombine instead" #-}
 #endif
   Sem.Semigroup Module where
   m1 <> m2 = Module

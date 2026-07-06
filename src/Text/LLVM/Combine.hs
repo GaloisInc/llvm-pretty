@@ -7,8 +7,8 @@ License     : BSD3
 Maintainer  : Kevin Quick <kquick@galois.com>
 Stability   : provisional
 
-Thos module provides the ability to smash together LLVM Module specifications to
-provide the ability to load separate LLVM Modules (e.g. bitcode files) and
+This module provides the ability to smash together LLVM 'Module' specifications
+to provide the ability to load separate LLVM 'Module's (e.g. bitcode files) and
 analyze them as if they had been linked together as a single program.
 
 -}
@@ -32,7 +32,7 @@ import Text.LLVM.AST
 import Text.LLVM.Lens
 
 
--- | Combines LLVM Modules into a single, composite Module.  This is akin to
+-- | Combines LLVM 'Module's into a single, composite 'Module'.  This is akin to
 -- linking, but just from the perspective of what is needed for program analysis.
 --
 -- This differs from `llvm-link` in the following known ways:
@@ -43,12 +43,12 @@ import Text.LLVM.Lens
 --    references to the typename in the other module will be rewritten to the
 --    first module.
 --
---    The `llvmModuleCombine` takes a slightly different approach: types are not
---    structurally coalesced, but this means that type names are deconflicted by
---    adding a numbered suffix.  This still requires modifying the type name
---    throughout that module, but (a) there are probably fewer type name
---    conflicts than structural equivalences, and (b) the original name is still
---    part of the new name which maintains origin information.
+--    The `llvmModuleCombine` function takes a slightly different approach: types
+--    are not structurally coalesced, but this means that type names are
+--    deconflicted by adding a numbered suffix.  This still requires modifying
+--    the type name throughout that module, but (a) there are probably fewer type
+--    name conflicts than structural equivalences, and (b) the original name is
+--    still part of the new name which maintains origin information.
 --
 -- 2. The `llvm-link` tool will occasionally rewrite calls to llvm intrinsics to
 --    explicitly add the default personality specification.  For example,
@@ -57,10 +57,10 @@ import Text.LLVM.Lens
 --    but `llvmModuleCombine` does not perform this naming update.
 --
 -- 3. External declaration resolution is type independent and only name
---    sensitive.  If Module A has an external declaration `declare @f(i32 x)` and
---    Module B has a definition `define @f(float x)`, this `llvmModuleCombine`
---    operation will use the latter to satisfy the former (by removing the
---    former) even though the types do not match.
+--    sensitive.  If 'Module' A has an external declaration `declare @f(i32 x)`
+--    and 'Module' B has a definition `define @f(float x)`, then this
+--    `llvmModuleCombine` operation will use the latter to satisfy the former (by
+--    removing the former) even though the types do not match.
 --
 llvmModuleCombine :: Module -> Module -> Module
 llvmModuleCombine a addModule =
@@ -111,18 +111,18 @@ deConflictTypes inpMod existingTypes =
   in foldl resolveTypeConflict inpMod (inpMod ^. modTypesLens)
 
 
--- | A Define takes precedence over a Declare.  When combining modules, module A
--- may Declare a function that is handled by a Define in module B, so get rid of
--- the Declare when putting A and B together.
+-- | A 'Define' takes precedence over a 'Declare'.  When combining modules,
+-- module A may 'Declare' a function that is handled by a 'Define' in module B,
+-- so get rid of the 'Declare' when putting A and B together.
 
 removeDefined :: Define -> [Declare] -> [Declare]
 removeDefined def = filter ((def ^. defNameLens /=) . view decNameLens)
 
 
--- | Module A and Module B may have a Define with the same name (Symbol).  This
--- is normal when linking multiple modules together, and is resolved by linkers
--- as guided by the Linkage information for the two Definitions, usually by
--- either renaming or merging.
+-- | 'Module' A and 'Module' B may have a Define with the same name ('Symbol').
+-- This is normal when linking multiple modules together, and is resolved by
+-- linkers as guided by the 'Linkage' information for the two 'Definition's,
+-- usually by either renaming or merging.
 
 deConflict :: [Define] -> [Define] -> [Define]
 deConflict new curr = uncurry (<>) $ foldl deConflictDef (curr, new) new
