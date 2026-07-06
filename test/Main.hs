@@ -2,6 +2,7 @@ module Main (main) where
 
 import qualified Test.Tasty as Tasty
 
+import qualified CombineTests
 import qualified DataLayout
 import qualified Metadata
 import qualified Output
@@ -14,4 +15,5 @@ main = Tasty.defaultMain $ Tasty.testGroup "LLVM tests"
        , Metadata.tests
        , Output.tests
        , Triple.tests
+       , CombineTests.tests
        ]

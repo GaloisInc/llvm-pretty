@@ -1,6 +1,6 @@
 Cabal-version:       2.2
 Name:                llvm-pretty
-Version:             0.14.0.0.100
+Version:             0.14.0.0.101
                      -- TODO: needs to be 0.15 due to UnnamedMdIdx newtype wrapper
 License:             BSD-3-Clause
 License-file:        LICENSE
@@ -39,6 +39,7 @@ Library
                        Text.LLVM.Lens
                        Text.LLVM.Parser
                        Text.LLVM.PP
+                       Text.LLVM.Combine
                        Text.LLVM.DebugUtils
                        Text.LLVM.Triple
                        Text.LLVM.Triple.AST
@@ -67,6 +68,7 @@ Test-suite llvm-pretty-test
   Type: exitcode-stdio-1.0
   Main-is: Main.hs
   Other-modules:
+    CombineTests
     DataLayout
     Metadata
     Output
@@ -78,6 +80,7 @@ Test-suite llvm-pretty-test
   Build-depends:
     llvm-pretty,
     base,
+    microlens,
     pretty,
     tasty,
     tasty-hunit,

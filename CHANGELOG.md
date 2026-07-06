@@ -2,6 +2,14 @@
 
 ## next (MAJOR)
 
+* Add `LLVM.Combine` module with `llvmModuleCombine` function.  This is the
+  proper way to combine two LLVM `Module` definitions and maintain integrity
+  (e.g. roughly equivalent to `llvm-link`).  The `Module` Semigroup instance is
+  unsafe and is deprecated (along with the Monoid instance) and scheduled for
+  removal.  Note that `llvmModuleCombine` does not do significant error detection
+  and it's up to the caller to determine that the modules should be combined.
+  See the documentation for `llvmModuleCombine` for more details.
+
 * Support LLVM 22:
   * `DICompileUnit'` now has an additional `dicuSourceLanguageVersion :: Word64`
     field.

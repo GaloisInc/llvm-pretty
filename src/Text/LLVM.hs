@@ -141,8 +141,40 @@ nextName pfx ns =
 -- LLVM Monad ------------------------------------------------------------------
 
 newtype LLVM a = LLVM
-  { unLLVM :: WriterT Module (StateT Names Id) a
+  { unLLVM :: WriterT ModuleBuilder (StateT Names Id) a
   } deriving (Functor,Applicative,Monad,MonadFix)
+
+
+-- | This is an internal object used to provide the Monoid/Semigroup building
+-- context for the WriterT.  There is no Semigroup instance for Module itself,
+-- because combining modules is not a trivial operation and it can fail
+-- (e.g. duplicate symbols/definitions); see the 'LLVM.Combine' module for a
+-- proper link-like combining function.  However, the functionality here is not
+-- really combining two modules, but instead is constructing a single module from
+-- discrete operations and thus we can use the ModuleBuilder newtype wrapper to
+-- allow Monoid/Semigroup functionality under this LLVM monad.
+
+newtype ModuleBuilder = ModuleBuilder { getModule :: Module }
+
+instance Semigroup ModuleBuilder where
+  (ModuleBuilder m1) <> (ModuleBuilder m2) = ModuleBuilder $ Module
+    { modSourceName = modSourceName m1 `mplus` modSourceName m2
+    , modTriple = modTriple m1 <> modTriple m2
+    , modDataLayout = modDataLayout m1 <> modDataLayout m2
+    , modTypes = modTypes m1 <> modTypes m2
+    , modUnnamedMd = modUnnamedMd m1 <> modUnnamedMd m2
+    , modNamedMd = modNamedMd m1 <> modNamedMd m2
+    , modGlobals = modGlobals m1 <> modGlobals m2
+    , modDeclares = modDeclares m1 <> modDeclares m2
+    , modDefines = modDefines m1 <> modDefines m2
+    , modInlineAsm = modInlineAsm m1 <> modInlineAsm m2
+    , modAliases = modAliases m1 <> modAliases m2
+    , modComdat = modComdat m1 <> modComdat m2
+    }
+
+instance Monoid ModuleBuilder where
+  mempty = ModuleBuilder emptyModule
+
 
 freshNameLLVM :: String -> LLVM String
 freshNameLLVM pfx = LLVM $ do
@@ -152,24 +184,24 @@ freshNameLLVM pfx = LLVM $ do
   return n
 
 runLLVM :: LLVM a -> (a,Module)
-runLLVM  = fst . runId . runStateT Map.empty . runWriterT . unLLVM
+runLLVM  = fmap getModule . fst . runId . runStateT Map.empty . runWriterT . unLLVM
 
 emitTypeDecl :: TypeDecl -> LLVM ()
-emitTypeDecl td = LLVM (put emptyModule { modTypes = [td] })
+emitTypeDecl td = LLVM (put $ ModuleBuilder $ emptyModule { modTypes = [td] })
 
 emitGlobal :: Global -> LLVM (Typed Value)
 emitGlobal g =
-  do LLVM (put emptyModule { modGlobals = [g] })
+  do LLVM (put $ ModuleBuilder $ emptyModule { modGlobals = [g] })
      return (ptrT (globalType g) -: globalSym g)
 
 emitDefine :: Define -> LLVM (Typed Value)
 emitDefine d =
-  do LLVM (put emptyModule { modDefines = [d] })
+  do LLVM (put $ ModuleBuilder $ emptyModule { modDefines = [d] })
      return (defFunType d -: defName d)
 
 emitDeclare :: Declare -> LLVM (Typed Value)
 emitDeclare d =
-  do LLVM (put emptyModule { modDeclares = [d] })
+  do LLVM (put $ ModuleBuilder $ emptyModule { modDeclares = [d] })
      return (decFunType d -: decName d)
 
 alias :: Ident -> Type -> LLVM ()

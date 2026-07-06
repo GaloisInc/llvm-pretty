@@ -10,6 +10,7 @@ incomplete: there are some values that new LLVM versions would accept but are
 not yet represented here.
 -}
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -243,7 +244,12 @@ data Module = Module
   } deriving (Data, Eq, Ord, Generic, Show)
 
 -- | Combines fields pointwise.
-instance Sem.Semigroup Module where
+instance
+#if __GLASGOW_HASKELL__ >= 910
+  -- Deprecation of instances was added in GHC 9.10
+ {-# DEPRECATED "Unsafe! Scheduled for removal: use llvmModuleCombine instead" #-}
+#endif
+  Sem.Semigroup Module where
   m1 <> m2 = Module
     { modSourceName = modSourceName m1 `mplus`   modSourceName m2
     , modTriple     = modTriple m1     <> modTriple     m2
@@ -259,9 +265,13 @@ instance Sem.Semigroup Module where
     , modComdat     = modComdat     m1 <> modComdat     m2
     }
 
-instance Monoid Module where
+instance
+#if __GLASGOW_HASKELL__ >= 910
+  -- Deprecation of instances was added in GHC 9.10
+  {-# DEPRECATED "Scheduled for removal: use emptyModule instead" #-}
+#endif
+  Monoid Module where
   mempty = emptyModule
-  mappend = (<>)
 
 emptyModule :: Module
 emptyModule  = Module
