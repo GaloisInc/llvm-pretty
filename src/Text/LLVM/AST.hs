@@ -165,6 +165,7 @@ module Text.LLVM.AST
   , DwarfLang
   , DwarfTag
   , DwarfVirtuality
+  , DwarfLLVMLangDialect(..)
   , DIFlags
   , DIEmissionKind
   , DIBasicType'(..), DIBasicType
@@ -1941,6 +1942,15 @@ type DIEmissionKind = Word8
 dwarf_DW_APPLE_ENUM_KIND_invalid :: Word32
 dwarf_DW_APPLE_ENUM_KIND_invalid = complement (0 :: Word32) -- ~ LLVM 19
 
+-- | An attribute which identifies an execution-model dialect of a source-level
+-- language. Introduced in LLVM 23.
+data DwarfLLVMLangDialect
+  = DwarfLLVMLangDialectSimt
+    -- ^ (0x01) – single-instruction, multiple-thread execution model.
+  | DwarfLLVMLangDialectTile
+    -- ^ (0x02) – tile-based execution model.
+  deriving (Data, Eq, Generic, Ord, Show)
+
 data DIBasicType' lab = DIBasicType
   { dibtTag      :: DwarfTag
   , dibtName     :: String
@@ -2004,6 +2014,8 @@ data DICompileUnit' lab = DICompileUnit
   , dicuSDK                :: Maybe String
   , dicuSourceLanguageVersion :: Word32
     -- ^ added in LLVM 22
+  , dicuDialect :: Maybe DwarfLLVMLangDialect
+    -- ^ added in LLVM 23
   } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DICompileUnit = DICompileUnit' BlockLabel
