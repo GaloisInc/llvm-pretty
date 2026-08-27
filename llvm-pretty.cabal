@@ -1,6 +1,6 @@
 Cabal-version:       2.2
 Name:                llvm-pretty
-Version:             0.14.0.0.101
+Version:             0.15.0.0
                      -- TODO: needs to be 0.15 due to UnnamedMdIdx newtype wrapper
 License:             BSD-3-Clause
 License-file:        LICENSE
