@@ -1,5 +1,7 @@
 # Revision history for llvm-pretty
 
+## next
+
 ## 0.15.0.0 -- 2026-08-27
 
 * Add `LLVM.Combine` module with `llvmModuleCombine` function.  This is the
