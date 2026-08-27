@@ -1955,6 +1955,9 @@ data DIBasicType' lab = DIBasicType
   , dibtFlags    :: Maybe DIFlags
   , dibtNumExtraInhabitants :: Word64 -- ^ added in LLVM 20.
   , dibtDataSize :: Word32 -- ^ added in LLVM 22.
+  , dibtScope :: Maybe (ValMd' lab) -- ^ added in LLVM 23.
+  , dibtFile :: Maybe (ValMd' lab) -- ^ added in LLVM 23.
+  , dibtLine :: Word32 -- ^ added in LLVM 23.
   } deriving (Data, Eq, Functor, Generic, Ord, Show)
 
 type DIBasicType = DIBasicType' BlockLabel

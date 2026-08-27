@@ -1507,6 +1507,12 @@ ppDIBasicType' pp bt = "!DIBasicType"
          then pure ("dataSize:" <+> integral (dibtDataSize bt))
          else Nothing
        ]
+       ++
+       when' (llvmVer >= 23)
+       [     (("scope:"          <+>) . ppValMd' pp) <$> (dibtScope bt)
+       ,     (("file:"           <+>) . ppValMd' pp) <$> (dibtFile bt)
+       , pure ("line:"            <+> integral (dibtLine bt))
+       ]
        )
 
 ppDISubrangeType' :: Fmt i -> Fmt (DISubrangeType' i)
