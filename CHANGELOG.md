@@ -2,6 +2,12 @@
 
 ## next
 
+* Support LLVM 23:
+  * `DIBasicType'` now has additional `dibt{Scope,File,Line}` fields.
+  * `DICompileUnit'` now has an additional `dicuDialect :: Maybe
+    DwarfLLVMLangDialect` field, where the new `DwarfLLVMLangDialect` data type
+    enumerates all currently supported dialects.
+
 ## 0.15.0.0 -- 2026-08-27
 
 * Add `LLVM.Combine` module with `llvmModuleCombine` function.  This is the

@@ -130,6 +130,7 @@ module Text.LLVM.PP
   , ppDISubrangeType
   , ppDICompileUnit'
   , ppDICompileUnit
+  , ppDwarfLLVMLangDialect
   , ppFlags
   , ppDICompositeType'
   , ppDICompositeType
@@ -1507,6 +1508,12 @@ ppDIBasicType' pp bt = "!DIBasicType"
          then pure ("dataSize:" <+> integral (dibtDataSize bt))
          else Nothing
        ]
+       ++
+       when' (llvmVer >= 23)
+       [     (("scope:"          <+>) . ppValMd' pp) <$> (dibtScope bt)
+       ,     (("file:"           <+>) . ppValMd' pp) <$> (dibtFile bt)
+       , pure ("line:"            <+> integral (dibtLine bt))
+       ]
        )
 
 ppDISubrangeType' :: Fmt i -> Fmt (DISubrangeType' i)
@@ -1567,11 +1574,21 @@ ppDICompileUnit' pp cu = "!DICompileUnit"
          then pure ("sourceLanguageVersion:" <+> integral (dicuSourceLanguageVersion cu))
          else Nothing
        ]
+       ++
+       when' (llvmVer >= 23)
+       [     (("dialect:"               <+>) . ppDwarfLLVMLangDialect) <$> (dicuDialect cu)
+       ]
        )
 
 
 ppDICompileUnit :: Fmt DICompileUnit
 ppDICompileUnit = ppDICompileUnit' ppLabel
+
+-- Based on https://llvm.org/docs/SourceLevelDebugging.html#llvm-language-dialect
+ppDwarfLLVMLangDialect :: Fmt DwarfLLVMLangDialect
+ppDwarfLLVMLangDialect = \case
+  DwarfLLVMLangDialectSimt -> "DW_LLVM_LANG_DIALECT_simt"
+  DwarfLLVMLangDialectTile -> "DW_LLVM_LANG_DIALECT_tile"
 
 ppFlags :: Fmt (Maybe String)
 ppFlags mb = doubleQuotes (maybe empty text mb)
