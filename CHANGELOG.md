@@ -7,6 +7,7 @@
   * `DICompileUnit'` now has an additional `dicuDialect :: Maybe
     DwarfLLVMLangDialect` field, where the new `DwarfLLVMLangDialect` data type
     enumerates all currently supported dialects.
+* Redefine `LLVM` and `BB` monads as type synonyms for `LLVMT Id` and `BBT Id`.
 
 ## 0.15.0.0 -- 2026-08-27
 
