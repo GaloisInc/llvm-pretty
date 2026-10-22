@@ -1435,6 +1435,7 @@ ppDIImportedEntity' pp ie = "!DIImportedEntity"
                      , (("file:"   <+>) . ppValMd' pp) <$> diieFile ie
                      , pure ("line:"   <+> integral (diieLine ie))
                      , (("name:"   <+>) . text)        <$> diieName ie
+                     , (("elements:" <+>) . ppValMd' pp) <$> diieElements ie
                      ])
 
 ppDIImportedEntity :: Fmt DIImportedEntity

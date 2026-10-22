@@ -1899,6 +1899,7 @@ data DIImportedEntity' lab = DIImportedEntity
     , diieFile   :: Maybe (ValMd' lab)
     , diieLine   :: Word32
     , diieName   :: Maybe String
+    , diieElements :: Maybe (ValMd' lab) -- ^ Introduced in LLVM 14.
     } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)
 
 type DITemplateTypeParameter = DITemplateTypeParameter' BlockLabel
