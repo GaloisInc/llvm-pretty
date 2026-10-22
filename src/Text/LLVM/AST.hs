@@ -1920,7 +1920,11 @@ data DITemplateValueParameter' lab = DITemplateValueParameter
 type DINameSpace = DINameSpace' BlockLabel
 data DINameSpace' lab = DINameSpace
     { dinsName  :: Maybe String
-    , dinsScope :: ValMd' lab
+    , dinsScope :: Maybe (ValMd' lab)
+    , dinsExportSymbols :: Bool
+      -- n.b. dinsFile and dinsLine were dropped circa LLVM 5.  They are still
+      -- here for posterity, but they will be an empty string and 0, respectively
+      -- for current versions of LLVM.
     , dinsFile  :: ValMd' lab
     , dinsLine  :: Word32
     } deriving (Data, Eq, Functor, Generic, Generic1, Ord, Show)

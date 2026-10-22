@@ -1458,12 +1458,21 @@ ppDILabel :: Fmt DILabel
 ppDILabel = ppDILabel' ppLabel
 
 ppDINameSpace' :: Fmt i -> Fmt (DINameSpace' i)
-ppDINameSpace' pp ns = "!DINameSpace"
-  <> parens (mcommas [ ("name:"   <+>) . text <$> (dinsName ns)
-                     , pure ("scope:"  <+> ppValMd' pp (dinsScope ns))
-                     , pure ("file:"   <+> ppValMd' pp (dinsFile ns))
-                     , pure ("line:"   <+> integral (dinsLine ns))
-                     ])
+ppDINameSpace' pp ns = "!DINamespace"
+  <> parens (mcommas ([ ("name:"   <+>) . ppStringLiteral <$> (dinsName ns)
+                      -- n.b. scope is required: show "null" on Nothing.
+                      , pure ("scope:" <+>
+                              maybe "null" (ppValMd' pp) (dinsScope ns))
+                      ]
+                      ++
+                      when' (dinsExportSymbols ns)
+                      [ pure ("exportSymbols:" <+> ppBool (dinsExportSymbols ns))
+                      ]
+                      ++
+                      when' (llvmVer < 5)
+                      [ pure ("file:"   <+> ppValMd' pp (dinsFile ns))
+                      , pure ("line:"   <+> integral (dinsLine ns))
+                      ]))
 
 ppDINameSpace :: Fmt DINameSpace
 ppDINameSpace = ppDINameSpace' ppLabel
