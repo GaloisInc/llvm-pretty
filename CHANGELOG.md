@@ -13,8 +13,8 @@
   the `scope` field is *required* and LLVM tooling will fail if it is not present,
   so this field is converted to a `Maybe` where `Nothing` indicates a `null`
   value which must be pretty-printed.
-* The `DIImportedEntity` field is updated to add the new `elements` field
-  which is a possible record size of 8.  This was added in LLVM 14.
+* The `DIImportedEntity` field is updated to add the new `elements` field added
+  in LLVM 14.
 
 ## 0.15.0.0 -- 2026-08-27
 
