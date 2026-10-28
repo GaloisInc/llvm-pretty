@@ -1228,9 +1228,11 @@ ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
 ppMetadata :: Fmt Doc
 ppMetadata body = char '!' <> body
 
+ppExplicitMdNull :: Fmt i -> Fmt (Maybe (ValMd' i))
+ppExplicitMdNull pp = maybe "null" (ppValMd' pp)
+
 ppMetadataNode' :: Fmt i -> Fmt [Maybe (ValMd' i)]
-ppMetadataNode' pp vs = ppMetadata (braces (commas (map arg vs)))
-  where arg = maybe ("null") (ppValMd' pp)
+ppMetadataNode' pp vs = ppMetadata (braces (commas (map (ppExplicitMdNull pp) vs)))
 
 ppMetadataNode :: Fmt [Maybe ValMd]
 ppMetadataNode = ppMetadataNode' ppLabel
@@ -1462,8 +1464,7 @@ ppDINameSpace' :: Fmt i -> Fmt (DINameSpace' i)
 ppDINameSpace' pp ns = "!DINamespace"
   <> parens (mcommas ([ ("name:"   <+>) . ppStringLiteral <$> (dinsName ns)
                       -- n.b. scope is required: show "null" on Nothing.
-                      , pure ("scope:" <+>
-                              maybe "null" (ppValMd' pp) (dinsScope ns))
+                      , pure ("scope:" <+> ppExplicitMdNull pp (dinsScope ns))
                       ]
                       ++
                       when' (dinsExportSymbols ns)
@@ -1836,7 +1837,7 @@ ppDISubroutineType' :: Fmt i -> Fmt (DISubroutineType' i)
 ppDISubroutineType' pp st = "!DISubroutineType"
   <> parens (commas
        [ "flags:" <+> integral (distFlags st)
-       , "types:" <+> fromMaybe "null" (ppValMd' pp <$> (distTypeArray st))
+       , "types:" <+> ppExplicitMdNull pp (distTypeArray st)
        ])
 
 ppDISubroutineType :: Fmt DISubroutineType
