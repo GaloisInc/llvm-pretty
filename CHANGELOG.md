@@ -8,6 +8,13 @@
     DwarfLLVMLangDialect` field, where the new `DwarfLLVMLangDialect` data type
     enumerates all currently supported dialects.
 * Redefine `LLVM` and `BB` monads as type synonyms for `LLVMT Id` and `BBT Id`.
+* `DINameSpace` is updated to add the `exportSymbols` flag.
+* BREAKING CHANGE: `DINameSpace` is modified to allow the `scope` field to be `null`.  Emitting
+  the `scope` field is *required* and LLVM tooling will fail if it is not present,
+  so this field is converted to a `Maybe` where `Nothing` indicates a `null`
+  value which must be pretty-printed.
+* The `DIImportedEntity` field is updated to add the new `elements` field added
+  in LLVM 14.
 
 ## 0.15.0.0 -- 2026-08-27
 

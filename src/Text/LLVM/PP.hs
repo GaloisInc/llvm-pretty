@@ -1228,9 +1228,11 @@ ppTypedValMd  = ppTyped ppValMd . Typed (PrimType Metadata)
 ppMetadata :: Fmt Doc
 ppMetadata body = char '!' <> body
 
+ppExplicitMdNull :: Fmt i -> Fmt (Maybe (ValMd' i))
+ppExplicitMdNull pp = maybe "null" (ppValMd' pp)
+
 ppMetadataNode' :: Fmt i -> Fmt [Maybe (ValMd' i)]
-ppMetadataNode' pp vs = ppMetadata (braces (commas (map arg vs)))
-  where arg = maybe ("null") (ppValMd' pp)
+ppMetadataNode' pp vs = ppMetadata (braces (commas (map (ppExplicitMdNull pp) vs)))
 
 ppMetadataNode :: Fmt [Maybe ValMd]
 ppMetadataNode = ppMetadataNode' ppLabel
@@ -1435,6 +1437,8 @@ ppDIImportedEntity' pp ie = "!DIImportedEntity"
                      , (("file:"   <+>) . ppValMd' pp) <$> diieFile ie
                      , pure ("line:"   <+> integral (diieLine ie))
                      , (("name:"   <+>) . text)        <$> diieName ie
+                     , when' (llvmVer >= 14)
+                       (("elements:" <+>) . ppValMd' pp) <$> diieElements ie
                      ])
 
 ppDIImportedEntity :: Fmt DIImportedEntity
@@ -1458,12 +1462,20 @@ ppDILabel :: Fmt DILabel
 ppDILabel = ppDILabel' ppLabel
 
 ppDINameSpace' :: Fmt i -> Fmt (DINameSpace' i)
-ppDINameSpace' pp ns = "!DINameSpace"
-  <> parens (mcommas [ ("name:"   <+>) . text <$> (dinsName ns)
-                     , pure ("scope:"  <+> ppValMd' pp (dinsScope ns))
-                     , pure ("file:"   <+> ppValMd' pp (dinsFile ns))
-                     , pure ("line:"   <+> integral (dinsLine ns))
-                     ])
+ppDINameSpace' pp ns = "!DINamespace"
+  <> parens (mcommas ([ ("name:"   <+>) . ppStringLiteral <$> (dinsName ns)
+                      -- n.b. scope is required: show "null" on Nothing.
+                      , pure ("scope:" <+> ppExplicitMdNull pp (dinsScope ns))
+                      ]
+                      ++
+                      when' (dinsExportSymbols ns)
+                      [ pure ("exportSymbols:" <+> ppBool (dinsExportSymbols ns))
+                      ]
+                      ++
+                      when' (llvmVer < 5)
+                      [ pure ("file:"   <+> ppValMd' pp (dinsFile ns))
+                      , pure ("line:"   <+> integral (dinsLine ns))
+                      ]))
 
 ppDINameSpace :: Fmt DINameSpace
 ppDINameSpace = ppDINameSpace' ppLabel
@@ -1826,7 +1838,7 @@ ppDISubroutineType' :: Fmt i -> Fmt (DISubroutineType' i)
 ppDISubroutineType' pp st = "!DISubroutineType"
   <> parens (commas
        [ "flags:" <+> integral (distFlags st)
-       , "types:" <+> fromMaybe "null" (ppValMd' pp <$> (distTypeArray st))
+       , "types:" <+> ppExplicitMdNull pp (distTypeArray st)
        ])
 
 ppDISubroutineType :: Fmt DISubroutineType
