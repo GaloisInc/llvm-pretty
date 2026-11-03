@@ -15,6 +15,8 @@
   value which must be pretty-printed.
 * The `DIImportedEntity` field is updated to add the new `elements` field added
   in LLVM 14.
+* Fix a bug that caused data layout strings containing only a single native
+  integer width specified (e.g., `n32`) to fail to parse.
 
 ## 0.15.0.0 -- 2026-08-27
 
