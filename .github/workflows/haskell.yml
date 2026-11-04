@@ -20,7 +20,7 @@ jobs:
     uses: GaloisInc/.github/.github/workflows/haskell-ci.yml@v2
     with:
       cabal: ${{ matrix.cabal }}
-      cache-key-prefix: v3b
+      cache-key-prefix: v4
       ghc: ${{ matrix.ghc }}
       os: ${{ matrix.os }}
       test: ${{ matrix.test }}

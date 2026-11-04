@@ -462,10 +462,18 @@ parseDataLayout str =
            'F' -> FunctionPointerAlign <$> pFunctionPointerAlignType <*> pInt -- Added in LLVM9
            'm' -> Mangling <$ char ':' <*> pMangling
            'n' -> alphaNum >>= \case
+             -- ni:<address space0>:<address space1>:<address space2>...
+             --
+             -- Note that there is always at least one colon separator.
              'i' -> char ':'
                     >> (NonIntegralPointerSpaces <$> sepBy pInt (char ':'))
+             -- n<size1>:<size2>:<size3>...
+             --
+             -- If there is only a single size, then there will be no colon
+             -- separator. As such, we parse the first size differently to
+             -- account for this.
              d -> do fs <- pIntWithFirstDigit d
-                     ss <- char ':' *> sepBy pInt (char ':')
+                     ss <- many (char ':' *> pInt)
                      return $ NativeIntSize $ fs : ss
            _   -> mzero
 

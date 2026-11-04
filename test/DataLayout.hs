@@ -28,4 +28,7 @@ tests =
      , testCase "datalayout 6"
        $ let dl = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-ni:3:4-S128"
          in ppDL <$> parseDataLayout dl @?= rspDL dl
+     , testCase "datalayout 7"
+       $ let dl = "E-m:m-p:32:32-i8:8:32-i16:16:32-i64:64-n32-S64"
+         in ppDL <$> parseDataLayout dl @?= rspDL dl
      ]
