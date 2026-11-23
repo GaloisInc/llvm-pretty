@@ -13,10 +13,10 @@ import           Text.LLVM.AST
 
 tests :: Tasty.TestTree
 tests = Tasty.testGroup "LLVM metadata tests" $
-  let s1 = Effect (Load PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
+  let s1 = Effect (Load False PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
            mempty md1
       s2 = Result (Ident "r1")
-           (Load PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
+           (Load False PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
            mempty md1
       md1 = [ ("foo", ValMdLoc $ DebugLoc { dlLine = 12
                                            , dlCol = 34

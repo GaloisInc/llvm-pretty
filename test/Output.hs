@@ -34,7 +34,7 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
         s1 = Effect
              (GEP [GEP_Inbounds] (Alias (Ident "hi")) (Typed Opaque dcu) [])
              mempty []
-        s2 = Effect (Load PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
+        s2 = Effect (Load False PtrOpaque (Typed Opaque ValNull) Nothing Nothing)
              mempty
              [ ("location", ValMdLoc $ DebugLoc { dlLine = 12
                                                 , dlCol = 34
@@ -49,6 +49,14 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
                (Typed PtrOpaque (ValIdent "addr"))
                [Named "hello", Named "world"])
                [] []
+        reg = Typed PtrOpaque (ValIdent "reg")
+        i32 = PrimType (Integer 32)
+        s4 = Effect (Load True i32 reg Nothing (Just 4)) mempty []
+        s5 = Effect (Store True (Typed i32 (ValInteger 1)) reg Nothing (Just 4))
+             mempty []
+        s6 = Effect (Load True i32 reg (Just SeqCst) (Just 4)) mempty []
+        s7 = Effect (Store False (Typed i32 (ValInteger 1)) reg Nothing (Just 4))
+             mempty []
         dcu :: Value
         dcu = ValMd
               $ ValMdDebugInfo
@@ -268,6 +276,44 @@ tests = Tasty.testGroup "LLVM pretty-printing output tests"
       ----
       |]
       (ppToText $ ppLLVM llvmVlatest $ ppStmt s3)
+
+  ------------------------------------------------------------
+
+  , testCase "Stmt 4" $
+    assertEqLines [sq|
+      A volatile load is marked as such
+      ----
+      load volatile i32, ptr %reg, align 4
+      ----
+      |]
+      (ppToText $ ppLLVM llvmVlatest $ ppStmt s4)
+
+  , testCase "Stmt 5" $
+    assertEqLines [sq|
+      A volatile store is marked as such
+      ----
+      store volatile i32 1, ptr %reg, align 4
+      ----
+      |]
+      (ppToText $ ppLLVM llvmVlatest $ ppStmt s5)
+
+  , testCase "Stmt 6" $
+    assertEqLines [sq|
+      The volatile marker follows the atomic marker
+      ----
+      load atomic volatile i32, ptr %reg seq_cst, align 4
+      ----
+      |]
+      (ppToText $ ppLLVM llvmVlatest $ ppStmt s6)
+
+  , testCase "Stmt 7" $
+    assertEqLines [sq|
+      A store that is not volatile has no marker
+      ----
+      store i32 1, ptr %reg, align 4
+      ----
+      |]
+      (ppToText $ ppLLVM llvmVlatest $ ppStmt s7)
 
   ------------------------------------------------------------
   -- Verify named labels and label targets are emitted correctly

@@ -415,7 +415,7 @@ localVariableNameDeclarations mdMap def =
   where
 
     aux :: [Stmt] -> Map Ident Ident -> Map Ident Ident
-    aux ( Effect (Store src dst _ _) _ _
+    aux ( Effect (Store _ src dst _ _) _ _
         : Effect (Call _ _ (ValSymbol (Symbol what)) [var,md,_]) _ _
         : _) sofar
       | what == "llvm.dbg.declare"  -- pre-LLVM19: intrinsic declaration match
