@@ -17,6 +17,9 @@
   in LLVM 14.
 * Fix a bug that caused data layout strings containing only a single native
   integer width specified (e.g., `n32`) to fail to parse.
+* BREAKING CHANGE: the `Load` and `Store` instructions have a new first field
+  that records whether the access is volatile, and `ppLoad` and `ppStore` take
+  it as a new first argument.  The `volatile` keyword is pretty-printed.
 
 ## 0.15.0.0 -- 2026-08-27
 

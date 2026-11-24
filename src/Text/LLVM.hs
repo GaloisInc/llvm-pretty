@@ -705,12 +705,12 @@ alloca ty mb align = observe (PtrTo ty) (Alloca ty es align)
   es = fmap toValue `fmap` mb
 
 load :: (IsValue a, Monad m) => Type -> Typed a -> Maybe Align -> BBT m (Typed Value)
-load ty ptr ma = observe ty (Load ty (toValue `fmap` ptr) Nothing ma)
+load ty ptr ma = observe ty (Load False ty (toValue `fmap` ptr) Nothing ma)
 
 store :: (IsValue a, IsValue b, Monad m) => a -> Typed b -> Maybe Align -> BBT m ()
 store a ptr ma =
   case typedType ptr of
-    PtrTo ty -> effect (Store (ty -: a) (toValue `fmap` ptr) Nothing ma)
+    PtrTo ty -> effect (Store False (ty -: a) (toValue `fmap` ptr) Nothing ma)
     _        -> error "store not given a pointer"
 
 nullPtr :: Type -> Typed Value

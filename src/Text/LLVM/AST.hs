@@ -1291,8 +1291,9 @@ data Instr' lab
          * Middle of basic block.
          * Returns a pointer to hold the given number of elements. -}
 
-  | Load Type (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
+  | Load Bool Type (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Read a value from the given address:
+           whether the load is volatile;
            type being loaded;
            address to read from;
            atomic ordering;
@@ -1300,8 +1301,9 @@ data Instr' lab
          * Middle of basic block.
          * Returns a value of type matching the pointer. -}
 
-  | Store (Typed (Value' lab)) (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
+  | Store Bool (Typed (Value' lab)) (Typed (Value' lab)) (Maybe AtomicOrdering) (Maybe Align)
     {- ^ * Write a value to memory:
+             whether the store is volatile;
              value to store;
              pointer to location where to store;
              atomic ordering;
